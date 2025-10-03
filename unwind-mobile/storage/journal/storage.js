@@ -35,58 +35,7 @@ const validateJournalEntry = (content, title = "") => {
     title: title?.trim() || "",
     content: content.trim(),
   };
-};
-
-// Get basic sentiment emoji based on keywords
-const getSentimentEmoji = (content) => {
-  const lowerContent = content.toLowerCase();
-
-  // Positive keywords
-  const positiveWords = [
-    "happy",
-    "joy",
-    "excited",
-    "grateful",
-    "amazing",
-    "wonderful",
-    "great",
-    "love",
-    "good",
-    "awesome",
-    "fantastic",
-    "excellent",
-  ];
-  const negativeWords = [
-    "sad",
-    "angry",
-    "frustrated",
-    "upset",
-    "terrible",
-    "awful",
-    "hate",
-    "bad",
-    "horrible",
-    "depressed",
-    "anxious",
-    "worry",
-  ];
-
-  let positiveCount = 0;
-  let negativeCount = 0;
-
-  positiveWords.forEach((word) => {
-    if (lowerContent.includes(word)) positiveCount++;
-  });
-
-  negativeWords.forEach((word) => {
-    if (lowerContent.includes(word)) negativeCount++;
-  });
-
-  if (positiveCount > negativeCount) return "😊";
-  if (negativeCount > positiveCount) return "😔";
-  return "😐";
-};
-
+}
 // Create new journal entry with validation and rate limiting
 export const createJournalEntryLocal = async ({ title, content }) => {
   try {
@@ -115,14 +64,15 @@ export const createJournalEntryLocal = async ({ title, content }) => {
     });
 
     return {
-      ...localEntry,
-      sentiment: getSentimentEmoji(validatedData.content),
+      ...localEntry
     };
   } catch (error) {
     console.error("Error creating journal entry:", error);
     throw error;
   }
-};
+
+}
+//
 
 // Sync single journal entry to server
 export const syncJournalEntryToServer = async ({ entry }) => {
@@ -155,7 +105,7 @@ export const syncJournalEntryToServer = async ({ entry }) => {
   });
 
   return syncedEntry;
-};
+}
 
 // Sync all unsynced journal entries with rate limiting
 export const syncAllJournalEntries = async () => {
@@ -194,15 +144,12 @@ export const syncAllJournalEntries = async () => {
   };
 };
 
-// Fetch recent journal entries with sentiment
+// Fetch recent journal entries
 export const fetchRecentJournalEntries = async (limit = 10, signal) => {
   const entries = await getRecentJournalEntries(limit);
-
   console.log("Recent entries fetched/storage/journal/storage.js:", entries);
-
   return entries.map((entry) => ({
     ...entry,
-    sentiment: getSentimentEmoji(entry.content),
     truncatedContent:
       entry.content.length > 100
         ? entry.content.substring(0, 100) + "..."
@@ -210,13 +157,11 @@ export const fetchRecentJournalEntries = async (limit = 10, signal) => {
   }));
 };
 
-// Fetch journal entries by date with sentiment
+// Fetch journal entries by date
 export const fetchJournalsByDate = async (date, signal) => {
   const entries = await getJournalEntriesByDate(date);
-
   return entries.map((entry) => ({
     ...entry,
-    sentiment: getSentimentEmoji(entry.content),
     truncatedContent:
       entry.content.length > 100
         ? entry.content.substring(0, 100) + "..."
@@ -227,12 +172,9 @@ export const fetchJournalsByDate = async (date, signal) => {
 // Get single journal entry by ID
 export const fetchJournalEntryById = async (id) => {
   const entry = await getJournalEntryById(id);
-
   if (!entry) return null;
-
   return {
-    ...entry,
-    sentiment: getSentimentEmoji(entry.content),
+    ...entry
   };
 };
 
@@ -240,18 +182,14 @@ export const fetchJournalEntryById = async (id) => {
 export const fetchJournalEntryWithServerData = async (id, signal) => {
   // First get the local entry
   const localEntry = await getJournalEntryById(id);
-  
   if (!localEntry) return null;
-
   const result = {
     local: {
       ...localEntry,
-      sentiment: getSentimentEmoji(localEntry.content),
     },
     server: null,
     isSynced: localEntry.synced || false
   };
-
   // If entry is synced and has server_id, try to fetch server data
   if (localEntry.synced && localEntry.server_id) {
     try {
@@ -259,11 +197,9 @@ export const fetchJournalEntryWithServerData = async (id, signal) => {
         id: localEntry.server_id, 
         signal 
       });
-      
       if (serverEntry) {
         result.server = {
           ...serverEntry,
-          sentiment: getSentimentEmoji(serverEntry.content || ''),
         };
       }
     } catch (error) {
@@ -271,7 +207,6 @@ export const fetchJournalEntryWithServerData = async (id, signal) => {
       // Don't throw error, just continue without server data
     }
   }
-
   return result;
 };
 
@@ -288,8 +223,7 @@ export const updateJournalEntryLocal = async ({ id, title, content }) => {
   });
 
   return {
-    ...updatedEntry,
-    sentiment: getSentimentEmoji(validatedData.content),
+    ...updatedEntry
   };
 };
 
