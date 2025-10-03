@@ -1,0 +1,545 @@
+// Lightweight API client for authorized requests to the backend
+import axios from "axios";
+import { auth } from "../";
+import { Alert } from "react-native";
+const API_BASE_URL =
+  process.env.EXPO_PUBLIC_API_URL || "http://192.168.29.225:5000";
+
+const client = axios.create({
+  baseURL: API_BASE_URL,
+  headers: { "Content-Type": "application/json" },
+});
+
+export async function authorizedFetch(path, options = {}, idToken) {
+  // Auto-attach Firebase ID token if available
+  let token = idToken;
+  try {
+    if (!token && auth?.currentUser) {
+      token = await auth.currentUser.getIdToken();
+    }
+  } catch {
+    Alert.alert(
+      "Authentication Error",
+      "Failed to retrieve authentication token. Please log in again."
+    );
+    throw new Error("Failed to retrieve authentication token");
+  }
+
+  const headers = {
+    "Content-Type": "application/json",
+    ...(options.headers || {}),
+  };
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const method = (options.method || "GET").toLowerCase();
+  let data;
+  if (typeof options.body === "string") {
+    try {
+      data = JSON.parse(options.body);
+    } catch {
+      data = options.body;
+    }
+  } else if (options.body !== undefined) {
+    data = options.body;
+  }
+
+  try {
+    const response = await client.request({
+      url: path,
+      method,
+      headers,
+      data,
+      params: options.params,
+    });
+    return { data: response.data, status: response.status };
+  } catch (error) {
+    const status = error?.response?.status;
+    const payload = error?.response?.data;
+    const message =
+      (payload && (payload.error || payload.message)) ||
+      error?.message ||
+      (status ? `Request failed with ${status}` : "Network request failed");
+    throw new Error(message);
+  }
+}
+
+export { API_BASE_URL };
+
+// Journal endpoints
+export async function listJournalEntries({
+  idToken,
+  date,
+  page = 1,
+  limit = 50,
+} = {}) {
+  console.log("listJournalEntries called with:", { date, page, limit });
+  
+  // Build query parameters explicitly
+  const params = new URLSearchParams();
+  if (date) {
+    params.set("date", date);
+  }
+  if (page) {
+    params.set("page", String(page));
+  }
+  if (limit) {
+    params.set("limit", String(limit));
+  }
+  const queryString = params.toString() ? `?${params.toString()}` : "";
+  
+  console.log("Making request to:", `/api/journal${queryString}`);
+
+  try {
+    const result = await authorizedFetch(
+      `/api/journal${queryString}`,
+      { method: "GET" },
+      idToken
+    );
+    
+    console.log("listJournalEntries result:", result);
+    
+    if (result.status !== 200) {
+      throw new Error(`Unexpected response status: ${result.status}`);
+    }
+    
+    return result.data;
+  } catch (error) {
+    console.log("listJournalEntries error:", error);
+    throw error;
+  }
+}
+
+export async function createJournalEntry({
+  idToken,
+  content,
+  date,
+  tags,
+  mood,
+}) {
+  console.log("createJournalEntry called with:", { content, date, tags, mood });
+  const body = JSON.stringify({ content, date, tags, mood });
+  console.log("Request body:", body);
+
+  try {
+    const result = await authorizedFetch(
+      `/api/journal`,
+      { method: "POST", body },
+      idToken
+    );
+    console.log("createJournalEntry result:", result);
+    if (result.status !== 201) {
+      throw new Error(`Unexpected response status: ${result.status}`);
+    }
+
+    return result.data;
+  } catch (error) {
+    console.log("createJournalEntry error:", error);
+    throw error;
+  }
+}
+
+export async function deleteJournalEntry({ idToken, id }) {
+  console.log("deleteJournalEntry called with:", { id });
+  
+  console.log("Making request to:", `/api/journal/${id}`);
+  
+  try {
+    const result = await authorizedFetch(
+      `/api/journal/${id}`, 
+      { method: "DELETE" }, 
+      idToken
+    );
+    
+    console.log("deleteJournalEntry result:", result);
+    
+    if (result.status !== 200 && result.status !== 204) {
+      throw new Error(`Unexpected response status: ${result.status}`);
+    }
+    
+    return result.data;
+  } catch (error) {
+    console.log("deleteJournalEntry error:", error);
+    throw error;
+  }
+}
+
+// Overthinking endpoints
+export async function listOverthinkingEntries({
+  idToken,
+  date,
+  page = 1,
+  limit = 50,
+} = {}) {
+  console.log("listOverthinkingEntries called with:", { date, page, limit });
+  
+  // Build query parameters explicitly
+  const params = new URLSearchParams();
+  if (date) {
+    params.set("date", date);
+  }
+  if (page) {
+    params.set("page", String(page));
+  }
+  if (limit) {
+    params.set("limit", String(limit));
+  }
+  const queryString = params.toString() ? `?${params.toString()}` : "";
+  
+  console.log("Making request to:", `/api/overthinking${queryString}`);
+  
+  try {
+    const result = await authorizedFetch(
+      `/api/overthinking${queryString}`, 
+      { method: "GET" }, 
+      idToken
+    );
+    
+    console.log("listOverthinkingEntries result:", result);
+    
+    if (result.status !== 200) {
+      throw new Error(`Unexpected response status: ${result.status}`);
+    }
+    
+    return result.data;
+  } catch (error) {
+    console.log("listOverthinkingEntries error:", error);
+    throw error;
+  }
+}
+
+export async function createOverthinkingEntry({
+  idToken,
+  thought,
+  solution,
+  date,
+}) {
+  console.log("createOverthinkingEntry called with:", {
+    thought,
+    solution,
+    date,
+  });
+  
+  const body = JSON.stringify({ thought, solution, date });
+  console.log("Request body:", body);
+  console.log("Making request to:", `/api/overthinking`);
+  
+  try {
+    const result = await authorizedFetch(
+      `/api/overthinking`,
+      { method: "POST", body },
+      idToken
+    );
+
+    console.log("createOverthinkingEntry result:", result);
+    
+    if (result.status !== 201) {
+      throw new Error(`Unexpected response status: ${result.status}`);
+    }
+
+    return result.data;
+  } catch (error) {
+    console.log("createOverthinkingEntry error:", error);
+    throw error;
+  }
+}
+
+export async function deleteOverthinkingEntry({ idToken, id }) {
+  console.log("deleteOverthinkingEntry called with:", { id });
+  
+  console.log("Making request to:", `/api/overthinking/${id}`);
+  
+  try {
+    const result = await authorizedFetch(
+      `/api/overthinking/${id}`,
+      { method: "DELETE" },
+      idToken
+    );
+    
+    console.log("deleteOverthinkingEntry result:", result);
+    
+    if (result.status !== 200 && result.status !== 204) {
+      throw new Error(`Unexpected response status: ${result.status}`);
+    }
+    
+    return result.data;
+  } catch (error) {
+    console.log("deleteOverthinkingEntry error:", error);
+    throw error;
+  }
+}
+
+// Mistakes endpoints
+export async function listMistakesEntries({
+  idToken,
+  date,
+  page = 1,
+  limit = 50,
+} = {}) {
+  console.log("listMistakesEntries called with:", { date, page, limit });
+  
+  // Build query parameters explicitly
+  const params = new URLSearchParams();
+  if (date) {
+    params.set("date", date);
+  }
+  if (page) {
+    params.set("page", String(page));
+  }
+  if (limit) {
+    params.set("limit", String(limit));
+  }
+  const queryString = params.toString() ? `?${params.toString()}` : "";
+  
+  console.log("Making request to:", `/api/mistakes${queryString}`);
+  
+  try {
+    const result = await authorizedFetch(
+      `/api/mistakes${queryString}`, 
+      { method: "GET" }, 
+      idToken
+    );
+    
+    console.log("listMistakesEntries result:", result);
+    
+    if (result.status !== 200) {
+      throw new Error(`Unexpected response status: ${result.status}`);
+    }
+    
+    return result.data;
+  } catch (error) {
+    console.log("listMistakesEntries error:", error);
+    throw error;
+  }
+}
+
+export async function createMistakeEntry({
+  idToken,
+  mistake,
+  solution,
+  category,
+  date,
+}) {
+  console.log("createMistakeEntry called with:", {
+    mistake,
+    solution,
+    category,
+    date,
+  });
+  
+  const body = JSON.stringify({ mistake, solution, category, date });
+  console.log("Request body:", body);
+  console.log("Making request to:", `/api/mistakes`);
+  
+  try {
+    const result = await authorizedFetch(
+      `/api/mistakes`,
+      { method: "POST", body },
+      idToken
+    );
+    
+    console.log("createMistakeEntry result:", result);
+
+    if (result.status !== 201) {
+      throw new Error(`Unexpected response status: ${result.status}`);
+    }
+
+    return result.data;
+  } catch (error) {
+    console.log("createMistakeEntry error:", error);
+    throw error;
+  }
+}
+
+export async function deleteMistakeEntry({ idToken, id }) {
+  console.log("deleteMistakeEntry called with:", { id });
+  
+  console.log("Making request to:", `/api/mistakes/${id}`);
+  
+  try {
+    const result = await authorizedFetch(
+      `/api/mistakes/${id}`, 
+      { method: "DELETE" }, 
+      idToken
+    );
+    
+    console.log("deleteMistakeEntry result:", result);
+    
+    if (result.status !== 200 && result.status !== 204) {
+      throw new Error(`Unexpected response status: ${result.status}`);
+    }
+    
+    return result.data;
+  } catch (error) {
+    console.log("deleteMistakeEntry error:", error);
+    throw error;
+  }
+}
+
+// Todo endpoints
+export async function listTodos({
+  idToken,
+  category,
+  page = 1,
+  limit = 50,
+} = {}) {
+  console.log("listTodos called with:", { category, page, limit });
+  
+  // Build query parameters explicitly
+  const params = new URLSearchParams();
+  if (category) {
+    params.set("category", category);
+  }
+  if (page) {
+    params.set("page", String(page));
+  }
+  if (limit) {
+    params.set("limit", String(limit));
+  }
+  const queryString = params.toString() ? `?${params.toString()}` : "";
+  
+  console.log("Making request to:", `/api/todos${queryString}`);
+  
+  try {
+    const result = await authorizedFetch(
+      `/api/todos${queryString}`, 
+      { method: "GET" }, 
+      idToken
+    );
+    
+    console.log("listTodos result:", result);
+    
+    if (result.status !== 200) {
+      throw new Error(`Unexpected response status: ${result.status}`);
+    }
+    
+    return result.data;
+  } catch (error) {
+    console.log("listTodos error:", error);
+    throw error;
+  }
+}
+
+export async function createTodo({
+  idToken,
+  title,
+  description,
+  category,
+  priority,
+  dueDate,
+}) {
+  console.log("createTodo called with:", {
+    title,
+    description,
+    category,
+    priority,
+    dueDate,
+  });
+  
+  const body = JSON.stringify({
+    title,
+    description,
+    category,
+    priority,
+    dueDate,
+  });
+  console.log("Request body:", body);
+  console.log("Making request to:", `/api/todos`);
+  
+  try {
+    const result = await authorizedFetch(
+      `/api/todos`, 
+      { method: "POST", body }, 
+      idToken
+    );
+    
+    console.log("createTodo result:", result);
+    
+    if (result.status !== 201) {
+      throw new Error(`Unexpected response status: ${result.status}`);
+    }
+    
+    return result.data;
+  } catch (error) {
+    console.log("createTodo error:", error);
+    throw error;
+  }
+}
+
+export async function updateTodo({
+  idToken,
+  id,
+  title,
+  description,
+  category,
+  priority,
+  dueDate,
+  completed,
+}) {
+  console.log("updateTodo called with:", {
+    id,
+    title,
+    description,
+    category,
+    priority,
+    dueDate,
+    completed,
+  });
+  
+  const body = JSON.stringify({
+    title,
+    description,
+    category,
+    priority,
+    dueDate,
+    completed,
+  });
+  console.log("Request body:", body);
+  console.log("Making request to:", `/api/todos/${id}`);
+  
+  try {
+    const result = await authorizedFetch(
+      `/api/todos/${id}`, 
+      { method: "PUT", body }, 
+      idToken
+    );
+    
+    console.log("updateTodo result:", result);
+    
+    if (result.status !== 200) {
+      throw new Error(`Unexpected response status: ${result.status}`);
+    }
+    
+    return result.data;
+  } catch (error) {
+    console.log("updateTodo error:", error);
+    throw error;
+  }
+}
+
+export async function deleteTodo({ idToken, id }) {
+  console.log("deleteTodo called with:", { id });
+  
+  console.log("Making request to:", `/api/todos/${id}`);
+  
+  try {
+    const result = await authorizedFetch(
+      `/api/todos/${id}`, 
+      { method: "DELETE" }, 
+      idToken
+    );
+    
+    console.log("deleteTodo result:", result);
+    
+    if (result.status !== 200 && result.status !== 204) {
+      throw new Error(`Unexpected response status: ${result.status}`);
+    }
+    
+    return result.data;
+  } catch (error) {
+    console.log("deleteTodo error:", error);
+    throw error;
+  }
+}
