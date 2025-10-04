@@ -24,19 +24,30 @@ import { Calendar } from "react-native-calendars";
 import { useNetworkStatus } from "../../utils/networkUtils";
 // import { AuthContext } from "../../context/AuthProvider";
 
-// Import new storage layer
+// Import storage layer (local operations only)
 import {
   fetchRecentOverthinkingEntries,
   fetchOverthinkingByDate,
   createOverthinkingEntryLocal,
-  syncOverthinkingEntryToServer,
-  syncAllOverthinkingEntries,
-  deleteOverthinkingEntryLocal,
   toggleOverthinkingDumpedLocal,
   getUnsyncedOverthinkingCount,
   canCreateOverthinkingEntryToday,
   canSyncOverthinkingToday,
 } from "../../storage/overthinking/storage";
+
+// Import API client functions for network operations
+import {
+  createOverthinkingEntry,
+  deleteOverthinkingEntry,
+} from "../../api/overthinking";
+
+// Import database operations
+import {
+  getUnsyncedOverthinkingEntries,
+  markOverthinkingEntrySynced,
+  deleteOverthinkingEntryById,
+  getOverthinkingSyncAttemptsCountToday,
+} from "../../storage/overthinking/db";
 
 // Removed database health utilities
 
@@ -83,6 +94,96 @@ export default function OverthinkingScreen() {
       };
     }, [])
   );
+
+  // Sync single overthinking entry to server
+  const syncOverthinkingEntryToServer = async ({ entry }) => {
+    if (entry.synced) {
+      return entry; // Already synced
+    }
+
+    // Create entry on server
+    const serverEntry = await createOverthinkingEntry({
+      thought: entry.thought,
+      solution: entry.solution,
+      date: entry.created_at.split("T")[0],
+    });
+
+    console.log("Server entry created:", serverEntry);
+    if (!serverEntry || !serverEntry._id) {
+      return null;
+    }
+
+    // Mark as synced locally
+    const syncedEntry = await markOverthinkingEntrySynced({
+      id: entry.id,
+      server_id: serverEntry._id,
+      server_meta: {
+        createdAt: serverEntry.createdAt,
+        updatedAt: serverEntry.updatedAt,
+        tags: serverEntry.tags || [],
+        mood: serverEntry.mood || null,
+      },
+    });
+
+    return syncedEntry;
+  };
+
+  // Sync all unsynced overthinking entries with rate limiting
+  const syncAllOverthinkingEntries = async () => {
+    // Check daily sync limit (3 syncs per day)
+    const todaySyncCount = await getOverthinkingSyncAttemptsCountToday();
+    if (todaySyncCount >= 3) {
+      throw new Error("You can only sync 3 times per day. Try again tomorrow!");
+    }
+
+    const unsyncedEntries = await getUnsyncedOverthinkingEntries();
+
+    if (unsyncedEntries.length === 0) {
+      return { syncedCount: 0, failedCount: 0 };
+    }
+
+    let syncedCount = 0;
+    let failedCount = 0;
+    const errors = [];
+
+    for (const entry of unsyncedEntries) {
+      try {
+        await syncOverthinkingEntryToServer({ entry });
+        syncedCount++;
+      } catch (error) {
+        console.error(`Failed to sync overthinking entry ${entry.id}:`, error);
+        failedCount++;
+        errors.push(`Entry ${entry.id}: ${error.message}`);
+      }
+    }
+
+    return {
+      syncedCount,
+      failedCount,
+      errors,
+      total: unsyncedEntries.length,
+    };
+  };
+
+  // Delete overthinking entry locally and from server
+  const deleteOverthinkingEntryLocal = async ({ entry }) => {
+    // Delete from local database first
+    await deleteOverthinkingEntryById(entry.id);
+
+    // If entry was synced, also delete from server
+    if (entry.synced && entry.server_id) {
+      try {
+        await deleteOverthinkingEntry({ id: entry.server_id });
+      } catch (serverError) {
+        console.warn(
+          "Failed to delete from server, but local deletion succeeded:",
+          serverError
+        );
+      }
+    }
+
+    return true;
+  };
 
   // Spinning animation for sync icon
   const spinValue = useSharedValue(0);

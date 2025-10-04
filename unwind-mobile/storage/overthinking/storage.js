@@ -1,9 +1,4 @@
-import { Alert } from "react-native";
 import * as db from "./db";
-import {
-  createOverthinkingEntry,
-  deleteOverthinkingEntry,
-} from "../../api/client";
 
 // Business logic and validation layer for overthinking entries
 
@@ -117,70 +112,7 @@ export const createOverthinkingEntryLocal = async ({
   }
 };
 
-// Sync single overthinking entry to server
-export const syncOverthinkingEntryToServer = async ({ entry }) => {
-  if (entry.synced) {
-    return entry; // Already synced
-  }
 
-  // Create entry on server - error handling is now centralized
-  const serverEntry = await createOverthinkingEntry({
-    thought: entry.thought,
-    solution: entry.solution,
-    date: entry.created_at.split("T")[0],
-  });
-
-  // Mark as synced locally
-  const syncedEntry = await db.markOverthinkingEntrySynced({
-    id: entry.id,
-    server_id: serverEntry._id,
-    server_meta: {
-      createdAt: serverEntry.createdAt,
-      updatedAt: serverEntry.updatedAt,
-      tags: serverEntry.tags || [],
-      mood: serverEntry.mood || null,
-    },
-  });
-
-  return syncedEntry;
-};
-
-// Sync all unsynced overthinking entries with rate limiting
-export const syncAllOverthinkingEntries = async () => {
-  // Check daily sync limit (3 syncs per day)
-  const todaySyncCount = await db.getOverthinkingSyncAttemptsCountToday();
-  if (todaySyncCount >= 3) {
-    throw new Error("You can only sync 3 times per day. Try again tomorrow!");
-  }
-
-  const unsyncedEntries = await db.getUnsyncedOverthinkingEntries();
-
-  if (unsyncedEntries.length === 0) {
-    return { syncedCount: 0, failedCount: 0 };
-  }
-
-  let syncedCount = 0;
-  let failedCount = 0;
-  const errors = [];
-
-  for (const entry of unsyncedEntries) {
-    try {
-      await syncOverthinkingEntryToServer({ entry });
-      syncedCount++;
-    } catch (error) {
-      console.error(`Failed to sync overthinking entry ${entry.id}:`, error);
-      failedCount++;
-      errors.push(`Entry ${entry.id}: ${error.message}`);
-    }
-  }
-
-  return {
-    syncedCount,
-    failedCount,
-    errors,
-    total: unsyncedEntries.length,
-  };
-};
 
 // Fetch recent overthinking entries with mood
 export const fetchRecentOverthinkingEntries = async (limit = 10, signal) => {
@@ -256,23 +188,10 @@ export const toggleOverthinkingDumpedLocal = async ({ id, dumped }) => {
   };
 };
 
-// Delete overthinking entry locally and from server
+// Delete overthinking entry locally only
 export const deleteOverthinkingEntryLocal = async ({ entry }) => {
-  // Delete from local database first
+  // Delete from local database only
   await db.deleteOverthinkingEntryById(entry.id);
-
-  // If entry was synced, also delete from server
-  if (entry.synced && entry.server_id) {
-    try {
-      await deleteOverthinkingEntry({ id: entry.server_id });
-    } catch (serverError) {
-      console.warn(
-        "Failed to delete from server, but local deletion succeeded:",
-        serverError
-      );
-    }
-  }
-
   return true;
 };
 

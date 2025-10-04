@@ -1,6 +1,4 @@
-import { Alert } from "react-native";
 import * as db from "./db";
-import { createMistakeEntry, deleteMistakeEntry } from "../../api/client";
 
 // Business logic and validation layer for mistakes entries
 
@@ -153,74 +151,7 @@ export const createMistakeEntryLocal = async ({
   }
 };
 
-// Sync single mistakes entry to server
-export const syncMistakesEntryToServer = async ({ entry }) => {
-  if (entry.synced) {
-    return entry; // Already synced
-  }
 
-  // Create entry on server - error handling is now centralized
-  const serverEntry = await createMistakeEntry({
-    mistake: entry.description,
-    solution: entry.lesson,
-    category: entry.category,
-    date: entry.created_at.split("T")[0],
-  });
-
-  // Mark as synced locally
-  const syncedEntry = await db.markMistakesEntrySynced({
-    id: entry.id,
-    server_id: serverEntry._id,
-    server_meta: {
-      createdAt: serverEntry.createdAt,
-      updatedAt: serverEntry.updatedAt,
-      tags: serverEntry.tags || [],
-      category: serverEntry.category || entry.category,
-    },
-  });
-
-  return syncedEntry;
-};
-
-// Backwards-compatible singular export expected by components
-export const syncMistakeEntryToServer = syncMistakesEntryToServer;
-
-// Sync all unsynced mistakes entries with rate limiting
-export const syncAllMistakesEntries = async () => {
-  // Check daily sync limit (3 syncs per day)
-  const todaySyncCount = await db.getMistakesSyncAttemptsCountToday();
-  if (todaySyncCount >= 3) {
-    throw new Error("You can only sync 3 times per day. Try again tomorrow!");
-  }
-
-  const unsyncedEntries = await db.getUnsyncedMistakesEntries();
-
-  if (unsyncedEntries.length === 0) {
-    return { syncedCount: 0, failedCount: 0 };
-  }
-
-  let syncedCount = 0;
-  let failedCount = 0;
-  const errors = [];
-
-  for (const entry of unsyncedEntries) {
-    try {
-      await syncMistakesEntryToServer({ entry });
-      syncedCount++;
-    } catch (error) {
-      console.error(`Failed to sync mistakes entry ${entry.id}:`, error);
-      failedCount++;
-      errors.push(`Entry ${entry.id}: ${error.message}`);
-    }
-  }
-
-  return {
-    syncedCount,
-    failedCount,
-    errors,
-    total: unsyncedEntries.length,
-  };
-};
 
 // Fetch recent mistakes entries with learning emojis
 export const fetchRecentMistakesEntries = async (limit = 10, signal) => {
@@ -303,23 +234,10 @@ export const toggleMistakesAvoidedLocal = async ({ id, avoided }) => {
   };
 };
 
-// Delete mistakes entry locally and from server
+// Delete mistakes entry locally only
 export const deleteMistakesEntryLocal = async ({ entry }) => {
-  // Delete from local database first
+  // Delete from local database only
   await db.deleteMistakesEntryById(entry.id);
-
-  // If entry was synced, also delete from server
-  if (entry.synced && entry.server_id) {
-    try {
-      await deleteMistakeEntry({ id: entry.server_id });
-    } catch (serverError) {
-      console.warn(
-        "Failed to delete from server, but local deletion succeeded:",
-        serverError
-      );
-    }
-  }
-
   return true;
 };
 

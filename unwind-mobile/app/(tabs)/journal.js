@@ -18,18 +18,31 @@ import { Calendar } from "react-native-calendars";
 import { useNetworkStatus } from "../../utils/networkUtils";
 // import { AuthContext } from "../../context/AuthProvider";
 
-// Import our new storage layer
+// Import storage layer (local operations only)
 import {
   fetchRecentJournalEntries,
   fetchJournalsByDate,
   createJournalEntryLocal,
-  syncJournalEntryToServer,
-  syncAllJournalEntries,
-  deleteJournalEntryLocal,
   getUnsyncedCount,
   canCreateEntryToday,
   canSyncToday,
 } from "../../storage/journal/storage";
+
+// Import API client functions for network operations
+import {
+  createJournalEntry,
+  deleteJournalEntry,
+  getJournalEntry,
+} from "../../api/journal";
+
+// Import database operations
+import {
+  getUnsyncedJournalEntries,
+  markJournalEntrySynced,
+  deleteJournalEntryById,
+  getSyncAttemptsCountToday,
+  getJournalEntryById,
+} from "../../storage/journal/db";
 
 // Import database health check
 // Removed database health/test utilities to avoid errors
@@ -73,6 +86,128 @@ export default function JournalScreen() {
   };
 
   // Removed animation logic
+
+  // Sync single journal entry to server
+  const syncJournalEntryToServer = async ({ entry }) => {
+    if (entry.synced) {
+      return entry; // Already synced
+    }
+
+    // Create entry on server
+    const serverEntry = await createJournalEntry({
+      content: entry.content,
+      date: entry.created_at.split("T")[0],
+      title: entry.title,
+    });
+
+    console.log("Server entry created:", serverEntry);
+    if (!serverEntry || !serverEntry._id) {
+      return null;
+    }
+
+    // Mark as synced locally
+    const syncedEntry = await markJournalEntrySynced({
+      id: entry.id,
+      server_id: serverEntry?._id,
+      server_meta: {
+        createdAt: serverEntry?.createdAt,
+        updatedAt: serverEntry?.updatedAt,
+        tags: serverEntry?.tags || [],
+        mood: serverEntry?.mood || null,
+      },
+    });
+
+    return syncedEntry;
+  };
+
+  // Sync all unsynced journal entries with rate limiting
+  const syncAllJournalEntries = async () => {
+    // Check daily sync limit (3 syncs per day)
+    const todaySyncCount = await getSyncAttemptsCountToday();
+    if (todaySyncCount >= 3) {
+      throw new Error("You can only sync 3 times per day. Try again tomorrow!");
+    }
+
+    const unsyncedEntries = await getUnsyncedJournalEntries();
+
+    if (unsyncedEntries.length === 0) {
+      return { syncedCount: 0, failedCount: 0 };
+    }
+
+    let syncedCount = 0;
+    let failedCount = 0;
+    const errors = [];
+
+    for (const entry of unsyncedEntries) {
+      try {
+        await syncJournalEntryToServer({ entry });
+        syncedCount++;
+      } catch (error) {
+        console.error(`Failed to sync entry ${entry.id}:`, error);
+        failedCount++;
+        errors.push(`Entry ${entry.id}: ${error.message}`);
+      }
+    }
+
+    return {
+      syncedCount,
+      failedCount,
+      errors,
+      total: unsyncedEntries.length,
+    };
+  };
+
+  // Delete journal entry locally and from server
+  const deleteJournalEntryLocal = async ({ entry }) => {
+    // Delete from local database first
+    await deleteJournalEntryById(entry.id);
+
+    // If entry was synced, also delete from server
+    if (entry.synced && entry.server_id) {
+      try {
+        await deleteJournalEntry({ id: entry.server_id });
+      } catch (serverError) {
+        console.warn(
+          "Failed to delete from server, but local deletion succeeded:",
+          serverError
+        );
+      }
+    }
+
+    return true;
+  };
+
+  // Get combined local and server data for a journal entry (if synced)
+  const fetchJournalEntryWithServerData = async (id, signal) => {
+    // First get the local entry
+    const localEntry = await getJournalEntryById(id);
+    if (!localEntry) return null;
+    const result = {
+      local: {
+        ...localEntry,
+      },
+      server: null,
+      isSynced: localEntry.synced || false
+    };
+    // If entry is synced and has server_id, try to fetch server data
+    if (localEntry.synced && localEntry.server_id) {
+      try {
+        const serverEntry = await getJournalEntry({ 
+          id: localEntry.server_id, 
+          signal 
+        });
+        if (serverEntry) {
+          result.server = {
+            ...serverEntry,
+          };
+        }
+      } catch (error) {
+        console.warn('Failed to fetch server data for journal entry:', error);
+        // Don't throw error, just continue without server data
+      }
+    }
+    return result;
+  };
 
   // Sync all pending entries
   const syncPendingEntries = async () => {

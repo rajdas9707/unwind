@@ -10,7 +10,7 @@ import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { WebView } from "react-native-webview";
-import { getHelpCenterUrl } from "../../api/client";
+import { getHelpCenterUrl } from "../../api/utils";
 
 export default function HelpCenterScreen() {
   const router = useRouter();

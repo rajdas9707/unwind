@@ -18,7 +18,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { auth } from "../../firebaseConfig"; // Assuming auth is exported from here
-import { getProfile, deleteUserAccount } from "../../api/client";
+import { getProfile, deleteUserAccount } from "../../api/auth";
 import * as FileSystem from "expo-file-system/legacy";
 import * as SQLite from "expo-sqlite";
 import { closeDB, openDB } from "../../storage/mainDb";

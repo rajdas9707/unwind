@@ -1,7 +1,3 @@
-import { Alert } from "react-native";
-
-import { createJournalEntry, deleteJournalEntry, getJournalEntry } from "../../api/client";
-import { useNetworkStatus } from "../../utils/networkUtils";
 import {
   deleteJournalEntryById,
   getJournalEntriesByDate,
@@ -11,7 +7,6 @@ import {
   getSyncAttemptsCountToday,
   getUnsyncedJournalEntries,
   insertJournalEntry,
-  markJournalEntrySynced,
   updateJournalEntry,
 } from "./db";
 
@@ -72,77 +67,6 @@ export const createJournalEntryLocal = async ({ title, content }) => {
   }
 
 }
-//
-
-// Sync single journal entry to server
-export const syncJournalEntryToServer = async ({ entry }) => {
-  if (entry.synced) {
-    return entry; // Already synced
-  }
-
-  // Create entry on server - error handling is now centralized in client.js
-  const serverEntry = await createJournalEntry({
-    content: entry.content,
-    date: entry.created_at.split("T")[0],
-    title: entry.title,
-  });
-
-  console.log("Server entry created:", serverEntry);
-  if (!serverEntry || !serverEntry._id) {
-    return null;
-  }
-
-  // Mark as synced locally
-  const syncedEntry = await markJournalEntrySynced({
-    id: entry.id,
-    server_id: serverEntry?._id,
-    server_meta: {
-      createdAt: serverEntry?.createdAt,
-      updatedAt: serverEntry?.updatedAt,
-      tags: serverEntry?.tags || [],
-      mood: serverEntry?.mood || null,
-    },
-  });
-
-  return syncedEntry;
-}
-
-// Sync all unsynced journal entries with rate limiting
-export const syncAllJournalEntries = async () => {
-  // Check daily sync limit (3 syncs per day)
-  const todaySyncCount = await getSyncAttemptsCountToday();
-  if (todaySyncCount >= 3) {
-    throw new Error("You can only sync 3 times per day. Try again tomorrow!");
-  }
-
-  const unsyncedEntries = await getUnsyncedJournalEntries();
-
-  if (unsyncedEntries.length === 0) {
-    return { syncedCount: 0, failedCount: 0 };
-  }
-
-  let syncedCount = 0;
-  let failedCount = 0;
-  const errors = [];
-
-  for (const entry of unsyncedEntries) {
-    try {
-      await syncJournalEntryToServer({ entry });
-      syncedCount++;
-    } catch (error) {
-      console.error(`Failed to sync entry ${entry.id}:`, error);
-      failedCount++;
-      errors.push(`Entry ${entry.id}: ${error.message}`);
-    }
-  }
-
-  return {
-    syncedCount,
-    failedCount,
-    errors,
-    total: unsyncedEntries.length,
-  };
-};
 
 // Fetch recent journal entries
 export const fetchRecentJournalEntries = async (limit = 10, signal) => {
@@ -178,37 +102,6 @@ export const fetchJournalEntryById = async (id) => {
   };
 };
 
-// Get combined local and server data for a journal entry (if synced)
-export const fetchJournalEntryWithServerData = async (id, signal) => {
-  // First get the local entry
-  const localEntry = await getJournalEntryById(id);
-  if (!localEntry) return null;
-  const result = {
-    local: {
-      ...localEntry,
-    },
-    server: null,
-    isSynced: localEntry.synced || false
-  };
-  // If entry is synced and has server_id, try to fetch server data
-  if (localEntry.synced && localEntry.server_id) {
-    try {
-      const serverEntry = await getJournalEntry({ 
-        id: localEntry.server_id, 
-        signal 
-      });
-      if (serverEntry) {
-        result.server = {
-          ...serverEntry,
-        };
-      }
-    } catch (error) {
-      console.warn('Failed to fetch server data for journal entry:', error);
-      // Don't throw error, just continue without server data
-    }
-  }
-  return result;
-};
 
 // Update journal entry with validation
 export const updateJournalEntryLocal = async ({ id, title, content }) => {
@@ -227,23 +120,10 @@ export const updateJournalEntryLocal = async ({ id, title, content }) => {
   };
 };
 
-// Delete journal entry locally and from server
+// Delete journal entry locally only
 export const deleteJournalEntryLocal = async ({ entry }) => {
-  // Delete from local database first
+  // Delete from local database only
   await deleteJournalEntryById(entry.id);
-
-  // If entry was synced, also delete from server
-  if (entry.synced && entry.server_id) {
-    try {
-      await deleteJournalEntry({ id: entry.server_id });
-    } catch (serverError) {
-      console.warn(
-        "Failed to delete from server, but local deletion succeeded:",
-        serverError
-      );
-    }
-  }
-
   return true;
 };
 
@@ -266,11 +146,3 @@ export const canSyncToday = async () => {
   return todaySyncCount < 3;
 };
 
-// Sync from server (download server entries to local)
-export const syncFromServer = async () => {
-  // idToken removed, now handled in client.js
-  // This would need to be implemented in your API client
-  // For now, we'll skip this as it's not in the existing client.js
-  console.log("Server sync not yet implemented");
-  return { downloaded: 0 };
-};

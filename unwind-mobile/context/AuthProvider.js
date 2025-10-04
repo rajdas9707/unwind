@@ -4,7 +4,7 @@ import { View, ActivityIndicator } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { useNetworkStatus } from "../utils/networkUtils";
-import { getProfile } from "../api/client";
+import { getProfile } from "../api/auth";
 
 export const AuthContext = createContext();
 

@@ -24,14 +24,11 @@ import { Calendar } from "react-native-calendars";
 import { useNetworkStatus } from "../../utils/networkUtils";
 // import { AuthContext } from "../../context/AuthProvider";
 
-// Import new storage layer
+// Import storage layer (local operations only)
 import {
   fetchRecentMistakesEntries,
   fetchMistakesByDate,
   createMistakeEntryLocal,
-  syncMistakeEntryToServer,
-  syncAllMistakesEntries,
-  deleteMistakeEntryLocal,
   getUnsyncedMistakesCount,
   canCreateMistakeEntryToday,
   canSyncMistakesToday,
@@ -39,6 +36,20 @@ import {
   getCategoryColor,
   getCategoryEmoji,
 } from "../../storage/mistakes/storage";
+
+// Import API client functions for network operations
+import {
+  createMistakeEntry,
+  deleteMistakeEntry,
+} from "../../api/mistakes";
+
+// Import database operations
+import {
+  getUnsyncedMistakesEntries,
+  markMistakesEntrySynced,
+  deleteMistakesEntryById,
+  getMistakesSyncAttemptsCountToday,
+} from "../../storage/mistakes/db";
 
 // Removed database health utilities
 
@@ -64,6 +75,118 @@ export default function MistakesScreen() {
   const [isDeletingEntry, setIsDeletingEntry] = useState(new Set());
   const [isUpdatingUnsyncedCount, setIsUpdatingUnsyncedCount] = useState(false);
   // const { idToken } = useContext(AuthContext); // removed, now handled in client.js
+
+  const isScreenActiveRef = useRef(true);
+  const showAlert = (title, message, buttons) => {
+    if (!isScreenActiveRef.current) return;
+    Alert.alert(title, message, buttons);
+  };
+  const logError = (...args) => {
+    if (!isScreenActiveRef.current) return;
+    // eslint-disable-next-line no-console
+    console.error(...args);
+  };
+
+  // Sync single mistakes entry to server
+  const syncMistakeEntryToServer = async ({ entry }) => {
+    if (entry.synced) {
+      return entry; // Already synced
+    }
+
+    // Create entry on server
+    const serverEntry = await createMistakeEntry({
+      mistake: entry.mistake,
+      solution: entry.solution,
+      category: entry.category,
+      date: entry.created_at.split("T")[0],
+    });
+
+    console.log("Server entry created:", serverEntry);
+    if (!serverEntry || !serverEntry._id) {
+      return null;
+    }
+
+    // Mark as synced locally
+    const syncedEntry = await markMistakesEntrySynced({
+      id: entry.id,
+      server_id: serverEntry._id,
+      server_meta: {
+        createdAt: serverEntry.createdAt,
+        updatedAt: serverEntry.updatedAt,
+        tags: serverEntry.tags || [],
+        category: serverEntry.category || entry.category,
+      },
+    });
+
+    return syncedEntry;
+  };
+
+  // Sync all unsynced mistakes entries with rate limiting
+  const syncAllMistakesEntries = async () => {
+    // Check daily sync limit (3 syncs per day)
+    const todaySyncCount = await getMistakesSyncAttemptsCountToday();
+    if (todaySyncCount >= 3) {
+      throw new Error("You can only sync 3 times per day. Try again tomorrow!");
+    }
+
+    const unsyncedEntries = await getUnsyncedMistakesEntries();
+
+    if (unsyncedEntries.length === 0) {
+      return { syncedCount: 0, failedCount: 0 };
+    }
+
+    let syncedCount = 0;
+    let failedCount = 0;
+    const errors = [];
+
+    for (const entry of unsyncedEntries) {
+      try {
+        await syncMistakeEntryToServer({ entry });
+        syncedCount++;
+      } catch (error) {
+        console.error(`Failed to sync mistakes entry ${entry.id}:`, error);
+        failedCount++;
+        errors.push(`Entry ${entry.id}: ${error.message}`);
+      }
+    }
+
+    return {
+      syncedCount,
+      failedCount,
+      errors,
+      total: unsyncedEntries.length,
+    };
+  };
+
+  // Delete mistakes entry locally and from server
+  const deleteMistakeEntryLocal = async ({ entry }) => {
+    // Delete from local database first
+    await deleteMistakesEntryById(entry.id);
+
+    // If entry was synced, also delete from server
+    if (entry.synced && entry.server_id) {
+      try {
+        await deleteMistakeEntry({ id: entry.server_id });
+      } catch (serverError) {
+        console.warn(
+          "Failed to delete from server, but local deletion succeeded:",
+          serverError
+        );
+      }
+    }
+
+    return true;
+  };
+
+  // Set screen active state
+  useFocusEffect(
+    React.useCallback(() => {
+      isScreenActiveRef.current = true;
+      return () => {
+        isScreenActiveRef.current = false;
+      };
+    }, [])
+  );
 
   // Spinning animation for sync icon
   const spinValue = useSharedValue(0);

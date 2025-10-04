@@ -18,15 +18,26 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { useNetworkStatus } from "../../utils/networkUtils";
 // import { useDatabaseReady } from "../../hooks/useDatabaseReady";
 
-// Import our storage layer
+// Import storage layer (local operations only)
 import {
   fetchJournalEntryById,
-  fetchJournalEntryWithServerData,
   updateJournalEntryLocal,
-  deleteJournalEntryLocal,
-  syncJournalEntryToServer,
   canSyncToday
 } from "../../storage/journal/storage";
+
+// Import API client functions for network operations
+import {
+  createJournalEntry,
+  deleteJournalEntry,
+  getJournalEntry,
+} from "../../api/journal";
+
+// Import database operations
+import {
+  getJournalEntryById,
+  markJournalEntrySynced,
+  deleteJournalEntryById,
+} from "../../storage/journal/db";
 
 export default function JournalDetailScreen() {
   const { id } = useLocalSearchParams();
@@ -43,6 +54,91 @@ export default function JournalDetailScreen() {
   const [isSyncing, setIsSyncing] = useState(false);
   
   // Removed animation logic
+
+  // Sync single journal entry to server
+  const syncJournalEntryToServer = async ({ entry }) => {
+    if (entry.synced) {
+      return entry; // Already synced
+    }
+
+    // Create entry on server
+    const serverEntry = await createJournalEntry({
+      content: entry.content,
+      date: entry.created_at.split("T")[0],
+      title: entry.title,
+    });
+
+    console.log("Server entry created:", serverEntry);
+    if (!serverEntry || !serverEntry._id) {
+      return null;
+    }
+
+    // Mark as synced locally
+    const syncedEntry = await markJournalEntrySynced({
+      id: entry.id,
+      server_id: serverEntry?._id,
+      server_meta: {
+        createdAt: serverEntry?.createdAt,
+        updatedAt: serverEntry?.updatedAt,
+        tags: serverEntry?.tags || [],
+        mood: serverEntry?.mood || null,
+      },
+    });
+
+    return syncedEntry;
+  };
+
+  // Get combined local and server data for a journal entry (if synced)
+  const fetchJournalEntryWithServerData = async (id, signal) => {
+    // First get the local entry
+    const localEntry = await getJournalEntryById(id);
+    if (!localEntry) return null;
+    const result = {
+      local: {
+        ...localEntry,
+      },
+      server: null,
+      isSynced: localEntry.synced || false
+    };
+    // If entry is synced and has server_id, try to fetch server data
+    if (localEntry.synced && localEntry.server_id) {
+      try {
+        const serverEntry = await getJournalEntry({ 
+          id: localEntry.server_id, 
+          signal 
+        });
+        if (serverEntry) {
+          result.server = {
+            ...serverEntry,
+          };
+        }
+      } catch (error) {
+        console.warn('Failed to fetch server data for journal entry:', error);
+        // Don't throw error, just continue without server data
+      }
+    }
+    return result;
+  };
+
+  // Delete journal entry locally and from server
+  const deleteJournalEntryLocal = async ({ entry }) => {
+    // Delete from local database first
+    await deleteJournalEntryById(entry.id);
+
+    // If entry was synced, also delete from server
+    if (entry.synced && entry.server_id) {
+      try {
+        await deleteJournalEntry({ id: entry.server_id });
+      } catch (serverError) {
+        console.warn(
+          "Failed to delete from server, but local deletion succeeded:",
+          serverError
+        );
+      }
+    }
+
+    return true;
+  };
 
   // Load entry data
   useEffect(() => {

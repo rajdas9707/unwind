@@ -22,7 +22,7 @@ import { StatusBar } from "expo-status-bar";
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
-import { signup } from "../api/client";
+import { signup } from "../api/auth";
 
 export default function AuthScreen() {
   const [isLogin, setIsLogin] = useState(true);

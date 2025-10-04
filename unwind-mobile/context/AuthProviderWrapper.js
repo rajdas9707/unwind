@@ -1,28 +1,11 @@
-import React, { useContext, useEffect } from 'react';
-import { AuthProvider, AuthContext } from './AuthProvider';
-import { setAuthContextRef } from '../api/client';
+import React from 'react';
+import { AuthProvider } from './AuthProvider';
 
-// Wrapper component to connect AuthProvider with client.js
-const AuthProviderSetup = ({ children }) => {
-  const authContext = useContext(AuthContext);
-
-  useEffect(() => {
-    // Set the auth context reference in client.js
-    if (authContext) {
-      setAuthContextRef(authContext);
-    }
-  }, [authContext]);
-
-  return <>{children}</>;
-};
-
-// Enhanced AuthProvider that automatically sets up client.js integration
+// Enhanced AuthProvider (now just wraps the original AuthProvider)
 export const EnhancedAuthProvider = ({ children }) => {
   return (
     <AuthProvider>
-      <AuthProviderSetup>
-        {children}
-      </AuthProviderSetup>
+      {children}
     </AuthProvider>
   );
 };
