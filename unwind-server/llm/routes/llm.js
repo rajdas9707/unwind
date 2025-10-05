@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const aiController = require('../controllers/aiController');
 const overthinkingRoutes = require('./overthinkingRoutes');
+const dailySummaryController = require('../controllers/dailySummaryController');
 const verifyToken = require('../../verifyToken');
 
 /**
@@ -16,6 +17,9 @@ const verifyToken = require('../../verifyToken');
 
 // Main AI query endpoint (with auth)
 router.post('/ask', verifyToken, aiController.askAI);
+
+// Generate daily summary endpoint (with auth)
+router.post('/generate-summary', verifyToken, dailySummaryController.generateDailySummary);
 
 // Health check endpoint (no auth needed)
 router.get('/health', aiController.healthCheck);

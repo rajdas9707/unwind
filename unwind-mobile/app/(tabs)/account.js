@@ -19,6 +19,8 @@ import { router } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { auth } from "../../firebaseConfig"; // Assuming auth is exported from here
 import { getProfile, deleteUserAccount } from "../../api/auth";
+import { generateDailySummary } from "../../api/dailySummary";
+import { checkTodaySyncStatus, getSyncStatusMessage } from "../../utils/syncStatusUtils";
 import * as FileSystem from "expo-file-system/legacy";
 import * as SQLite from "expo-sqlite";
 import { closeDB, openDB } from "../../storage/mainDb";
@@ -44,6 +46,13 @@ export default function AccountScreen() {
     mistakeEntries: 0,
     streaks: 0,
   });
+  
+  // Daily Summary states
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+  const [summaryAlreadyGenerated, setSummaryAlreadyGenerated] = useState(false);
+  const [showSyncModal, setShowSyncModal] = useState(false);
+  const [syncStatus, setSyncStatus] = useState(null);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -55,6 +64,7 @@ export default function AccountScreen() {
         await loadUserInfo();
         await loadUserStats();
         await fetchProfile();
+        await checkDailySummaryStatus();
       } catch (error) {
         if (!isMounted) return;
 
@@ -282,6 +292,154 @@ export default function AccountScreen() {
     }
   };
 
+  // Daily Summary Functions
+  const checkDailySummaryStatus = async () => {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const lastGenerated = await AsyncStorage.getItem('lastDailySummaryGenerated');
+      setSummaryAlreadyGenerated(lastGenerated === today);
+    } catch (error) {
+      console.error('Error checking daily summary status:', error);
+    }
+  };
+
+  const handleGenerateDailySummary = async () => {
+    try {
+      // Check if already generated today
+      if (summaryAlreadyGenerated) {
+        Alert.alert(
+          'Summary Already Generated',
+          'Daily summary has already been generated today. Try again tomorrow!',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      // Check sync status
+      setIsGeneratingSummary(true);
+      const syncStatusResult = await checkTodaySyncStatus();
+      
+      if (!syncStatusResult.isAllSynced && syncStatusResult.totalUnsyncedCount > 0) {
+        setIsGeneratingSummary(false);
+        setSyncStatus(syncStatusResult);
+        setShowSyncModal(true);
+        return;
+      }
+
+      // Generate summary
+      await generateSummaryWithAPI();
+    } catch (error) {
+      console.error('Error in handleGenerateDailySummary:', error);
+      setIsGeneratingSummary(false);
+      Alert.alert(
+        'Error',
+        'Failed to check sync status. Please try again.',
+        [{ text: 'OK' }]
+      );
+    }
+  };
+
+  const generateSummaryWithAPI = async () => {
+    try {
+      const result = await generateDailySummary();
+      
+      if (result.success) {
+        // Mark as generated today
+        const today = new Date().toISOString().split('T')[0];
+        await AsyncStorage.setItem('lastDailySummaryGenerated', today);
+        setSummaryAlreadyGenerated(true);
+        
+        Alert.alert(
+          '✅ Daily Summary Generated!',
+          result.message || 'Your daily summary has been generated successfully.',
+          [{ text: 'Great!' }]
+        );
+      } else {
+        handleSummaryError(result);
+      }
+    } catch (error) {
+      console.error('Error generating summary:', error);
+      Alert.alert(
+        'Generation Failed',
+        'Failed to generate daily summary. Please try again later.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setIsGeneratingSummary(false);
+    }
+  };
+
+  const handleSummaryError = (result) => {
+    switch (result.error) {
+      case 'SUMMARY_EXISTS':
+        Alert.alert(
+          'Already Generated',
+          'Daily summary has already been generated today.',
+          [{ text: 'OK' }]
+        );
+        break;
+      case 'NO_DATA':
+        Alert.alert(
+          'No Data Available',
+          'No journal entries, mistakes, or overthinking logs found for today. Please add some data first.',
+          [{ text: 'OK' }]
+        );
+        break;
+      case 'AI_UNAVAILABLE':
+        Alert.alert(
+          'AI Service Unavailable',
+          'The AI service is temporarily unavailable. Please try again later.',
+          [{ text: 'OK' }]
+        );
+        break;
+      case 'AUTH_ERROR':
+        Alert.alert(
+          'Authentication Error',
+          'Please sign out and sign in again.',
+          [{ text: 'OK' }]
+        );
+        break;
+      default:
+        Alert.alert(
+          'Generation Failed',
+          result.message || 'Failed to generate daily summary. Please try again.',
+          [{ text: 'OK' }]
+        );
+    }
+  };
+
+  const handleSyncNow = async () => {
+    setIsSyncing(true);
+    try {
+      // Here you would call your existing sync functions
+      // For now, we'll simulate syncing and then close the modal
+      await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate sync
+      
+      // Check sync status again
+      const newSyncStatus = await checkTodaySyncStatus();
+      if (newSyncStatus.isAllSynced) {
+        setShowSyncModal(false);
+        // Now generate the summary
+        await generateSummaryWithAPI();
+      } else {
+        Alert.alert(
+          'Sync Incomplete',
+          'Some data is still not synced. Please try again or check your internet connection.',
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      console.error('Error syncing data:', error);
+      Alert.alert(
+        'Sync Failed',
+        'Failed to sync data. Please try again.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const handleDeleteAccount = () => {
     
 
@@ -506,6 +664,46 @@ export default function AccountScreen() {
         {/* Settings Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Settings</Text>
+
+          {/* Generate Daily Summary Button */}
+          <TouchableOpacity 
+            style={[
+              styles.settingItem, 
+              styles.dailySummaryButton,
+              (summaryAlreadyGenerated || isGeneratingSummary) && styles.disabledSetting
+            ]}
+            onPress={handleGenerateDailySummary}
+            disabled={summaryAlreadyGenerated || isGeneratingSummary}
+          >
+            <View style={styles.dailySummaryIconContainer}>
+              {isGeneratingSummary ? (
+                <ActivityIndicator size="small" color="#3B82F6" />
+              ) : (
+                <Ionicons 
+                  name={summaryAlreadyGenerated ? "checkmark-circle" : "analytics"} 
+                  size={20} 
+                  color={summaryAlreadyGenerated ? "#10B981" : "#3B82F6"} 
+                />
+              )}
+            </View>
+            <View style={styles.dailySummaryTextContainer}>
+              <Text style={[
+                styles.settingText, 
+                styles.dailySummaryText,
+                (summaryAlreadyGenerated || isGeneratingSummary) && styles.disabledSettingText
+              ]}>
+                {isGeneratingSummary ? 'Generating Summary...' : 
+                 summaryAlreadyGenerated ? 'Daily Summary Generated' : 'Generate Daily Summary'}
+              </Text>
+              <Text style={styles.dailySummarySubtext}>
+                {isGeneratingSummary ? 'Please wait...' :
+                 summaryAlreadyGenerated ? 'Generated for today' : 'AI-powered daily insights'}
+              </Text>
+            </View>
+            {!summaryAlreadyGenerated && !isGeneratingSummary && (
+              <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
+            )}
+          </TouchableOpacity>
 
           <TouchableOpacity 
             style={styles.settingItem}
@@ -780,6 +978,63 @@ export default function AccountScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Sync Required Modal */}
+      <Modal
+        visible={showSyncModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowSyncModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.syncModalContainer}>
+            <LinearGradient
+              colors={['#3B82F6', '#1D4ED8']}
+              style={styles.syncModalHeader}
+            >
+              <Ionicons name="sync" size={24} color="#FFFFFF" />
+              <Text style={styles.syncModalTitle}>Sync Required</Text>
+            </LinearGradient>
+            
+            <View style={styles.syncModalBody}>
+              <Text style={styles.syncModalMessage}>
+                Some data for today is not synced. Please sync first before generating your daily summary.
+              </Text>
+              
+              {syncStatus && (
+                <Text style={styles.syncStatusDetails}>
+                  {getSyncStatusMessage(syncStatus)}
+                </Text>
+              )}
+              
+              <View style={styles.syncModalActions}>
+                <TouchableOpacity
+                  style={styles.syncCancelButton}
+                  onPress={() => setShowSyncModal(false)}
+                  disabled={isSyncing}
+                >
+                  <Text style={styles.syncCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[styles.syncNowButton, isSyncing && styles.syncNowButtonDisabled]}
+                  onPress={handleSyncNow}
+                  disabled={isSyncing}
+                >
+                  {isSyncing ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Ionicons name="cloud-upload" size={16} color="#FFFFFF" />
+                  )}
+                  <Text style={styles.syncNowText}>
+                    {isSyncing ? 'Syncing...' : 'Sync Now'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1007,5 +1262,121 @@ const styles = StyleSheet.create({
   },
   modalConfirmButtonDisabled: {
     backgroundColor: "#FCA5A5",
+  },
+  
+  // Daily Summary Button Styles
+  dailySummaryButton: {
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    marginBottom: 12,
+  },
+  dailySummaryIconContainer: {
+    marginRight: 12,
+  },
+  dailySummaryTextContainer: {
+    flex: 1,
+  },
+  dailySummaryText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1F2937",
+    marginBottom: 2,
+  },
+  dailySummarySubtext: {
+    fontSize: 13,
+    color: "#6B7280",
+  },
+  disabledSetting: {
+    opacity: 0.7,
+    backgroundColor: "#F9FAFB",
+  },
+  disabledSettingText: {
+    color: "#9CA3AF",
+  },
+  
+  // Sync Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  syncModalContainer: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    overflow: "hidden",
+    width: "100%",
+    maxWidth: 400,
+  },
+  syncModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 20,
+    paddingBottom: 16,
+  },
+  syncModalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    marginLeft: 12,
+  },
+  syncModalBody: {
+    padding: 20,
+    paddingTop: 16,
+  },
+  syncModalMessage: {
+    fontSize: 16,
+    color: "#374151",
+    lineHeight: 24,
+    marginBottom: 12,
+  },
+  syncStatusDetails: {
+    fontSize: 14,
+    color: "#6B7280",
+    lineHeight: 20,
+    marginBottom: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: "#F3F4F6",
+    borderRadius: 8,
+  },
+  syncModalActions: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  syncCancelButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    alignItems: "center",
+  },
+  syncCancelText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#6B7280",
+  },
+  syncNowButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: "#3B82F6",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  syncNowButtonDisabled: {
+    backgroundColor: "#9CA3AF",
+  },
+  syncNowText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#FFFFFF",
   },
 });
