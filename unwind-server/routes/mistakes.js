@@ -89,31 +89,66 @@ router.post("/", async (req, res) => {
       return res.status(401).json({ error: "Unauthorized" });
     }
     
-    const { mistake, solution, category, date, tags } = req.body;
+    const { description, mistake, category, learning, date } = req.body;
+    
+    // Support both old and new field names for backward compatibility
+    const mistakeDescription = description || mistake;
+    
     console.log(`[mistakes] POST / - userId=${userId}`, {
-      mistakeLength: mistake?.length,
-      solutionLength: solution?.length,
+      descriptionLength: mistakeDescription?.length,
       category,
+      learningLength: learning?.length,
       date,
-      tagsCount: tags?.length,
+      requestBody: JSON.stringify(req.body), // Log full body as JSON string
+      rawDescription: description,
+      rawMistake: mistake,
+      finalDescription: mistakeDescription
     });
 
-    if (!mistake || !solution || !date) {
-      console.log(`[mistakes] POST / - Bad request: Missing required fields`);
-      return res.status(400).json({ error: "Mistake, solution, and date are required" });
+    if (!mistakeDescription || !mistakeDescription.trim() || !category || !date) {
+      console.log(`[mistakes] POST / - Bad request: Missing required fields. Got:`, {
+        description: mistakeDescription,
+        descriptionTrimmed: mistakeDescription?.trim(),
+        category: category,
+        date: date
+      });
+      return res.status(400).json({ 
+        error: "Description (or mistake), category, and date are required",
+        received: {
+          description: mistakeDescription,
+          category: category,
+          date: date
+        }
+      });
     }
 
-    // Create entry data explicitly
+    // Validate category
+    const { validateCategory } = require('../llm/services/mistakeService');
+    if (!validateCategory(category)) {
+      console.log(`[mistakes] POST / - Invalid category: ${category}`);
+      return res.status(400).json({ error: "Invalid category provided" });
+    }
+
+    // Process with AI to generate learning, solution, and intensity
+    console.log(`[mistakes] POST / - Processing with AI...`);
+    const { processMistakeEntry } = require('../llm/services/mistakeService');
+    
+    const aiProcessedData = await processMistakeEntry(mistakeDescription, category, learning);
+    console.log(`[mistakes] POST / - AI processing complete:`, aiProcessedData);
+    console.log(`[mistakes] POST / - Raw description length: ${mistakeDescription.length}, Summary length: ${aiProcessedData.description_summary?.length}`);
+
+    // Create entry data with AI-generated fields
     const entryData = {
       userId,
-      mistake,
-      solution,
-      category: category || "other",
-      date,
-      tags: tags || [],
+      description: aiProcessedData.description_summary, // ✅ Use AI-generated summary, not raw text
+      category,
+      learning: aiProcessedData.learning,
+      solution: aiProcessedData.solution,
+      intensity: aiProcessedData.intensity,
+      date
     };
 
-    console.log(`[mistakes] POST / - Creating entry with data:`, entryData);
+    console.log(`[mistakes] POST / - Creating entry with AI-processed data:`, entryData);
     const entry = new Mistake(entryData);
     const savedEntry = await entry.save();
 
@@ -136,13 +171,11 @@ router.put("/:id", async (req, res) => {
     }
     
     const { id } = req.params;
-    const { mistake, solution, category, avoided, tags } = req.body;
+    const { description, category, learning } = req.body;
     console.log(`[mistakes] PUT /:id - userId=${userId} id=${id}`, {
-      mistakeLength: mistake?.length,
-      solutionLength: solution?.length,
+      descriptionLength: description?.length,
       category,
-      avoided,
-      tagsCount: tags?.length,
+      learningLength: learning?.length,
     });
 
     const entry = await Mistake.findOne({ _id: id, userId });
@@ -152,46 +185,32 @@ router.put("/:id", async (req, res) => {
       return res.status(404).json({ error: "Mistake entry not found" });
     }
 
-    // Update fields explicitly
-    if (mistake !== undefined) entry.mistake = mistake;
-    if (solution !== undefined) entry.solution = solution;
-    if (category !== undefined) entry.category = category;
-    if (avoided !== undefined) {
-      entry.avoided = avoided;
-
-      // Update streak info
-      if (avoided) {
-        const today = new Date().toISOString().split("T")[0];
-        const lastAvoidedDate = entry.streakInfo.lastAvoidedDate;
-
-        if (lastAvoidedDate) {
-          const lastDate = new Date(lastAvoidedDate);
-          const currentDate = new Date(today);
-          const daysDiff = Math.floor(
-            (currentDate - lastDate) / (1000 * 60 * 60 * 24)
-          );
-
-          if (daysDiff === 1) {
-            // Consecutive day
-            entry.streakInfo.currentStreak += 1;
-          } else {
-            // Not consecutive, reset streak
-            entry.streakInfo.currentStreak = 1;
-          }
-        } else {
-          // First time avoiding
-          entry.streakInfo.currentStreak = 1;
-        }
-
-        entry.streakInfo.lastAvoidedDate = today;
-
-        // Update best streak
-        if (entry.streakInfo.currentStreak > entry.streakInfo.bestStreak) {
-          entry.streakInfo.bestStreak = entry.streakInfo.currentStreak;
-        }
-      }
+    // Update fields explicitly (learning, solution, intensity are AI-generated)
+    if (description !== undefined || category !== undefined) {
+      // If description or category changes, re-process with AI
+      console.log(`[mistakes] PUT /:id - Re-processing with AI due to content update...`);
+      const { processMistakeEntry } = require('../llm/services/mistakeService');
+      
+      const newDescription = description || entry.description;
+      const newCategory = category || entry.category;
+      const userLearning = learning || entry.learning;
+      
+      const aiProcessedData = await processMistakeEntry(newDescription, newCategory, userLearning);
+      console.log(`[mistakes] PUT /:id - AI re-processing complete:`, aiProcessedData);
+      
+      entry.description = aiProcessedData.description_summary; // ✅ Use AI-generated summary, not raw text
+      entry.category = newCategory;
+      entry.learning = aiProcessedData.learning;
+      entry.solution = aiProcessedData.solution;
+      entry.intensity = aiProcessedData.intensity;
+    } else if (learning !== undefined) {
+      // Only learning update, enhance it with AI
+      console.log(`[mistakes] PUT /:id - Enhancing learning with AI...`);
+      const { enhanceLearning } = require('../llm/services/mistakeService');
+      
+      const enhancedLearning = await enhanceLearning(entry.description, entry.category, learning);
+      entry.learning = enhancedLearning.learning;
     }
-    if (tags !== undefined) entry.tags = tags;
 
     const updatedEntry = await entry.save();
     
@@ -233,67 +252,6 @@ router.delete("/:id", async (req, res) => {
   }
 });
 
-// Toggle avoided status for the authenticated user
-router.patch("/:id/toggle-avoided", async (req, res) => {
-  console.log(`[mistakes] PATCH /:id/toggle-avoided - Request received`);
-  try {
-    const userId = req.user?.uid;
-    if (!userId) {
-      console.log(`[mistakes] PATCH /:id/toggle-avoided - Unauthorized: No userId in token`);
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-    
-    const { id } = req.params;
-    console.log(`[mistakes] PATCH /:id/toggle-avoided - userId=${userId} id=${id}`);
-
-    const entry = await Mistake.findOne({ _id: id, userId });
-
-    if (!entry) {
-      console.log(`[mistakes] PATCH /:id/toggle-avoided - Not found: id=${id} userId=${userId}`);
-      return res.status(404).json({ error: "Mistake entry not found" });
-    }
-
-    entry.avoided = !entry.avoided;
-    console.log(`[mistakes] PATCH /:id/toggle-avoided - Toggling to avoided=${entry.avoided}`);
-
-    // Update streak info when marking as avoided
-    if (entry.avoided) {
-      const today = new Date().toISOString().split("T")[0];
-      const lastAvoidedDate = entry.streakInfo.lastAvoidedDate;
-
-      if (lastAvoidedDate) {
-        const lastDate = new Date(lastAvoidedDate);
-        const currentDate = new Date(today);
-        const daysDiff = Math.floor(
-          (currentDate - lastDate) / (1000 * 60 * 60 * 24)
-        );
-
-        if (daysDiff === 1) {
-          entry.streakInfo.currentStreak += 1;
-        } else {
-          entry.streakInfo.currentStreak = 1;
-        }
-      } else {
-        entry.streakInfo.currentStreak = 1;
-      }
-
-      entry.streakInfo.lastAvoidedDate = today;
-
-      if (entry.streakInfo.currentStreak > entry.streakInfo.bestStreak) {
-        entry.streakInfo.bestStreak = entry.streakInfo.currentStreak;
-      }
-    }
-
-    const updatedEntry = await entry.save();
-    
-    console.log(`[mistakes] PATCH /:id/toggle-avoided - Success: Toggled entry ${id} for user ${userId}`);
-    res.json(updatedEntry);
-  } catch (error) {
-    console.log(`[mistakes] PATCH /:id/toggle-avoided - Error:`, error.message);
-    res.status(500).json({ error: error.message });
-  }
-});
-
 // Get mistake statistics for the authenticated user
 router.get("/stats", async (req, res) => {
   console.log(`[mistakes] GET /stats - Request received`);
@@ -307,10 +265,6 @@ router.get("/stats", async (req, res) => {
     console.log(`[mistakes] GET /stats - userId=${userId}`);
 
     const totalEntries = await Mistake.countDocuments({ userId });
-    const avoidedEntries = await Mistake.countDocuments({
-      userId,
-      avoided: true,
-    });
 
     // Get category distribution
     const categoryStats = await Mistake.aggregate([
@@ -318,24 +272,19 @@ router.get("/stats", async (req, res) => {
       { $group: { _id: "$category", count: { $sum: 1 } } },
     ]);
 
-    // Get best streak across all mistakes
-    const bestStreakStats = await Mistake.aggregate([
+    // Get average intensity
+    const intensityStats = await Mistake.aggregate([
       { $match: { userId } },
-      { $group: { _id: null, bestStreak: { $max: "$streakInfo.bestStreak" } } },
+      { $group: { _id: null, avgIntensity: { $avg: "$intensity" } } },
     ]);
 
     const stats = {
       totalEntries,
-      avoidedEntries,
-      avoidanceRate:
-        totalEntries > 0
-          ? ((avoidedEntries / totalEntries) * 100).toFixed(1)
-          : 0,
       categoryDistribution: categoryStats.reduce((acc, stat) => {
         acc[stat._id] = stat.count;
         return acc;
       }, {}),
-      bestStreak: bestStreakStats[0]?.bestStreak || 0,
+      averageIntensity: intensityStats[0]?.avgIntensity?.toFixed(1) || 0,
     };
 
     console.log(`[mistakes] GET /stats - Success:`, stats);

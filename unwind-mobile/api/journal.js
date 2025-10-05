@@ -60,7 +60,7 @@ export const createJournalEntry = async ({ content, title }) => {
   if (result.status !== 201) {
     throw new Error(`Unexpected response status: ${result.status}`);
   }
-
+ console.log("result from createnewjournal/api/journal",result)
   return result.data;
 };
 

@@ -918,12 +918,67 @@ export default function JournalScreen() {
                   <Text style={styles.entryTitle}>{entry.title}</Text>
                 ) : null}
 
-                <View style={styles.contentRow}>
-                  <Text style={styles.sentimentEmoji}>{entry.sentiment}</Text>
-                  <Text style={styles.entryContent}>
-                    {entry.truncatedContent}
-                  </Text>
-                </View>
+                {/* Display structured AI-processed content for synced entries */}
+                {entry.synced && entry.summary && entry.summary.length > 0 ? (
+                  <View style={styles.cloudContentSection}>
+                    {/* Rating */}
+                    {entry.rating && (
+                      <View style={styles.ratingRow}>
+                        <View style={styles.ratingBadge}>
+                          <Ionicons name="star" size={12} color="#FFFFFF" />
+                          <Text style={styles.ratingText}>{entry.rating}/10</Text>
+                        </View>
+                        <Text style={styles.ratingLabel}>Day Rating</Text>
+                      </View>
+                    )}
+
+                    {/* Summary Points */}
+                    {entry.summary && entry.summary.length > 0 && (
+                      <View style={styles.summarySection}>
+                        <Text style={styles.sectionTitle}>Summary</Text>
+                        {entry.summary.slice(0, 2).map((point, index) => (
+                          <View key={index} style={styles.summaryPoint}>
+                            <Text style={styles.bulletPoint}>•</Text>
+                            <Text style={styles.summaryText}>{point}</Text>
+                          </View>
+                        ))}
+                        {entry.summary.length > 2 && (
+                          <Text style={styles.moreText}>+{entry.summary.length - 2} more</Text>
+                        )}
+                      </View>
+                    )}
+
+                    {/* Positives/Negatives/Lessons in compact format */}
+                    <View style={styles.insightsRow}>
+                      {entry.positives && entry.positives.length > 0 && (
+                        <View style={styles.insightBadge}>
+                          <Ionicons name="happy" size={12} color="#10B981" />
+                          <Text style={styles.insightCount}>{entry.positives.length}</Text>
+                        </View>
+                      )}
+                      {entry.negatives && entry.negatives.length > 0 && (
+                        <View style={styles.insightBadge}>
+                          <Ionicons name="warning" size={12} color="#F59E0B" />
+                          <Text style={styles.insightCount}>{entry.negatives.length}</Text>
+                        </View>
+                      )}
+                      {entry.lessons && entry.lessons.length > 0 && (
+                        <View style={styles.insightBadge}>
+                          <Ionicons name="bulb" size={12} color="#3B82F6" />
+                          <Text style={styles.insightCount}>{entry.lessons.length}</Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                ) : (
+                  /* Fallback to old format for unsynced entries */
+                  <View style={styles.contentRow}>
+                    <Text style={styles.sentimentEmoji}>{entry.sentiment}</Text>
+                    <Text style={styles.entryContent}>
+                      {entry.truncatedContent}
+                    </Text>
+                  </View>
+                )}
 
                 <View style={styles.entryFooter}>
                   {entry.synced ? (
@@ -1314,5 +1369,86 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#374151",
     lineHeight: 24,
+  },
+  
+  // Structured cloud content styles
+  cloudContentSection: {
+    marginTop: 8,
+  },
+  ratingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  ratingBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F59E0B",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginRight: 8,
+  },
+  ratingText: {
+    fontSize: 12,
+    color: "#FFFFFF",
+    fontWeight: "600",
+    marginLeft: 4,
+  },
+  ratingLabel: {
+    fontSize: 12,
+    color: "#6B7280",
+    fontWeight: "500",
+  },
+  summarySection: {
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#374151",
+    marginBottom: 6,
+  },
+  summaryPoint: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 4,
+  },
+  bulletPoint: {
+    fontSize: 14,
+    color: "#6B7280",
+    marginRight: 8,
+    marginTop: 2,
+  },
+  summaryText: {
+    flex: 1,
+    fontSize: 14,
+    color: "#374151",
+    lineHeight: 20,
+  },
+  moreText: {
+    fontSize: 12,
+    color: "#6B7280",
+    fontStyle: "italic",
+    marginTop: 4,
+  },
+  insightsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  insightBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 8,
+    backgroundColor: "#F3F4F6",
+  },
+  insightCount: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#374151",
+    marginLeft: 3,
   },
 });

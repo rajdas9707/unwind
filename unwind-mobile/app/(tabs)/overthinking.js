@@ -39,6 +39,7 @@ import {
 import {
   createOverthinkingEntry,
   deleteOverthinkingEntry,
+  listOverthinkingEntries,
 } from "../../api/overthinking";
 
 // Import database operations
@@ -47,6 +48,7 @@ import {
   markOverthinkingEntrySynced,
   deleteOverthinkingEntryById,
   getOverthinkingSyncAttemptsCountToday,
+  upsertOverthinkingFromServer,
 } from "../../storage/overthinking/db";
 
 // Removed database health utilities
@@ -113,7 +115,7 @@ export default function OverthinkingScreen() {
       return null;
     }
 
-    // Mark as synced locally
+    // Mark as synced locally - store AI-generated fields in server_meta
     const syncedEntry = await markOverthinkingEntrySynced({
       id: entry.id,
       server_id: serverEntry._id,
@@ -122,10 +124,76 @@ export default function OverthinkingScreen() {
         updatedAt: serverEntry.updatedAt,
         tags: serverEntry.tags || [],
         mood: serverEntry.mood || null,
+        // AI-generated fields from server (with fallbacks)
+        category: serverEntry.category || null,
+        intensity: serverEntry.intensity || null,
+        triggers: Array.isArray(serverEntry.triggers) ? serverEntry.triggers : [],
+        patterns: Array.isArray(serverEntry.patterns) ? serverEntry.patterns : [],
+        coping_strategies: Array.isArray(serverEntry.coping_strategies) ? serverEntry.coping_strategies : [],
+        reframe: serverEntry.reframe || null,
+        urgency: serverEntry.urgency || null,
       },
     });
 
     return syncedEntry;
+  };
+
+  // Sync entries from server to local (download from server)
+  const syncEntriesFromServer = async () => {
+    try {
+      // Fetch recent entries from server (last 30 days or so)
+      const serverEntries = await listOverthinkingEntries({ limit: 100 });
+      
+      if (!serverEntries || !Array.isArray(serverEntries.entries)) {
+        console.log("No server entries to sync");
+        return { syncedCount: 0 };
+      }
+
+      let syncedCount = 0;
+      
+      for (const serverEntry of serverEntries.entries) {
+        try {
+          // Validate required fields before syncing
+          if (!serverEntry._id || !serverEntry.thought) {
+            console.warn(`Skipping invalid server entry:`, serverEntry);
+            continue;
+          }
+
+          // Upsert each entry from server, storing AI fields in server_meta
+          await upsertOverthinkingFromServer({
+            server_id: serverEntry._id,
+            title: serverEntry.title || "",
+            thought: serverEntry.thought,
+            solution: serverEntry.solution || "",
+            created_at: serverEntry.createdAt || new Date().toISOString(),
+            updated_at: serverEntry.updatedAt || new Date().toISOString(),
+            dumped: serverEntry.dumped || false,
+            server_meta: {
+              createdAt: serverEntry.createdAt,
+              updatedAt: serverEntry.updatedAt,
+              tags: serverEntry.tags || [],
+              mood: serverEntry.mood || null,
+              // AI-generated fields from server (with fallbacks)
+              category: serverEntry.category || null,
+              intensity: serverEntry.intensity || null,
+              triggers: Array.isArray(serverEntry.triggers) ? serverEntry.triggers : [],
+              patterns: Array.isArray(serverEntry.patterns) ? serverEntry.patterns : [],
+              coping_strategies: Array.isArray(serverEntry.coping_strategies) ? serverEntry.coping_strategies : [],
+              reframe: serverEntry.reframe || null,
+              urgency: serverEntry.urgency || null,
+            },
+          });
+          syncedCount++;
+        } catch (error) {
+          console.error(`Failed to sync entry ${serverEntry._id} from server:`, error);
+        }
+      }
+
+      return { syncedCount };
+    } catch (error) {
+      console.error("Failed to sync entries from server:", error);
+      throw error;
+    }
   };
 
   // Sync all unsynced overthinking entries with rate limiting
@@ -216,6 +284,17 @@ export default function OverthinkingScreen() {
       setLoading(true);
 
       try {
+        // First, try to sync from server if we're online (but don't block the UI)
+        if (isOnline && !selectedDate) {
+          try {
+            console.log("Syncing entries from server...");
+            await syncEntriesFromServer();
+            console.log("Successfully synced entries from server");
+          } catch (syncError) {
+            console.warn("Failed to sync from server, continuing with local data:", syncError);
+          }
+        }
+
         let loadedEntries;
 
         if (selectedDate) {
@@ -269,7 +348,7 @@ export default function OverthinkingScreen() {
     return () => {
       isMounted = false;
     };
-  }, [selectedDate]);
+  }, [selectedDate, isOnline]);
 
   // Refresh data when the screen comes into focus
   useFocusEffect(
@@ -927,20 +1006,30 @@ export default function OverthinkingScreen() {
                   <Text style={styles.entryTitle}>{entry.title}</Text>
                 ) : null}
 
+                {/* Show mood emoji if available locally */}
                 <View style={styles.contentRow}>
                   <Text style={styles.moodEmoji}>{entry.mood}</Text>
                   <View style={styles.thoughtSection}>
-                    <Text style={styles.thoughtLabel}>Thought:</Text>
-                    <Text style={styles.thoughtContent}>
-                      {entry.truncatedThought}
+                    <Text style={styles.thoughtPreview}>
+                      {entry.truncatedThought || (entry.thought?.length > 120 ? entry.thought.substring(0, 120) + "..." : entry.thought)}
                     </Text>
                   </View>
                 </View>
 
+                {/* Show solution preview if available locally */}
                 {entry.solution && (
-                  <View style={styles.solutionSection}>
-                    <Text style={styles.solutionLabel}>Solution:</Text>
-                    <Text style={styles.solutionContent}>{entry.solution}</Text>
+                  <View style={styles.solutionPreview}>
+                    <Text style={styles.solutionPreviewText}>
+                      💡 {entry.solution.length > 80 ? entry.solution.substring(0, 80) + "..." : entry.solution}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Simple sync indicator */}
+                {entry.synced && (
+                  <View style={styles.syncedIndicator}>
+                    <Ionicons name="cloud-done" size={14} color="#10B981" />
+                    <Text style={styles.syncedIndicatorText}>Tap for full details</Text>
                   </View>
                 )}
 
@@ -1463,5 +1552,133 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     minHeight: 100,
     textAlignVertical: "top",
+  },
+  // New styles for metadata display
+  metadataRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+    gap: 8,
+  },
+  categoryBadge: {
+    backgroundColor: "#8B5CF6",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  categoryText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  intensityBadge: {
+    backgroundColor: "#F59E0B",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  intensityText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  
+  // AI Insights Section Styles
+  aiInsightsSection: {
+    marginTop: 8,
+    padding: 12,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: "#8B5CF6",
+  },
+  insightGroup: {
+    marginBottom: 12,
+  },
+  insightTitle: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#374151",
+    marginBottom: 6,
+  },
+  insightItem: {
+    fontSize: 12,
+    color: "#6B7280",
+    lineHeight: 18,
+    marginBottom: 2,
+    paddingLeft: 8,
+  },
+  reframeText: {
+    fontSize: 13,
+    color: "#059669",
+    lineHeight: 18,
+    fontStyle: "italic",
+    paddingLeft: 8,
+  },
+  urgencyRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginTop: 4,
+  },
+  urgencyBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    gap: 4,
+  },
+  urgencyHigh: {
+    backgroundColor: "#EF4444",
+  },
+  urgencyMedium: {
+    backgroundColor: "#F59E0B",
+  },
+  urgencyLow: {
+    backgroundColor: "#10B981",
+  },
+  urgencyText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "600",
+  },
+  
+  // Simplified Card Layout Styles - Local Data Only
+  thoughtPreview: {
+    fontSize: 16,
+    color: "#374151",
+    lineHeight: 22,
+    flex: 1,
+  },
+  solutionPreview: {
+    marginTop: 8,
+    padding: 8,
+    backgroundColor: "#F0FDF4",
+    borderRadius: 6,
+    borderLeftWidth: 2,
+    borderLeftColor: "#10B981",
+  },
+  solutionPreviewText: {
+    fontSize: 13,
+    color: "#059669",
+    lineHeight: 18,
+    fontStyle: "italic",
+  },
+  syncedIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
+  },
+  syncedIndicatorText: {
+    fontSize: 12,
+    color: "#10B981",
+    fontWeight: "500",
   },
 });

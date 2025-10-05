@@ -6,7 +6,7 @@ export const initOverthinkingsTable = async (db) => {
   try {
     // const db = await openDB();
 // 
-    // Create overthinking table with required schema
+    // Create overthinking table with required schema (only user input fields)
     await db.execAsync(`
       CREATE TABLE IF NOT EXISTS overthinking (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -35,7 +35,7 @@ export const initOverthinkingsTable = async (db) => {
         }
       };
 
-      // Ensure required columns exist
+      // Ensure required columns exist (only user input and sync fields)
       await addColumnIfMissing("created_at", "TEXT");
       await addColumnIfMissing("updated_at", "TEXT");
       await addColumnIfMissing("synced", "INTEGER NOT NULL DEFAULT 0");
@@ -68,13 +68,13 @@ export const initOverthinkingsTable = async (db) => {
   }
 };
 
-// Insert new overthinking entry (locally, unsynced)
+// Insert new overthinking entry (locally, unsynced) - only user input
 export const insertOverthinkingEntry = async ({
   title = "",
   thought,
   solution = "",
   created_at,
-  updated_at,
+  updated_at
 }) => {
   try {
     const db = await openDB();
@@ -114,7 +114,7 @@ export const getRecentOverthinkingEntries = async (limit = 10) => {
       ...row,
       synced: row.synced === 1,
       dumped: row.dumped === 1,
-      server_meta: row.server_meta ? JSON.parse(row.server_meta) : null,
+      server_meta: row.server_meta ? JSON.parse(row.server_meta) : null
     }));
   } catch (error) {
     console.error("Error getting recent overthinking entries:", error);
@@ -138,7 +138,7 @@ export const getOverthinkingEntriesByDate = async (date) => {
       ...row,
       synced: row.synced === 1,
       dumped: row.dumped === 1,
-      server_meta: row.server_meta ? JSON.parse(row.server_meta) : null,
+      server_meta: row.server_meta ? JSON.parse(row.server_meta) : null
     }));
   } catch (error) {
     console.error("Error getting overthinking entries by date:", error);
@@ -161,7 +161,7 @@ export const getOverthinkingEntryById = async (id) => {
       ...row,
       synced: row.synced === 1,
       dumped: row.dumped === 1,
-      server_meta: row.server_meta ? JSON.parse(row.server_meta) : null,
+      server_meta: row.server_meta ? JSON.parse(row.server_meta) : null
     };
   } catch (error) {
     console.error("Error getting overthinking entry by ID:", error);
@@ -169,13 +169,13 @@ export const getOverthinkingEntryById = async (id) => {
   }
 };
 
-// Update overthinking entry
+// Update overthinking entry (only user input)
 export const updateOverthinkingEntry = async ({
   id,
   title,
   thought,
   solution,
-  updated_at,
+  updated_at
 }) => {
   try {
     const db = await openDB();
@@ -242,7 +242,7 @@ export const getUnsyncedOverthinkingEntries = async () => {
       ...row,
       synced: row.synced === 1,
       dumped: row.dumped === 1,
-      server_meta: row.server_meta ? JSON.parse(row.server_meta) : null,
+      server_meta: row.server_meta ? JSON.parse(row.server_meta) : null
     }));
   } catch (error) {
     console.error("Error getting unsynced overthinking entries:", error);
@@ -262,7 +262,7 @@ export const deleteOverthinkingEntryById = async (id) => {
   }
 };
 
-// Upsert from server (used during sync)
+// Upsert from server (used during sync) - AI fields stored in server_meta
 export const upsertOverthinkingFromServer = async ({
   server_id,
   title,
@@ -270,11 +270,13 @@ export const upsertOverthinkingFromServer = async ({
   solution,
   created_at,
   updated_at,
-  server_meta,
+  server_meta, // AI fields (category, intensity, triggers, patterns, etc.) stored here
+  dumped = false
 }) => {
   try {
     const db = await openDB();
     const metaJson = server_meta ? JSON.stringify(server_meta) : null;
+    const dumpedInt = dumped ? 1 : 0;
 
     // Check if entry with this server_id already exists
     const existing = await db.getFirstAsync(
@@ -285,14 +287,14 @@ export const upsertOverthinkingFromServer = async ({
     if (existing) {
       // Update existing entry
       await db.runAsync(
-        "UPDATE overthinking SET title = ?, thought = ?, solution = ?, created_at = ?, updated_at = ?, synced = 1, server_meta = ? WHERE server_id = ?",
-        [title, thought, solution, created_at, updated_at, metaJson, server_id]
+        "UPDATE overthinking SET title = ?, thought = ?, solution = ?, created_at = ?, updated_at = ?, synced = 1, server_meta = ?, dumped = ? WHERE server_id = ?",
+        [title, thought, solution, created_at, updated_at, metaJson, dumpedInt, server_id]
       );
     } else {
       // Insert new entry from server
       await db.runAsync(
-        "INSERT INTO overthinking (title, thought, solution, created_at, updated_at, synced, server_id, server_meta, dumped) VALUES (?, ?, ?, ?, ?, 1, ?, ?, 0)",
-        [title, thought, solution, created_at, updated_at, server_id, metaJson]
+        "INSERT INTO overthinking (title, thought, solution, created_at, updated_at, synced, server_id, server_meta, dumped) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)",
+        [title, thought, solution, created_at, updated_at, server_id, metaJson, dumpedInt]
       );
     }
 

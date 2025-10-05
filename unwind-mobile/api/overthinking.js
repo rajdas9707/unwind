@@ -27,8 +27,13 @@ export const listOverthinkingEntries = async ({ date, page = 1, limit = 50 } = {
 };
 
 // Create a new overthinking entry
-export const createOverthinkingEntry = async ({ thought, solution, date }) => {
-  const body = JSON.stringify({ thought, solution, date });
+export const createOverthinkingEntry = async ({ thought, solution, date, dumped = false }) => {
+  const body = JSON.stringify({ 
+    thought, 
+    solution, 
+    date,
+    dumped
+  });
   
   const result = await authorizedFetch("/api/overthinking", {
     method: "POST",
@@ -36,6 +41,39 @@ export const createOverthinkingEntry = async ({ thought, solution, date }) => {
   });
 
   if (result.status !== 201) {
+    throw new Error(`Unexpected response status: ${result.status}`);
+  }
+
+  return result.data;
+};
+
+// Update an overthinking entry
+export const updateOverthinkingEntry = async ({ id, thought, solution, dumped }) => {
+  const body = JSON.stringify({ 
+    thought, 
+    solution,
+    dumped
+  });
+  
+  const result = await authorizedFetch(`/api/overthinking/${id}`, {
+    method: "PUT",
+    body,
+  });
+
+  if (result.status !== 200) {
+    throw new Error(`Unexpected response status: ${result.status}`);
+  }
+
+  return result.data;
+};
+
+// Toggle dumped status for an overthinking entry
+export const dumpOverthinkingEntry = async ({ id }) => {
+  const result = await authorizedFetch(`/api/overthinking/${id}/dump`, {
+    method: "PATCH",
+  });
+
+  if (result.status !== 200) {
     throw new Error(`Unexpected response status: ${result.status}`);
   }
 
@@ -54,3 +92,6 @@ export const deleteOverthinkingEntry = async ({ id }) => {
   
   return result.data;
 };
+
+// Note: AI processing (solution generation, category detection, intensity assessment) 
+// now happens automatically on the server when creating or updating entries

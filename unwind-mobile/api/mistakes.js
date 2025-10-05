@@ -27,8 +27,8 @@ export const listMistakesEntries = async ({ date, page = 1, limit = 50 } = {}) =
 };
 
 // Create a new mistake entry
-export const createMistakeEntry = async ({ mistake, solution, category, date }) => {
-  const body = JSON.stringify({ mistake, solution, category, date });
+export const createMistakeEntry = async ({ description, category, learning, date }) => {
+  const body = JSON.stringify({ description, category, learning, date });
   
   const result = await authorizedFetch("/api/mistakes", {
     method: "POST",
@@ -36,6 +36,35 @@ export const createMistakeEntry = async ({ mistake, solution, category, date }) 
   });
 
   if (result.status !== 201) {
+    throw new Error(`Unexpected response status: ${result.status}`);
+  }
+
+  return result.data;
+};
+
+// Update a mistake entry
+export const updateMistakeEntry = async ({ id, description, category, learning }) => {
+  const body = JSON.stringify({ description, category, learning });
+  
+  const result = await authorizedFetch(`/api/mistakes/${id}`, {
+    method: "PUT",
+    body,
+  });
+
+  if (result.status !== 200) {
+    throw new Error(`Unexpected response status: ${result.status}`);
+  }
+
+  return result.data;
+};
+
+// Get mistake statistics
+export const getMistakeStats = async () => {
+  const result = await authorizedFetch("/api/mistakes/stats", {
+    method: "GET",
+  });
+
+  if (result.status !== 200) {
     throw new Error(`Unexpected response status: ${result.status}`);
   }
 

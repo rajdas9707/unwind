@@ -44,7 +44,7 @@ app.use("/api/journal", verifyToken, journalRoutes);
 app.use("/api/overthinking", verifyToken, overthinkingRoutes);
 app.use("/api/mistakes", verifyToken, mistakeRoutes);
 app.use("/api/todos", verifyToken, todoRoutes);
-app.use("/api/llm", verifyToken, llmRoutes);
+app.use("/api/llm", llmRoutes);
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {

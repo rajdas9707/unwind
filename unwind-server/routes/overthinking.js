@@ -89,14 +89,12 @@ router.post("/", async (req, res) => {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    const { thought, solution, date, category, intensity, tags } = req.body;
+    const { thought, solution, date, dumped = false } = req.body;
     console.log(`[overthinking] POST / - userId=${userId}`, {
       thoughtLength: thought?.length,
       solutionLength: solution?.length,
       date,
-      category,
-      intensity,
-      tagsCount: tags?.length,
+      dumped,
     });
 
     if (!thought || !date) {
@@ -104,18 +102,31 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "Thought and date are required" });
     }
 
-    // Create entry data explicitly
+    // Process with AI to generate solution, category, and intensity
+    console.log(`[overthinking] POST / - Processing with AI...`);
+    const { processOverthinkingEntry } = require('../llm/services/overthinkingService');
+    
+    const aiProcessedData = await processOverthinkingEntry(thought, solution);
+    console.log(`[overthinking] POST / - AI processing complete:`, aiProcessedData);
+    console.log(`[overthinking] POST / - Raw thought length: ${thought.length}, Summary length: ${aiProcessedData.thought_summary?.length}`);
+
+    // Create entry data with AI-generated fields
     const entryData = {
       userId,
-      thought,
-      solution: solution || "",
+      thought: aiProcessedData.thought_summary, // ✅ Use AI-generated summary, not raw text
+      solution: aiProcessedData.solution,
       date,
-      category: category || "other",
-      intensity: intensity || 5,
-      tags: tags || [],
+      category: aiProcessedData.category,
+      intensity: aiProcessedData.intensity,
+      triggers: aiProcessedData.triggers,
+      patterns: aiProcessedData.patterns,
+      coping_strategies: aiProcessedData.coping_strategies,
+      reframe: aiProcessedData.reframe,
+      urgency: aiProcessedData.urgency,
+      dumped
     };
 
-    console.log(`[overthinking] POST / - Creating entry with data:`, entryData);
+    console.log(`[overthinking] POST / - Creating entry with AI-processed data:`, entryData);
     const entry = new Overthinking(entryData);
     const savedEntry = await entry.save();
 
@@ -138,14 +149,11 @@ router.put("/:id", async (req, res) => {
     }
     
     const { id } = req.params;
-    const { thought, solution, category, intensity, dumped, tags } = req.body;
+    const { thought, solution, dumped } = req.body;
     console.log(`[overthinking] PUT /:id - userId=${userId} id=${id}`, {
       thoughtLength: thought?.length,
       solutionLength: solution?.length,
-      category,
-      intensity,
       dumped,
-      tagsCount: tags?.length,
     });
 
     const entry = await Overthinking.findOne({ _id: id, userId });
@@ -155,13 +163,29 @@ router.put("/:id", async (req, res) => {
       return res.status(404).json({ error: "Overthinking entry not found" });
     }
 
-    // Update fields explicitly
-    if (thought !== undefined) entry.thought = thought;
-    if (solution !== undefined) entry.solution = solution;
-    if (category !== undefined) entry.category = category;
-    if (intensity !== undefined) entry.intensity = intensity;
+    // Update fields explicitly (category and intensity are AI-generated, not user-editable)
+    if (thought !== undefined) {
+      // If thought is being updated, re-process with AI
+      console.log(`[overthinking] PUT /:id - Re-processing with AI due to thought update...`);
+      const { processOverthinkingEntry } = require('../llm/services/overthinkingService');
+      
+      const aiProcessedData = await processOverthinkingEntry(thought, solution);
+      console.log(`[overthinking] PUT /:id - AI re-processing complete:`, aiProcessedData);
+      
+      entry.thought = aiProcessedData.thought_summary; // ✅ Use AI-generated summary, not raw text
+      entry.solution = aiProcessedData.solution;
+      entry.category = aiProcessedData.category;
+      entry.intensity = aiProcessedData.intensity;
+      entry.triggers = aiProcessedData.triggers;
+      entry.patterns = aiProcessedData.patterns;
+      entry.coping_strategies = aiProcessedData.coping_strategies;
+      entry.reframe = aiProcessedData.reframe;
+      entry.urgency = aiProcessedData.urgency;
+    } else {
+      // Only update solution if no thought update
+      if (solution !== undefined) entry.solution = solution;
+    }
     if (dumped !== undefined) entry.dumped = dumped;
-    if (tags !== undefined) entry.tags = tags;
 
     const updatedEntry = await entry.save();
     

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -6,43 +6,56 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Modal,
   Alert,
   ActivityIndicator,
   Share,
 } from "react-native";
-// Removed animation imports
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useNetworkStatus } from "../../utils/networkUtils";
-// import { useDatabaseReady } from "../../hooks/useDatabaseReady";
 
-// Import storage layer (local operations only)
+// Import storage layer
 import {
-  fetchJournalEntryById,
-  updateJournalEntryLocal,
-  canSyncToday
-} from "../../storage/journal/storage";
+  fetchMistakesEntryById,
+  updateMistakeEntryLocal,
+  canSyncMistakesToday,
+  getMistakeCategories,
+  getCategoryColor,
+  getCategoryEmoji,
+} from "../../storage/mistakes/storage";
 
-// Import API client functions for network operations
+// Import API client functions
 import {
-  createJournalEntry,
-  deleteJournalEntry,
-  getJournalEntry,
-} from "../../api/journal";
+  createMistakeEntry,
+  deleteMistakeEntry,
+  listMistakesEntries,
+} from "../../api/mistakes";
+
+// Add a function to get mistake entry by server ID
+const getMistakeEntryFromServer = async (serverId) => {
+  try {
+    // Fetch the specific entry from server using list API with server ID
+    const response = await listMistakesEntries({ limit: 100 });
+    // Note: You might need to implement a specific getMistakeEntry API endpoint
+    // For now, we'll work with the existing API structure
+    return response?.entries?.find(entry => entry._id === serverId) || null;
+  } catch (error) {
+    console.error('Error fetching server mistake entry:', error);
+    return null;
+  }
+};
 
 // Import database operations
 import {
-  getJournalEntryById,
-  markJournalEntrySynced,
-  deleteJournalEntryById,
-} from "../../storage/journal/db";
+  getMistakesEntryById,
+  markMistakesEntrySynced,
+  deleteMistakesEntryById,
+} from "../../storage/mistakes/db";
 
-export default function JournalDetailScreen() {
+export default function MistakesDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
-  // const { isReady } = useDatabaseReady();
   const isOnline = useNetworkStatus();
   
   const [entry, setEntry] = useState(null);
@@ -50,23 +63,23 @@ export default function JournalDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [loadingServerData, setLoadingServerData] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [editTitle, setEditTitle] = useState("");
-  const [editContent, setEditContent] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editLearning, setEditLearning] = useState("");
+  const [editCategory, setEditCategory] = useState("Other");
   const [isSyncing, setIsSyncing] = useState(false);
-  
-  // Removed animation logic
 
-  // Sync single journal entry to server
-  const syncJournalEntryToServer = async ({ entry }) => {
+  // Sync single mistake entry to server
+  const syncMistakeEntryToServer = async ({ entry }) => {
     if (entry.synced) {
       return entry; // Already synced
     }
 
     // Create entry on server
-    const serverEntry = await createJournalEntry({
-      content: entry.content,
+    const serverEntry = await createMistakeEntry({
+      description: entry.description || entry.mistake,
+      category: entry.category,
+      learning: entry.learning,
       date: entry.created_at.split("T")[0],
-      title: entry.title,
     });
 
     console.log("Server entry created:", serverEntry);
@@ -74,26 +87,33 @@ export default function JournalDetailScreen() {
       return null;
     }
 
-    // Mark as synced locally
-    const syncedEntry = await markJournalEntrySynced({
+    // Mark as synced locally - store AI-generated fields in server_meta
+    const syncedEntry = await markMistakesEntrySynced({
       id: entry.id,
-      server_id: serverEntry?._id,
+      server_id: serverEntry._id,
       server_meta: {
-        createdAt: serverEntry?.createdAt,
-        updatedAt: serverEntry?.updatedAt,
-        tags: serverEntry?.tags || [],
-        mood: serverEntry?.mood || null,
+        createdAt: serverEntry.createdAt,
+        updatedAt: serverEntry.updatedAt,
+        tags: serverEntry.tags || [],
+        category: serverEntry.category || entry.category,
+        // AI-generated fields from server (with fallbacks)
+        solution: serverEntry.solution || null,
+        learning: serverEntry.learning || null,
+        intensity: serverEntry.intensity || null,
+        prevention_strategies: Array.isArray(serverEntry.prevention_strategies) ? serverEntry.prevention_strategies : [],
+        root_causes: Array.isArray(serverEntry.root_causes) ? serverEntry.root_causes : [],
+        next_steps: Array.isArray(serverEntry.next_steps) ? serverEntry.next_steps : [],
       },
     });
 
     return syncedEntry;
   };
 
-  // Get local data for a journal entry
-  const fetchJournalEntryLocal = async (id) => {
-    const localEntry = await getJournalEntryById(id);
+  // Get local data for a mistake entry
+  const fetchMistakeEntryLocal = async (id) => {
+    const localEntry = await getMistakesEntryById(id);
     if (!localEntry) return null;
-    
+
     return {
       local: {
         ...localEntry,
@@ -104,35 +124,44 @@ export default function JournalDetailScreen() {
   };
 
   // Fetch server data separately
-  const fetchServerData = async (serverId, signal) => {
+  const fetchMistakeServerData = async (serverId) => {
     setLoadingServerData(true);
     try {
-      const serverEntry = await getJournalEntry({ 
-        id: serverId, 
-        signal 
-      });
-      return serverEntry;
-    } catch (error) {
-      console.warn('Failed to fetch server data for journal entry:', error);
-      // For authentication errors, user might need to re-login
-      if (error.message && error.message.includes('401')) {
-        console.warn('Authentication error when fetching server data - user may need to re-authenticate');
+      console.log('Fetching server data for mistake entry:', serverId);
+      const serverData = await getMistakeEntryFromServer(serverId);
+      if (serverData) {
+        return {
+          createdAt: serverData.createdAt,
+          updatedAt: serverData.updatedAt,
+          tags: serverData.tags || [],
+          category: serverData.category,
+          // AI-generated fields
+          solution: serverData.solution,
+          learning: serverData.learning,
+          intensity: serverData.intensity,
+          prevention_strategies: serverData.prevention_strategies || [],
+          root_causes: serverData.root_causes || [],
+          next_steps: serverData.next_steps || [],
+        };
       }
+      return null;
+    } catch (error) {
+      console.warn('Failed to fetch server data:', error);
       return null;
     } finally {
       setLoadingServerData(false);
     }
   };
 
-  // Delete journal entry locally and from server
-  const deleteJournalEntryLocal = async ({ entry }) => {
+  // Delete mistake entry locally and from server
+  const deleteMistakeEntryLocal = async ({ entry }) => {
     // Delete from local database first
-    await deleteJournalEntryById(entry.id);
+    await deleteMistakesEntryById(entry.id);
 
     // If entry was synced, also delete from server
     if (entry.synced && entry.server_id) {
       try {
-        await deleteJournalEntry({ id: entry.server_id });
+        await deleteMistakeEntry({ id: entry.server_id });
       } catch (serverError) {
         console.warn(
           "Failed to delete from server, but local deletion succeeded:",
@@ -146,20 +175,20 @@ export default function JournalDetailScreen() {
 
   // Load entry data
   useEffect(() => {
-    if ( id) {
+    if (id) {
       loadEntry();
     }
-  }, [ id]);
+  }, [id]);
 
   const loadEntry = async () => {
     try {
       setLoading(true);
       
       // First load local data only
-      const localData = await fetchJournalEntryLocal(id);
+      const localData = await fetchMistakeEntryLocal(id);
       
       if (!localData) {
-        Alert.alert("Entry Not Found", "This journal entry could not be found.", [
+        Alert.alert("Entry Not Found", "This mistake entry could not be found.", [
           { text: "OK", onPress: () => router.back() }
         ]);
         return;
@@ -169,26 +198,25 @@ export default function JournalDetailScreen() {
       const entryData = localData.local;
       setCombinedData(localData);
       setEntry(entryData);
-      setEditTitle(entryData.title || "");
-      setEditContent(entryData.content || "");
+      setEditDescription(entryData.description || entryData.mistake || "");
+      setEditLearning(entryData.learning || "");
+      setEditCategory(entryData.category || "Other");
       setLoading(false); // Stop main loading
       
       // If entry is synced, fetch server data separately in the background
       if (localData.isSynced && entryData.server_id && isOnline) {
-        const serverData = await fetchServerData(entryData.server_id);
+        const serverData = await fetchMistakeServerData(entryData.server_id);
         if (serverData) {
           // Update combined data with server data
           setCombinedData(prev => ({
             ...prev,
-            server: {
-              ...serverData,
-            }
+            server: serverData
           }));
         }
       }
     } catch (error) {
-      console.error("Error loading journal entry:", error);
-      Alert.alert("Error", "Failed to load journal entry");
+      console.error("Error loading mistake entry:", error);
+      Alert.alert("Error", "Failed to load mistake entry");
       setLoading(false);
     }
   };
@@ -198,22 +226,24 @@ export default function JournalDetailScreen() {
   };
 
   const handleCancelEdit = () => {
-    setEditTitle(entry?.title || "");
-    setEditContent(entry?.content || "");
+    setEditDescription(entry?.description || entry?.mistake || "");
+    setEditLearning(entry?.learning || "");
+    setEditCategory(entry?.category || "Other");
     setIsEditing(false);
   };
 
   const handleSaveEdit = async () => {
     try {
-      if (!editContent.trim()) {
-        Alert.alert("Error", "Journal content cannot be empty");
+      if (!editDescription.trim()) {
+        Alert.alert("Error", "Description cannot be empty");
         return;
       }
 
-      const updatedEntry = await updateJournalEntryLocal({
+      const updatedEntry = await updateMistakeEntryLocal({
         id: entry.id,
-        title: editTitle.trim(),
-        content: editContent.trim()
+        description: editDescription.trim(),
+        learning: editLearning.trim(),
+        category: editCategory
       });
 
       setEntry(updatedEntry);
@@ -225,11 +255,11 @@ export default function JournalDetailScreen() {
       if (isOnline) {
         try {
           setIsSyncing(true);
-          const synced=await syncJournalEntryToServer({ entry: updatedEntry });
-                  if(!synced){
-                     Alert.alert("Sync Failed", "Entry saved locally but couldn't be synced. You can try again later.");
-                     return
-                   } 
+          const synced = await syncMistakeEntryToServer({ entry: updatedEntry });
+          if (!synced) {
+            Alert.alert("Sync Failed", "Entry saved locally but couldn't be synced. You can try again later.");
+            return;
+          } 
           await loadEntry(); // Refresh to show synced status
         } catch (syncError) {
           console.warn("Failed to sync updated entry:", syncError);
@@ -242,7 +272,7 @@ export default function JournalDetailScreen() {
         }
       }
     } catch (error) {
-      console.error("Error updating journal entry:", error);
+      console.error("Error updating mistake entry:", error);
       Alert.alert("Error", error.message || "Failed to update entry");
     }
   };
@@ -250,7 +280,7 @@ export default function JournalDetailScreen() {
   const handleDelete = () => {
     Alert.alert(
       "Delete Entry",
-      "Are you sure you want to delete this journal entry? This action cannot be undone.",
+      "Are you sure you want to delete this mistake entry? This action cannot be undone.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -258,7 +288,7 @@ export default function JournalDetailScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              await deleteJournalEntryLocal({ entry });
+              await deleteMistakeEntryLocal({ entry });
               Alert.alert("Success", "Entry deleted successfully!", [
                 { text: "OK", onPress: () => router.back() }
               ]);
@@ -283,11 +313,9 @@ export default function JournalDetailScreen() {
       return;
     }
     
-    // idToken check removed, handled in client.js
-    
     try {
       // Check daily sync limit
-      const canSync = await canSyncToday();
+      const canSync = await canSyncMistakesToday();
       if (!canSync) {
         Alert.alert(
           "Sync Limit Reached",
@@ -298,13 +326,12 @@ export default function JournalDetailScreen() {
       
       setIsSyncing(true);
       
- const synced=await syncJournalEntryToServer({ entry });
-                   
- if(!synced)
- {
-                            Alert.alert("Sync Failed", "Failed to sync entry. Please try again later.");
-                            return;
-                          }
+      const synced = await syncMistakeEntryToServer({ entry });
+      
+      if (!synced) {
+        Alert.alert("Sync Failed", "Failed to sync entry. Please try again later.");
+        return;
+      }
       await loadEntry(); // Refresh to show synced status
       
       Alert.alert("Success", "Entry synced to cloud successfully!");
@@ -323,10 +350,10 @@ export default function JournalDetailScreen() {
     if (!entry) return;
     
     try {
-      const shareContent = `${entry.title ? `${entry.title}\n\n` : ''}${entry.content}`;
+      const shareContent = `Mistake: ${entry.description || entry.mistake}${entry.learning ? `\n\nLearning: ${entry.learning}` : ''}`;
       await Share.share({
         message: shareContent,
-        title: entry.title || "Journal Entry"
+        title: `${entry.category} Mistake`
       });
     } catch (error) {
       console.error("Error sharing entry:", error);
@@ -345,11 +372,38 @@ export default function JournalDetailScreen() {
     });
   };
 
+  const renderCategoryPicker = () => {
+    const categories = getMistakeCategories();
+    
+    return (
+      <View style={styles.categoryPicker}>
+        {categories.map((category) => (
+          <TouchableOpacity
+            key={category}
+            style={[
+              styles.categoryOption,
+              { backgroundColor: getCategoryColor(category) },
+              editCategory === category && styles.selectedCategory,
+            ]}
+            onPress={() => setEditCategory(category)}
+          >
+            <Text style={styles.categoryEmoji}>
+              {getCategoryEmoji(category)}
+            </Text>
+            <Text style={styles.categoryText}>
+              {category.charAt(0).toUpperCase() + category.slice(1)}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    );
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
         <StatusBar style="dark" />
-        <ActivityIndicator size="large" color="#3B82F6" />
+        <ActivityIndicator size="large" color="#F59E0B" />
         <Text style={styles.loadingText}>Loading entry...</Text>
       </View>
     );
@@ -382,7 +436,7 @@ export default function JournalDetailScreen() {
         </TouchableOpacity>
         
         <Text style={styles.headerTitle}>
-          {isEditing ? "Edit Entry" : "Journal Entry"}
+          {isEditing ? "Edit Entry" : "Mistake Entry"}
         </Text>
         
         <View style={styles.headerActions}>
@@ -447,33 +501,64 @@ export default function JournalDetailScreen() {
             <View style={styles.flexibleContentArea}>
               {isEditing ? (
                 <View style={styles.editContainer}>
-                  <TextInput
-                    style={styles.titleInput}
-                    placeholder="Title (optional)"
-                    placeholderTextColor="#9CA3AF"
-                    value={editTitle}
-                    onChangeText={setEditTitle}
-                    maxLength={200}
-                  />
+                  <View style={styles.inputSection}>
+                    <Text style={styles.inputLabel}>Category</Text>
+                    {renderCategoryPicker()}
+                  </View>
                   
                   <TextInput
                     style={styles.contentInput}
-                    placeholder="What's on your mind?"
+                    placeholder="What happened?"
                     placeholderTextColor="#9CA3AF"
                     multiline
-                    numberOfLines={12}
-                    value={editContent}
-                    onChangeText={setEditContent}
+                    numberOfLines={6}
+                    value={editDescription}
+                    onChangeText={setEditDescription}
                     textAlignVertical="top"
                     autoFocus
+                  />
+                  
+                  <TextInput
+                    style={styles.learningInput}
+                    placeholder="What did you learn? (optional)"
+                    placeholderTextColor="#9CA3AF"
+                    multiline
+                    numberOfLines={4}
+                    value={editLearning}
+                    onChangeText={setEditLearning}
+                    textAlignVertical="top"
                   />
                 </View>
               ) : (
                 <View style={styles.contentDisplay}>
-                  {combinedData.local.title && (
-                    <Text style={styles.displayTitle}>{combinedData.local.title}</Text>
+                  <View style={styles.categoryRow}>
+                    <View
+                      style={[
+                        styles.categoryBadge,
+                        { backgroundColor: getCategoryColor(combinedData.local.category) },
+                      ]}
+                    >
+                      <Text style={styles.categoryBadgeEmoji}>
+                        {getCategoryEmoji(combinedData.local.category)}
+                      </Text>
+                      <Text style={styles.categoryBadgeText}>
+                        {combinedData.local.category.charAt(0).toUpperCase() +
+                          combinedData.local.category.slice(1)}
+                      </Text>
+                    </View>
+                  </View>
+                  
+                  <View style={styles.contentGroup}>
+                    <Text style={styles.contentLabel}>What happened:</Text>
+                    <Text style={styles.contentText}>{combinedData.local.description || combinedData.local.mistake}</Text>
+                  </View>
+                  
+                  {combinedData.local.learning && (
+                    <View style={styles.contentGroup}>
+                      <Text style={styles.contentLabel}>Personal reflection:</Text>
+                      <Text style={styles.contentText}>{combinedData.local.learning}</Text>
+                    </View>
                   )}
-                  <Text style={styles.displayContent}>{combinedData.local.content}</Text>
                 </View>
               )}
             </View>
@@ -502,80 +587,61 @@ export default function JournalDetailScreen() {
                 </View>
               ) : combinedData.server ? (
                 <View style={styles.contentDisplay}>
-                  {combinedData.server.title && (
-                    <Text style={styles.displayTitle}>{combinedData.server.title}</Text>
-                  )}
-                  
-                  {/* Display structured AI-processed content */}
-                  {combinedData.server.rating && (
-                    <View style={styles.ratingSection}>
-                      <View style={styles.ratingBadge}>
-                        <Text style={styles.ratingText}>★ {combinedData.server.rating}/10</Text>
+                  {/* Impact Level Badge */}
+                  {combinedData.server.intensity && (
+                    <View style={styles.metadataRow}>
+                      <View style={styles.intensityBadge}>
+                        <Ionicons name="warning" size={10} color="#FFFFFF" />
+                        <Text style={styles.intensityText}>
+                          {combinedData.server.intensity}/10
+                        </Text>
                       </View>
-                      <Text style={styles.ratingLabel}>Day Rating</Text>
+                    </View>
+                  )}
+
+                  {/* AI-Generated Solution */}
+                  {combinedData.server.solution && (
+                    <View style={styles.insightGroup}>
+                      <Text style={styles.insightTitle}>💡 How to Improve</Text>
+                      <Text style={styles.insightText}>{combinedData.server.solution}</Text>
                     </View>
                   )}
                   
-                  {/* Summary Points */}
-                  {combinedData.server.summary && combinedData.server.summary.length > 0 && (
-                    <View style={styles.summarySection}>
-                      <Text style={styles.sectionTitle}>Summary</Text>
-                      {combinedData.server.summary.map((point, index) => (
-                        <View key={index} style={styles.summaryPoint}>
-                          <Text style={styles.bulletPoint}>•</Text>
-                          <Text style={styles.pointText}>{point}</Text>
-                        </View>
+                  {/* AI-Generated Learning */}
+                  {(combinedData.server.learning && combinedData.server.learning !== combinedData.local.learning) && (
+                    <View style={styles.insightGroup}>
+                      <Text style={styles.insightTitle}>🎯 Key Learning</Text>
+                      <Text style={styles.insightText}>{combinedData.server.learning}</Text>
+                    </View>
+                  )}
+                  
+                  {/* Prevention Strategies */}
+                  {combinedData.server.prevention_strategies && Array.isArray(combinedData.server.prevention_strategies) && combinedData.server.prevention_strategies.length > 0 && (
+                    <View style={styles.insightGroup}>
+                      <Text style={styles.insightTitle}>🛡️ Prevention Strategies</Text>
+                      {combinedData.server.prevention_strategies.map((strategy, index) => (
+                        <Text key={index} style={styles.insightItem}>• {strategy}</Text>
                       ))}
                     </View>
                   )}
                   
-                  {/* Positives */}
-                  {combinedData.server.positives && combinedData.server.positives.length > 0 && (
-                    <View style={styles.insightSection}>
-                      <Text style={styles.insightTitle}>😊 Positives</Text>
-                      {combinedData.server.positives.map((positive, index) => (
-                        <View key={index} style={styles.insightPoint}>
-                          <Text style={styles.bulletPoint}>•</Text>
-                          <Text style={styles.pointText}>{positive}</Text>
-                        </View>
+                  {/* Root Causes */}
+                  {combinedData.server.root_causes && Array.isArray(combinedData.server.root_causes) && combinedData.server.root_causes.length > 0 && (
+                    <View style={styles.insightGroup}>
+                      <Text style={styles.insightTitle}>🔍 Root Causes</Text>
+                      {combinedData.server.root_causes.map((cause, index) => (
+                        <Text key={index} style={styles.insightItem}>• {cause}</Text>
                       ))}
                     </View>
                   )}
                   
-                  {/* Negatives/Challenges */}
-                  {combinedData.server.negatives && combinedData.server.negatives.length > 0 && (
-                    <View style={styles.insightSection}>
-                      <Text style={styles.insightTitle}>⚠️ Challenges</Text>
-                      {combinedData.server.negatives.map((negative, index) => (
-                        <View key={index} style={styles.insightPoint}>
-                          <Text style={styles.bulletPoint}>•</Text>
-                          <Text style={styles.pointText}>{negative}</Text>
-                        </View>
+                  {/* Next Steps */}
+                  {combinedData.server.next_steps && Array.isArray(combinedData.server.next_steps) && combinedData.server.next_steps.length > 0 && (
+                    <View style={styles.insightGroup}>
+                      <Text style={styles.insightTitle}>➡️ Next Steps</Text>
+                      {combinedData.server.next_steps.map((step, index) => (
+                        <Text key={index} style={styles.insightItem}>• {step}</Text>
                       ))}
-                    </View>
-                  )}
-                  
-                  {/* Lessons */}
-                  {combinedData.server.lessons && combinedData.server.lessons.length > 0 && (
-                    <View style={styles.insightSection}>
-                      <Text style={styles.insightTitle}>💡 Lessons Learned</Text>
-                      {combinedData.server.lessons.map((lesson, index) => (
-                        <View key={index} style={styles.insightPoint}>
-                          <Text style={styles.bulletPoint}>•</Text>
-                          <Text style={styles.pointText}>{lesson}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  )}
-                  
-                  {(combinedData.server.tags?.length > 0 || combinedData.server.mood) && (
-                    <View style={styles.extraInfo}>
-                      {combinedData.server.tags?.length > 0 && (
-                        <Text style={styles.tags}>Tags: {combinedData.server.tags.join(", ")}</Text>
-                      )}
-                      {combinedData.server.mood && (
-                        <Text style={styles.mood}>Mood: {combinedData.server.mood}</Text>
-                      )}
                     </View>
                   )}
                 </View>
@@ -605,9 +671,18 @@ export default function JournalDetailScreen() {
             </Text>
             
             <View style={styles.statusRow}>
-              <View style={styles.sentimentContainer}>
-                <Text style={styles.sentimentEmoji}>{entry.sentiment}</Text>
-                <Text style={styles.sentimentLabel}>Mood</Text>
+              <View style={styles.categoryContainer}>
+                <View
+                  style={[
+                    styles.categoryBadgeSmall,
+                    { backgroundColor: getCategoryColor(entry.category) },
+                  ]}
+                >
+                  <Text style={styles.categoryEmojiSmall}>
+                    {getCategoryEmoji(entry.category)}
+                  </Text>
+                </View>
+                <Text style={styles.categoryLabel}>{entry.category}</Text>
               </View>
               
               <View style={styles.syncStatusContainer}>
@@ -640,68 +715,46 @@ export default function JournalDetailScreen() {
           <View style={styles.entryContent}>
             {isEditing ? (
               <>
-                <TextInput
-                  style={styles.titleInput}
-                  placeholder="Title (optional)"
-                  placeholderTextColor="#9CA3AF"
-                  value={editTitle}
-                  onChangeText={setEditTitle}
-                  maxLength={200}
-                />
+                <View style={styles.inputSection}>
+                  <Text style={styles.inputLabel}>Category</Text>
+                  {renderCategoryPicker()}
+                </View>
                 
                 <TextInput
                   style={styles.contentInput}
-                  placeholder="What's on your mind?"
+                  placeholder="What happened?"
                   placeholderTextColor="#9CA3AF"
                   multiline
-                  numberOfLines={20}
-                  value={editContent}
-                  onChangeText={setEditContent}
+                  numberOfLines={8}
+                  value={editDescription}
+                  onChangeText={setEditDescription}
                   textAlignVertical="top"
                   autoFocus
+                />
+
+                <TextInput
+                  style={styles.learningInput}
+                  placeholder="What did you learn? (optional)"
+                  placeholderTextColor="#9CA3AF"
+                  multiline
+                  numberOfLines={6}
+                  value={editLearning}
+                  onChangeText={setEditLearning}
+                  textAlignVertical="top"
                 />
               </>
             ) : (
               <>
-                {entry.title && (
-                  <Text style={styles.entryTitle}>{entry.title}</Text>
+                <Text style={styles.entryText}>{entry.description || entry.mistake}</Text>
+                {entry.learning && (
+                  <View style={styles.learningDisplay}>
+                    <Text style={styles.learningLabel}>Personal Learning:</Text>
+                    <Text style={styles.learningText}>{entry.learning}</Text>
+                  </View>
                 )}
-                <Text style={styles.entryText}>{entry.content}</Text>
               </>
             )}
           </View>
-
-          {/* Server Meta Info (if synced) - Keep for backward compatibility */}
-          {entry.synced && entry.server_meta && (
-            <View style={styles.serverMetaContainer}>
-              <Text style={styles.serverMetaTitle}>Cloud Information</Text>
-              
-              <View style={styles.serverMetaRow}>
-                <Ionicons name="cloud" size={16} color="#6B7280" />
-                <Text style={styles.serverMetaText}>
-                  Synced to cloud on {formatDate(entry.server_meta.updatedAt)}
-                </Text>
-              </View>
-              
-              {entry.server_meta.tags && entry.server_meta.tags.length > 0 && (
-                <View style={styles.serverMetaRow}>
-                  <Ionicons name="pricetags" size={16} color="#6B7280" />
-                  <Text style={styles.serverMetaText}>
-                    Tags: {entry.server_meta.tags.join(", ")}
-                  </Text>
-                </View>
-              )}
-              
-              {entry.server_meta.mood && (
-                <View style={styles.serverMetaRow}>
-                  <Ionicons name="happy" size={16} color="#6B7280" />
-                  <Text style={styles.serverMetaText}>
-                    Server mood: {entry.server_meta.mood}
-                  </Text>
-                </View>
-              )}
-            </View>
-          )}
 
           {/* Not Synced Warning */}
           {!entry.synced && (
@@ -752,7 +805,7 @@ const styles = StyleSheet.create({
     marginTop: 20,
     paddingHorizontal: 20,
     paddingVertical: 12,
-    backgroundColor: "#3B82F6",
+    backgroundColor: "#F59E0B",
     borderRadius: 8,
   },
   backButtonText: {
@@ -793,7 +846,7 @@ const styles = StyleSheet.create({
     marginLeft: 12,
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: "#3B82F6",
+    backgroundColor: "#F59E0B",
     borderRadius: 8,
   },
   saveButtonText: {
@@ -820,21 +873,27 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
-  sentimentContainer: {
+  categoryContainer: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
   },
-  sentimentEmoji: {
-    fontSize: 24,
+  categoryBadgeSmall: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
   },
-  sentimentLabel: {
+  categoryEmojiSmall: {
+    fontSize: 14,
+  },
+  categoryLabel: {
     fontSize: 12,
     color: "#6B7280",
     fontWeight: "500",
   },
   syncStatusContainer: {
-    flex: 1,
     alignItems: "flex-end",
   },
   syncStatus: {
@@ -859,58 +918,29 @@ const styles = StyleSheet.create({
     padding: 16,
     minHeight: 300,
   },
-  titleInput: {
-    fontSize: 22,
-    fontWeight: "600",
-    color: "#111827",
-    marginBottom: 16,
-    padding: 0,
-    textAlignVertical: "top",
-  },
-  contentInput: {
-    fontSize: 16,
-    color: "#374151",
-    lineHeight: 24,
-    padding: 0,
-    textAlignVertical: "top",
-    minHeight: 200,
-  },
-  entryTitle: {
-    fontSize: 22,
-    fontWeight: "600",
-    color: "#111827",
-    marginBottom: 16,
-    lineHeight: 28,
-  },
   entryText: {
     fontSize: 16,
     color: "#374151",
     lineHeight: 24,
   },
-  serverMetaContainer: {
-    backgroundColor: "#FFFFFF",
-    margin: 16,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
+  learningDisplay: {
+    marginTop: 16,
+    padding: 12,
+    backgroundColor: "#EBF5FF",
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: "#3B82F6",
   },
-  serverMetaTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#111827",
-    marginBottom: 12,
-  },
-  serverMetaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 8,
-  },
-  serverMetaText: {
+  learningLabel: {
     fontSize: 14,
-    color: "#6B7280",
-    flex: 1,
+    fontWeight: "600",
+    color: "#1D4ED8",
+    marginBottom: 4,
+  },
+  learningText: {
+    fontSize: 16,
+    color: "#374151",
+    lineHeight: 24,
   },
   warningContainer: {
     flexDirection: "row",
@@ -929,6 +959,61 @@ const styles = StyleSheet.create({
     color: "#92400E",
     lineHeight: 20,
   },
+  
+  // Input styles for editing
+  inputSection: {
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#374151",
+    marginBottom: 8,
+  },
+  categoryPicker: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  categoryOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    marginBottom: 4,
+  },
+  selectedCategory: {
+    borderWidth: 2,
+    borderColor: "#374151",
+  },
+  categoryEmoji: {
+    fontSize: 16,
+    marginRight: 6,
+  },
+  categoryText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
+  contentInput: {
+    fontSize: 16,
+    color: "#374151",
+    lineHeight: 24,
+    padding: 0,
+    textAlignVertical: "top",
+    minHeight: 150,
+    marginBottom: 16,
+  },
+  learningInput: {
+    fontSize: 16,
+    color: "#374151",
+    lineHeight: 24,
+    padding: 0,
+    textAlignVertical: "top",
+    minHeight: 100,
+  },
+
   // Scrollable view styles for flexible sections
   syncedScrollView: {
     flex: 1,
@@ -961,7 +1046,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: "#3B82F6",
+    backgroundColor: "#F59E0B",
   },
   cloudDot: {
     width: 8,
@@ -979,11 +1064,7 @@ const styles = StyleSheet.create({
     color: "#6B7280",
     fontWeight: "500",
   },
-  contentArea: {
-    flex: 1,
-  },
   flexibleContentArea: {
-    // Flexible content area that takes as much space as needed
     minHeight: 100,
   },
   editContainer: {
@@ -992,32 +1073,39 @@ const styles = StyleSheet.create({
   contentDisplay: {
     padding: 20,
   },
-  displayTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#111827",
-    marginBottom: 12,
-    lineHeight: 26,
+  categoryRow: {
+    marginBottom: 16,
   },
-  displayContent: {
+  categoryBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    alignSelf: "flex-start",
+  },
+  categoryBadgeEmoji: {
+    fontSize: 16,
+    marginRight: 6,
+  },
+  categoryBadgeText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
+  contentGroup: {
+    marginBottom: 16,
+  },
+  contentLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#F59E0B",
+    marginBottom: 4,
+  },
+  contentText: {
     fontSize: 16,
     color: "#374151",
     lineHeight: 24,
-  },
-  extraInfo: {
-    marginTop: 20,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: "#E5E7EB",
-  },
-  tags: {
-    fontSize: 13,
-    color: "#6B7280",
-    marginBottom: 4,
-  },
-  mood: {
-    fontSize: 13,
-    color: "#6B7280",
   },
   unavailableContainer: {
     flex: 1,
@@ -1050,72 +1138,55 @@ const styles = StyleSheet.create({
     fontFamily: "SpaceGrotesk-Medium",
   },
   
-  // Structured content styles for cloud data
-  ratingSection: {
+  // AI Insights styles
+  metadataRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 16,
+    flexWrap: "wrap",
+  },
+  intensityBadge: {
     flexDirection: "row",
     alignItems: "center",
+    backgroundColor: "#EF4444",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  intensityText: {
+    fontSize: 12,
+    color: "#FFFFFF",
+    fontWeight: "600",
+    marginLeft: 4,
+  },
+  insightGroup: {
     marginBottom: 16,
   },
-  ratingBadge: {
-    backgroundColor: "#F59E0B",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    marginRight: 12,
-  },
-  ratingText: {
-    color: "#FFFFFF",
+  insightTitle: {
     fontSize: 14,
     fontWeight: "600",
+    color: "#0EA5E9",
+    marginBottom: 6,
   },
-  ratingLabel: {
-    fontSize: 14,
-    color: "#6B7280",
-    fontWeight: "500",
-  },
-  summarySection: {
-    marginBottom: 20,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#111827",
-    marginBottom: 12,
-  },
-  summaryPoint: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    marginBottom: 8,
-  },
-  bulletPoint: {
-    fontSize: 16,
-    color: "#6B7280",
-    marginRight: 12,
-    marginTop: 2,
-  },
-  pointText: {
-    flex: 1,
+  insightText: {
     fontSize: 15,
     color: "#374151",
     lineHeight: 22,
+    backgroundColor: "#FFFFFF",
+    padding: 10,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#E0F2FE",
   },
-  insightSection: {
-    marginBottom: 20,
-    padding: 16,
-    backgroundColor: "#F8FAFC",
-    borderRadius: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: "#3B82F6",
-  },
-  insightTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#111827",
-    marginBottom: 12,
-  },
-  insightPoint: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    marginBottom: 6,
+  insightItem: {
+    fontSize: 14,
+    color: "#4B5563",
+    lineHeight: 20,
+    marginBottom: 4,
+    backgroundColor: "#FFFFFF",
+    padding: 8,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#E0F2FE",
   },
 });

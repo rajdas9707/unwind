@@ -41,6 +41,7 @@ import {
 import {
   createMistakeEntry,
   deleteMistakeEntry,
+  listMistakesEntries,
 } from "../../api/mistakes";
 
 // Import database operations
@@ -49,6 +50,7 @@ import {
   markMistakesEntrySynced,
   deleteMistakesEntryById,
   getMistakesSyncAttemptsCountToday,
+  upsertMistakesFromServer,
 } from "../../storage/mistakes/db";
 
 // Removed database health utilities
@@ -95,9 +97,9 @@ export default function MistakesScreen() {
 
     // Create entry on server
     const serverEntry = await createMistakeEntry({
-      mistake: entry.mistake,
-      solution: entry.solution,
+      description: entry.description || entry.mistake, // Support both field names
       category: entry.category,
+      learning: entry.learning,
       date: entry.created_at.split("T")[0],
     });
 
@@ -106,7 +108,7 @@ export default function MistakesScreen() {
       return null;
     }
 
-    // Mark as synced locally
+    // Mark as synced locally - store AI-generated fields in server_meta
     const syncedEntry = await markMistakesEntrySynced({
       id: entry.id,
       server_id: serverEntry._id,
@@ -115,10 +117,74 @@ export default function MistakesScreen() {
         updatedAt: serverEntry.updatedAt,
         tags: serverEntry.tags || [],
         category: serverEntry.category || entry.category,
+        // AI-generated fields from server (with fallbacks)
+        solution: serverEntry.solution || null,
+        learning: serverEntry.learning || null,
+        intensity: serverEntry.intensity || null,
+        prevention_strategies: Array.isArray(serverEntry.prevention_strategies) ? serverEntry.prevention_strategies : [],
+        root_causes: Array.isArray(serverEntry.root_causes) ? serverEntry.root_causes : [],
+        next_steps: Array.isArray(serverEntry.next_steps) ? serverEntry.next_steps : [],
       },
     });
 
     return syncedEntry;
+  };
+
+  // Sync entries from server to local (download from server)
+  const syncMistakesFromServer = async () => {
+    try {
+      // Fetch recent entries from server (last 30 days or so)
+      const serverEntries = await listMistakesEntries({ limit: 100 });
+      
+      if (!serverEntries || !Array.isArray(serverEntries.entries)) {
+        console.log("No server mistake entries to sync");
+        return { syncedCount: 0 };
+      }
+
+      let syncedCount = 0;
+      
+      for (const serverEntry of serverEntries.entries) {
+        try {
+          // Validate required fields before syncing
+          if (!serverEntry._id || !serverEntry.description) {
+            console.warn(`Skipping invalid server mistake entry:`, serverEntry);
+            continue;
+          }
+
+          // Upsert each entry from server, storing AI fields in server_meta
+          await upsertMistakesFromServer({
+            server_id: serverEntry._id,
+            title: serverEntry.title || "",
+            mistake: serverEntry.description,
+            solution: serverEntry.learning || "",
+            category: serverEntry.category || "Other",
+            created_at: serverEntry.createdAt || new Date().toISOString(),
+            updated_at: serverEntry.updatedAt || new Date().toISOString(),
+            server_meta: {
+              createdAt: serverEntry.createdAt,
+              updatedAt: serverEntry.updatedAt,
+              tags: serverEntry.tags || [],
+              category: serverEntry.category || "Other",
+              // AI-generated fields from server (with fallbacks)
+              solution: serverEntry.solution || null,
+              learning: serverEntry.learning || null,
+              intensity: serverEntry.intensity || null,
+              prevention_strategies: Array.isArray(serverEntry.prevention_strategies) ? serverEntry.prevention_strategies : [],
+              root_causes: Array.isArray(serverEntry.root_causes) ? serverEntry.root_causes : [],
+              next_steps: Array.isArray(serverEntry.next_steps) ? serverEntry.next_steps : [],
+            },
+          });
+          syncedCount++;
+        } catch (error) {
+          console.error(`Failed to sync mistake entry ${serverEntry._id} from server:`, error);
+        }
+      }
+
+      return { syncedCount };
+    } catch (error) {
+      console.error("Failed to sync mistake entries from server:", error);
+      throw error;
+    }
   };
 
   // Sync all unsynced mistakes entries with rate limiting
@@ -219,6 +285,17 @@ export default function MistakesScreen() {
       setLoading(true);
 
       try {
+        // First, try to sync from server if we're online (but don't block the UI)
+        if (isOnline && !selectedDate) {
+          try {
+            console.log("Syncing mistake entries from server...");
+            await syncMistakesFromServer();
+            console.log("Successfully synced mistake entries from server");
+          } catch (syncError) {
+            console.warn("Failed to sync mistakes from server, continuing with local data:", syncError);
+          }
+        }
+
         let loadedEntries;
 
         if (selectedDate) {
@@ -272,7 +349,7 @@ export default function MistakesScreen() {
     return () => {
       isMounted = false;
     };
-  }, [selectedDate]);
+  }, [selectedDate, isOnline]);
 
   // Refresh data when the screen comes into focus
   useFocusEffect(
@@ -886,6 +963,7 @@ export default function MistakesScreen() {
                   </View>
                 </View>
 
+                {/* Category Badge */}
                 <View style={styles.categoryRow}>
                   <View
                     style={[
@@ -901,17 +979,40 @@ export default function MistakesScreen() {
                         entry.category.slice(1)}
                     </Text>
                   </View>
+                  {/* Show intensity badge only if available locally */}
+                  {entry.intensity && (
+                    <View style={styles.intensityBadge}>
+                      <Ionicons name="warning" size={10} color="#FFFFFF" />
+                      <Text style={styles.intensityText}>
+                        {entry.intensity}/10
+                      </Text>
+                    </View>
+                  )}
                 </View>
 
-                <View style={styles.contentSection}>
-                  <Text style={styles.contentLabel}>What happened:</Text>
-                  <Text style={styles.contentText}>{entry.description}</Text>
+                {/* Simplified Content Row - Show truncated description */}
+                <View style={styles.contentRow}>
+                  <Text style={styles.mistakePreview}>
+                    {(entry.description || entry.mistake)?.length > 120 ? 
+                      (entry.description || entry.mistake).substring(0, 120) + "..." : 
+                      (entry.description || entry.mistake)}
+                  </Text>
                 </View>
 
-                {entry.lesson && (
-                  <View style={styles.lessonSection}>
-                    <Text style={styles.lessonLabel}>Lesson learned:</Text>
-                    <Text style={styles.lessonText}>{entry.lesson}</Text>
+                {/* Show learning preview if available locally */}
+                {entry.learning && (
+                  <View style={styles.learningPreview}>
+                    <Text style={styles.learningPreviewText}>
+                      🎯 {entry.learning.length > 80 ? entry.learning.substring(0, 80) + "..." : entry.learning}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Simple sync indicator */}
+                {entry.synced && (
+                  <View style={styles.syncedIndicator}>
+                    <Ionicons name="cloud-done" size={14} color="#10B981" />
+                    <Text style={styles.syncedIndicatorText}>Tap for full details</Text>
                   </View>
                 )}
 
@@ -1205,7 +1306,10 @@ const styles = StyleSheet.create({
     padding: 6,
   },
   categoryRow: {
-    marginBottom: 12,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
   },
   categoryBadge: {
     flexDirection: "row",
@@ -1224,8 +1328,9 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#FFFFFF",
   },
+  // Legacy content section - now used within device data section
   contentSection: {
-    marginBottom: 12,
+    marginBottom: 8,
   },
   contentLabel: {
     fontSize: 14,
@@ -1385,5 +1490,173 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     minHeight: 100,
     textAlignVertical: "top",
+  },
+  
+  // AI-Generated Learning Styles
+  learningSection: {
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: "#EBF5FF",
+    borderLeftWidth: 3,
+    borderLeftColor: "#3B82F6",
+    borderRadius: 8,
+  },
+  learningLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1D4ED8",
+    marginBottom: 4,
+  },
+  learningText: {
+    fontSize: 16,
+    color: "#374151",
+    lineHeight: 24,
+  },
+  
+  // AI-Generated Solution Styles
+  solutionSection: {
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: "#F0FDF4",
+    borderLeftWidth: 3,
+    borderLeftColor: "#10B981",
+    borderRadius: 8,
+  },
+  solutionLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#059669",
+    marginBottom: 4,
+  },
+  solutionText: {
+    fontSize: 16,
+    color: "#374151",
+    lineHeight: 24,
+  },
+  
+  // Intensity Badge Styles (now positioned in category row)
+  intensityRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginTop: 8,
+  },
+  intensityBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#EF4444",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  intensityText: {
+    fontSize: 12,
+    color: "#FFFFFF",
+    fontWeight: "600",
+    marginLeft: 4,
+  },
+  
+  // Device and Cloud Data Section Styles
+  deviceDataSection: {
+    marginBottom: 16,
+    padding: 12,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: "#6B7280",
+  },
+  cloudDataSection: {
+    marginBottom: 16,
+    padding: 12,
+    backgroundColor: "#F0F9FF",
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: "#0EA5E9",
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+    gap: 6,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#6B7280",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  deviceContent: {
+    gap: 12,
+  },
+  cloudContent: {
+    gap: 12,
+  },
+  contentGroup: {
+    marginBottom: 8,
+  },
+  insightGroup: {
+    marginBottom: 12,
+  },
+  insightTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#0EA5E9",
+    marginBottom: 6,
+  },
+  insightText: {
+    fontSize: 15,
+    color: "#374151",
+    lineHeight: 22,
+    backgroundColor: "#FFFFFF",
+    padding: 10,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#E0F2FE",
+  },
+  insightItem: {
+    fontSize: 14,
+    color: "#4B5563",
+    lineHeight: 20,
+    marginBottom: 4,
+    backgroundColor: "#FFFFFF",
+    padding: 8,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#E0F2FE",
+  },
+  
+  // Simplified Card Layout Styles for Mistakes - Local Data Only
+  mistakePreview: {
+    fontSize: 16,
+    color: "#374151",
+    lineHeight: 22,
+  },
+  learningPreview: {
+    marginTop: 8,
+    padding: 8,
+    backgroundColor: "#EBF5FF",
+    borderRadius: 6,
+    borderLeftWidth: 2,
+    borderLeftColor: "#3B82F6",
+  },
+  learningPreviewText: {
+    fontSize: 13,
+    color: "#1D4ED8",
+    lineHeight: 18,
+    fontStyle: "italic",
+  },
+  syncedIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
+  },
+  syncedIndicatorText: {
+    fontSize: 12,
+    color: "#10B981",
+    fontWeight: "500",
   },
 });

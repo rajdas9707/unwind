@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const Journal = require("../models/Journal");
 const aiService = require("../llm/services/aiService");
+const journalService = require("../services/journalService");
 
 // Get all journal entries for the authenticated user
 router.get("/", async (req, res) => {
@@ -66,12 +67,10 @@ router.post("/", async (req, res) => {
   try {
     const userId = req.user?.uid;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
-    const { content, title, date, tags, mood } = req.body;
+    const { content, date, mood } = req.body;
     console.log(`[journal] POST / - userId=${userId} body=`, {
       contentLength: content?.length,
-      title,
       date,
-      tagsCount: tags?.length,
       mood,
     });
 
@@ -82,48 +81,39 @@ router.post("/", async (req, res) => {
     // Auto-generate date if not provided
     const entryDate = date || new Date().toISOString().split('T')[0];
 
-    // Create journal entry object
-    const journalData = {
-      userId,
-      content,
-      title: title || null,
-      date: entryDate,
-      tags: tags || [],
-      mood: mood || "neutral",
-    };
-
-    // Process with LLM - REQUIRED for journal creation
-    console.log(`[journal] Processing with LLM for user ${userId}`);
+    // Process raw content through AI to get structured summary - REQUIRED
+    console.log(`[journal] Processing raw content with AI for user ${userId}`);
+    let processedResult;
     try {
-      const aiPrompt = `Please provide supportive, empathetic feedback for this journal entry. Keep it encouraging and helpful:\n\n"${content}"`;
-      const aiResponse = await aiService.queryAI(aiPrompt, {
-        max_tokens: 300,
-        temperature: 0.8,
-      });
-
-      // Add AI response to journal data
-      journalData.aiResponse = aiResponse.response;
-      journalData.aiMetadata = {
-        provider: aiResponse.provider,
-        model: aiResponse.model,
-        tokens_used: aiResponse.metadata.tokens_used,
-        response_time: aiResponse.metadata.response_time,
-        timestamp: new Date(),
-      };
-
-      console.log(`[journal] LLM processing successful for user ${userId}`);
+      processedResult = await journalService.processJournalEntry(content);
+      console.log(`[journal] AI processing successful for user ${userId}`);
     } catch (aiError) {
       console.error(
-        `[journal] LLM processing failed for user ${userId}:`,
+        `[journal] AI processing failed for user ${userId}:`,
         aiError.message
       );
-      // Don't save the entry if LLM processing fails
+      // Don't save the entry if AI processing fails completely
       return res.status(503).json({ 
         error: "AI service is currently unavailable. Please try again later.",
         code: "LLM_UNAVAILABLE",
-        details: "The journal entry could not be processed because our AI feedback service is temporarily unreachable."
+        details: "The journal entry could not be processed because our AI analysis service is temporarily unreachable."
       });
     }
+
+    // Create journal entry object with processed structured content
+    const journalData = {
+      userId,
+      date: entryDate,
+      mood: mood || "neutral",
+      // AI-processed structured content
+      summary: processedResult.processedContent.summary,
+      positives: processedResult.processedContent.positives,
+      negatives: processedResult.processedContent.negatives,
+      lessons: processedResult.processedContent.lessons,
+      intensity: processedResult.processedContent.intensity,
+      rating: processedResult.processedContent.rating,
+      aiMetadata: processedResult.aiMetadata
+    };
 
     const entry = new Journal(journalData);
     const savedEntry = await entry.save();
@@ -131,7 +121,7 @@ router.post("/", async (req, res) => {
     console.log(
       `[journal] CREATED _id=${savedEntry._id} userId=${userId} date=${
         savedEntry.date
-      } aiResponse=${!!savedEntry.aiResponse}`
+      } summaryPoints=${savedEntry.summary.length}`
     );
 
     return res.status(201).json(savedEntry);
@@ -147,7 +137,7 @@ router.put("/:id", async (req, res) => {
     const userId = req.user?.uid;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
     const { id } = req.params;
-    const { content, title, tags, mood } = req.body;
+    const { content, mood, summary, positives, negatives, lessons, intensity, rating } = req.body;
     console.log(`[journal] PUT /:id - userId=${userId} id=${id}`);
 
     const entry = await Journal.findOne({ _id: id, userId });
@@ -156,9 +146,35 @@ router.put("/:id", async (req, res) => {
       return res.status(404).json({ error: "Journal entry not found" });
     }
 
-    if (content) entry.content = content;
-    if (title !== undefined) entry.title = title; // Allow setting title to null
-    if (tags) entry.tags = tags;
+    // If raw content is provided, reprocess it through AI
+    if (content) {
+      console.log(`[journal] Reprocessing content with AI for entry ${id}`);
+      try {
+        const processedResult = await journalService.processJournalEntry(content);
+        entry.summary = processedResult.processedContent.summary;
+        entry.positives = processedResult.processedContent.positives;
+        entry.negatives = processedResult.processedContent.negatives;
+        entry.lessons = processedResult.processedContent.lessons;
+        entry.intensity = processedResult.processedContent.intensity;
+        entry.rating = processedResult.processedContent.rating;
+        entry.aiMetadata = processedResult.aiMetadata;
+      } catch (aiError) {
+        console.error(`[journal] AI reprocessing failed for entry ${id}:`, aiError.message);
+        return res.status(503).json({ 
+          error: "AI service is currently unavailable for content update",
+          code: "LLM_UNAVAILABLE"
+        });
+      }
+    } else {
+      // Allow direct updates to structured fields (for admin/manual edits)
+      if (summary) entry.summary = summary;
+      if (positives) entry.positives = positives;
+      if (negatives) entry.negatives = negatives;
+      if (lessons) entry.lessons = lessons;
+      if (intensity) entry.intensity = intensity;
+      if (rating !== undefined && rating >= 1 && rating <= 10) entry.rating = rating;
+    }
+    
     if (mood) entry.mood = mood;
 
     const updatedEntry = await entry.save();
@@ -203,59 +219,19 @@ router.post("/sync/:id", async (req, res) => {
       return res.status(404).json({ error: "Journal entry not found" });
     }
 
-    // Check if already processed
-    if (entry.aiResponse) {
+    // Check if entry has structured content (already processed)
+    if (entry.summary && entry.summary.length > 0) {
       return res.json({
-        message: "Entry already has AI feedback",
+        message: "Entry already has structured content",
         entry: entry,
       });
     }
 
-    // Process with LLM
-    console.log(`[journal] Manual sync processing with LLM for user ${userId}`);
-    try {
-      const aiPrompt = `Please provide supportive, empathetic feedback for this journal entry. Keep it encouraging and helpful:\n\n"${entry.content}"`;
-      const aiResponse = await aiService.queryAI(aiPrompt, {
-        max_tokens: 300,
-        temperature: 0.8,
-      });
-
-      // Update entry with AI response
-      entry.aiResponse = aiResponse.response;
-      entry.aiMetadata = {
-        provider: aiResponse.provider,
-        model: aiResponse.model,
-        tokens_used: aiResponse.metadata.tokens_used,
-        response_time: aiResponse.metadata.response_time,
-        timestamp: new Date(),
-      };
-
-      console.log(
-        `[journal] Manual sync LLM processing successful for user ${userId}`
-      );
-    } catch (aiError) {
-      console.error(
-        `[journal] Manual sync LLM processing failed for user ${userId}:`,
-        aiError.message
-      );
-      entry.aiMetadata = {
-        error: aiError.message,
-        timestamp: new Date(),
-      };
-      return res.status(500).json({
-        error: "Failed to process with AI",
-        details: aiError.message,
-      });
-    }
-
-    const updatedEntry = await entry.save();
-    console.log(
-      `[journal] Manual sync completed for _id=${updatedEntry._id} userId=${userId}`
-    );
-
-    res.json({
-      message: "Journal entry processed successfully",
-      entry: updatedEntry,
+    // Note: This sync route is for legacy entries that might have raw content
+    // For new entries, all content is processed during creation
+    return res.status(400).json({
+      error: "Manual sync not supported for new journal structure",
+      message: "All journal entries are now processed during creation"
     });
   } catch (error) {
     console.error(`[journal] Manual sync error`, error);

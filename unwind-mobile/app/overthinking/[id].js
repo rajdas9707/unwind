@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -6,43 +6,53 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Modal,
   Alert,
   ActivityIndicator,
   Share,
 } from "react-native";
-// Removed animation imports
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useNetworkStatus } from "../../utils/networkUtils";
-// import { useDatabaseReady } from "../../hooks/useDatabaseReady";
 
-// Import storage layer (local operations only)
+// Import storage layer
 import {
-  fetchJournalEntryById,
-  updateJournalEntryLocal,
-  canSyncToday
-} from "../../storage/journal/storage";
+  fetchOverthinkingEntryById,
+  updateOverthinkingEntryLocal,
+  canSyncOverthinkingToday,
+} from "../../storage/overthinking/storage";
 
-// Import API client functions for network operations
+// Import API client functions
 import {
-  createJournalEntry,
-  deleteJournalEntry,
-  getJournalEntry,
-} from "../../api/journal";
+  createOverthinkingEntry,
+  deleteOverthinkingEntry,
+  listOverthinkingEntries,
+} from "../../api/overthinking";
+
+// Add a function to get overthinking entry by server ID
+const getOverthinkingEntryFromServer = async (serverId) => {
+  try {
+    // Fetch the specific entry from server using list API with server ID
+    const response = await listOverthinkingEntries({ limit: 1 });
+    // Note: You might need to implement a specific getOverthinkingEntry API endpoint
+    // For now, we'll work with the existing API structure
+    return response?.entries?.find(entry => entry._id === serverId) || null;
+  } catch (error) {
+    console.error('Error fetching server entry:', error);
+    return null;
+  }
+};
 
 // Import database operations
 import {
-  getJournalEntryById,
-  markJournalEntrySynced,
-  deleteJournalEntryById,
-} from "../../storage/journal/db";
+  getOverthinkingEntryById,
+  markOverthinkingEntrySynced,
+  deleteOverthinkingEntryById,
+} from "../../storage/overthinking/db";
 
-export default function JournalDetailScreen() {
+export default function OverthinkingDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
-  // const { isReady } = useDatabaseReady();
   const isOnline = useNetworkStatus();
   
   const [entry, setEntry] = useState(null);
@@ -51,22 +61,21 @@ export default function JournalDetailScreen() {
   const [loadingServerData, setLoadingServerData] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState("");
-  const [editContent, setEditContent] = useState("");
+  const [editThought, setEditThought] = useState("");
+  const [editSolution, setEditSolution] = useState("");
   const [isSyncing, setIsSyncing] = useState(false);
-  
-  // Removed animation logic
 
-  // Sync single journal entry to server
-  const syncJournalEntryToServer = async ({ entry }) => {
+  // Sync single overthinking entry to server
+  const syncOverthinkingEntryToServer = async ({ entry }) => {
     if (entry.synced) {
       return entry; // Already synced
     }
 
     // Create entry on server
-    const serverEntry = await createJournalEntry({
-      content: entry.content,
+    const serverEntry = await createOverthinkingEntry({
+      thought: entry.thought,
+      solution: entry.solution,
       date: entry.created_at.split("T")[0],
-      title: entry.title,
     });
 
     console.log("Server entry created:", serverEntry);
@@ -74,65 +83,82 @@ export default function JournalDetailScreen() {
       return null;
     }
 
-    // Mark as synced locally
-    const syncedEntry = await markJournalEntrySynced({
+    // Mark as synced locally - store AI-generated fields in server_meta
+    const syncedEntry = await markOverthinkingEntrySynced({
       id: entry.id,
-      server_id: serverEntry?._id,
+      server_id: serverEntry._id,
       server_meta: {
-        createdAt: serverEntry?.createdAt,
-        updatedAt: serverEntry?.updatedAt,
-        tags: serverEntry?.tags || [],
-        mood: serverEntry?.mood || null,
+        createdAt: serverEntry.createdAt,
+        updatedAt: serverEntry.updatedAt,
+        tags: serverEntry.tags || [],
+        mood: serverEntry.mood || null,
+        // AI-generated fields from server
+        category: serverEntry.category || null,
+        intensity: serverEntry.intensity || null,
+        triggers: Array.isArray(serverEntry.triggers) ? serverEntry.triggers : [],
+        patterns: Array.isArray(serverEntry.patterns) ? serverEntry.patterns : [],
+        coping_strategies: Array.isArray(serverEntry.coping_strategies) ? serverEntry.coping_strategies : [],
+        reframe: serverEntry.reframe || null,
+        urgency: serverEntry.urgency || null,
       },
     });
 
     return syncedEntry;
   };
 
-  // Get local data for a journal entry
-  const fetchJournalEntryLocal = async (id) => {
-    const localEntry = await getJournalEntryById(id);
+  // Get combined local and server data for an overthinking entry (if synced)
+  const fetchOverthinkingEntryWithServerData = async (id) => {
+    // First get the local entry
+    const localEntry = await getOverthinkingEntryById(id);
     if (!localEntry) return null;
-    
-    return {
+
+    const result = {
       local: {
         ...localEntry,
       },
       server: null,
       isSynced: localEntry.synced || false
     };
-  };
 
-  // Fetch server data separately
-  const fetchServerData = async (serverId, signal) => {
-    setLoadingServerData(true);
-    try {
-      const serverEntry = await getJournalEntry({ 
-        id: serverId, 
-        signal 
-      });
-      return serverEntry;
-    } catch (error) {
-      console.warn('Failed to fetch server data for journal entry:', error);
-      // For authentication errors, user might need to re-login
-      if (error.message && error.message.includes('401')) {
-        console.warn('Authentication error when fetching server data - user may need to re-authenticate');
+    // If entry is synced and we're online, fetch server data via API call
+    if (localEntry.synced && localEntry.server_id && isOnline) {
+      try {
+        console.log('Fetching server data for overthinking entry:', localEntry.server_id);
+        const serverData = await getOverthinkingEntryFromServer(localEntry.server_id);
+        if (serverData) {
+          result.server = {
+            createdAt: serverData.createdAt,
+            updatedAt: serverData.updatedAt,
+            tags: serverData.tags || [],
+            mood: serverData.mood || null,
+            // AI-generated fields
+            category: serverData.category,
+            intensity: serverData.intensity,
+            triggers: serverData.triggers || [],
+            patterns: serverData.patterns || [],
+            coping_strategies: serverData.coping_strategies || [],
+            reframe: serverData.reframe,
+            urgency: serverData.urgency,
+          };
+        }
+      } catch (error) {
+        console.warn('Failed to fetch server data:', error);
+        // Continue without server data
       }
-      return null;
-    } finally {
-      setLoadingServerData(false);
     }
+
+    return result;
   };
 
-  // Delete journal entry locally and from server
-  const deleteJournalEntryLocal = async ({ entry }) => {
+  // Delete overthinking entry locally and from server
+  const deleteOverthinkingEntryLocal = async ({ entry }) => {
     // Delete from local database first
-    await deleteJournalEntryById(entry.id);
+    await deleteOverthinkingEntryById(entry.id);
 
     // If entry was synced, also delete from server
     if (entry.synced && entry.server_id) {
       try {
-        await deleteJournalEntry({ id: entry.server_id });
+        await deleteOverthinkingEntry({ id: entry.server_id });
       } catch (serverError) {
         console.warn(
           "Failed to delete from server, but local deletion succeeded:",
@@ -146,49 +172,76 @@ export default function JournalDetailScreen() {
 
   // Load entry data
   useEffect(() => {
-    if ( id) {
+    if (id) {
       loadEntry();
     }
-  }, [ id]);
+  }, [id]);
 
   const loadEntry = async () => {
     try {
       setLoading(true);
       
-      // First load local data only
-      const localData = await fetchJournalEntryLocal(id);
+      // First, load local data immediately
+      const localEntry = await getOverthinkingEntryById(id);
       
-      if (!localData) {
-        Alert.alert("Entry Not Found", "This journal entry could not be found.", [
+      if (!localEntry) {
+        Alert.alert("Entry Not Found", "This overthinking entry could not be found.", [
           { text: "OK", onPress: () => router.back() }
         ]);
         return;
       }
       
-      // Set local data immediately so UI can render
-      const entryData = localData.local;
-      setCombinedData(localData);
-      setEntry(entryData);
-      setEditTitle(entryData.title || "");
-      setEditContent(entryData.content || "");
-      setLoading(false); // Stop main loading
+      // Set up initial combined data with local entry
+      const initialCombinedData = {
+        local: localEntry,
+        server: null,
+        isSynced: localEntry.synced || false
+      };
       
-      // If entry is synced, fetch server data separately in the background
-      if (localData.isSynced && entryData.server_id && isOnline) {
-        const serverData = await fetchServerData(entryData.server_id);
-        if (serverData) {
-          // Update combined data with server data
-          setCombinedData(prev => ({
-            ...prev,
-            server: {
-              ...serverData,
-            }
-          }));
+      // Set local data immediately
+      setCombinedData(initialCombinedData);
+      setEntry(localEntry);
+      setEditTitle(localEntry.title || "");
+      setEditThought(localEntry.thought || "");
+      setEditSolution(localEntry.solution || "");
+      setLoading(false); // Show UI with local data
+      
+      // If entry is synced, fetch server data in background
+      if (localEntry.synced && localEntry.server_id && isOnline) {
+        setLoadingServerData(true);
+        try {
+          console.log('Fetching server data for overthinking entry:', localEntry.server_id);
+          const serverData = await getOverthinkingEntryFromServer(localEntry.server_id);
+          
+          if (serverData) {
+            const updatedCombinedData = {
+              ...initialCombinedData,
+              server: {
+                createdAt: serverData.createdAt,
+                updatedAt: serverData.updatedAt,
+                tags: serverData.tags || [],
+                mood: serverData.mood || null,
+                // AI-generated fields
+                category: serverData.category,
+                intensity: serverData.intensity,
+                triggers: serverData.triggers || [],
+                patterns: serverData.patterns || [],
+                coping_strategies: serverData.coping_strategies || [],
+                reframe: serverData.reframe,
+                urgency: serverData.urgency,
+              }
+            };
+            setCombinedData(updatedCombinedData);
+          }
+        } catch (error) {
+          console.warn('Failed to fetch server data:', error);
+        } finally {
+          setLoadingServerData(false);
         }
       }
     } catch (error) {
-      console.error("Error loading journal entry:", error);
-      Alert.alert("Error", "Failed to load journal entry");
+      console.error("Error loading overthinking entry:", error);
+      Alert.alert("Error", "Failed to load overthinking entry");
       setLoading(false);
     }
   };
@@ -199,21 +252,23 @@ export default function JournalDetailScreen() {
 
   const handleCancelEdit = () => {
     setEditTitle(entry?.title || "");
-    setEditContent(entry?.content || "");
+    setEditThought(entry?.thought || "");
+    setEditSolution(entry?.solution || "");
     setIsEditing(false);
   };
 
   const handleSaveEdit = async () => {
     try {
-      if (!editContent.trim()) {
-        Alert.alert("Error", "Journal content cannot be empty");
+      if (!editThought.trim()) {
+        Alert.alert("Error", "Thought content cannot be empty");
         return;
       }
 
-      const updatedEntry = await updateJournalEntryLocal({
+      const updatedEntry = await updateOverthinkingEntryLocal({
         id: entry.id,
         title: editTitle.trim(),
-        content: editContent.trim()
+        thought: editThought.trim(),
+        solution: editSolution.trim()
       });
 
       setEntry(updatedEntry);
@@ -225,11 +280,11 @@ export default function JournalDetailScreen() {
       if (isOnline) {
         try {
           setIsSyncing(true);
-          const synced=await syncJournalEntryToServer({ entry: updatedEntry });
-                  if(!synced){
-                     Alert.alert("Sync Failed", "Entry saved locally but couldn't be synced. You can try again later.");
-                     return
-                   } 
+          const synced = await syncOverthinkingEntryToServer({ entry: updatedEntry });
+          if (!synced) {
+            Alert.alert("Sync Failed", "Entry saved locally but couldn't be synced. You can try again later.");
+            return;
+          } 
           await loadEntry(); // Refresh to show synced status
         } catch (syncError) {
           console.warn("Failed to sync updated entry:", syncError);
@@ -242,7 +297,7 @@ export default function JournalDetailScreen() {
         }
       }
     } catch (error) {
-      console.error("Error updating journal entry:", error);
+      console.error("Error updating overthinking entry:", error);
       Alert.alert("Error", error.message || "Failed to update entry");
     }
   };
@@ -250,7 +305,7 @@ export default function JournalDetailScreen() {
   const handleDelete = () => {
     Alert.alert(
       "Delete Entry",
-      "Are you sure you want to delete this journal entry? This action cannot be undone.",
+      "Are you sure you want to delete this overthinking entry? This action cannot be undone.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -258,7 +313,7 @@ export default function JournalDetailScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              await deleteJournalEntryLocal({ entry });
+              await deleteOverthinkingEntryLocal({ entry });
               Alert.alert("Success", "Entry deleted successfully!", [
                 { text: "OK", onPress: () => router.back() }
               ]);
@@ -283,11 +338,9 @@ export default function JournalDetailScreen() {
       return;
     }
     
-    // idToken check removed, handled in client.js
-    
     try {
       // Check daily sync limit
-      const canSync = await canSyncToday();
+      const canSync = await canSyncOverthinkingToday();
       if (!canSync) {
         Alert.alert(
           "Sync Limit Reached",
@@ -298,13 +351,12 @@ export default function JournalDetailScreen() {
       
       setIsSyncing(true);
       
- const synced=await syncJournalEntryToServer({ entry });
-                   
- if(!synced)
- {
-                            Alert.alert("Sync Failed", "Failed to sync entry. Please try again later.");
-                            return;
-                          }
+      const synced = await syncOverthinkingEntryToServer({ entry });
+      
+      if (!synced) {
+        Alert.alert("Sync Failed", "Failed to sync entry. Please try again later.");
+        return;
+      }
       await loadEntry(); // Refresh to show synced status
       
       Alert.alert("Success", "Entry synced to cloud successfully!");
@@ -323,10 +375,10 @@ export default function JournalDetailScreen() {
     if (!entry) return;
     
     try {
-      const shareContent = `${entry.title ? `${entry.title}\n\n` : ''}${entry.content}`;
+      const shareContent = `${entry.title ? `${entry.title}\n\n` : ''}Thought: ${entry.thought}${entry.solution ? `\n\nSolution: ${entry.solution}` : ''}`;
       await Share.share({
         message: shareContent,
-        title: entry.title || "Journal Entry"
+        title: entry.title || "Overthinking Entry"
       });
     } catch (error) {
       console.error("Error sharing entry:", error);
@@ -349,7 +401,7 @@ export default function JournalDetailScreen() {
     return (
       <View style={styles.loadingContainer}>
         <StatusBar style="dark" />
-        <ActivityIndicator size="large" color="#3B82F6" />
+        <ActivityIndicator size="large" color="#8B5CF6" />
         <Text style={styles.loadingText}>Loading entry...</Text>
       </View>
     );
@@ -382,7 +434,7 @@ export default function JournalDetailScreen() {
         </TouchableOpacity>
         
         <Text style={styles.headerTitle}>
-          {isEditing ? "Edit Entry" : "Journal Entry"}
+          {isEditing ? "Edit Entry" : "Overthinking Entry"}
         </Text>
         
         <View style={styles.headerActions}>
@@ -458,14 +510,25 @@ export default function JournalDetailScreen() {
                   
                   <TextInput
                     style={styles.contentInput}
-                    placeholder="What's on your mind?"
+                    placeholder="What are you overthinking about?"
                     placeholderTextColor="#9CA3AF"
                     multiline
-                    numberOfLines={12}
-                    value={editContent}
-                    onChangeText={setEditContent}
+                    numberOfLines={8}
+                    value={editThought}
+                    onChangeText={setEditThought}
                     textAlignVertical="top"
                     autoFocus
+                  />
+                  
+                  <TextInput
+                    style={styles.solutionInput}
+                    placeholder="Potential solution (optional)"
+                    placeholderTextColor="#9CA3AF"
+                    multiline
+                    numberOfLines={4}
+                    value={editSolution}
+                    onChangeText={setEditSolution}
+                    textAlignVertical="top"
                   />
                 </View>
               ) : (
@@ -473,7 +536,13 @@ export default function JournalDetailScreen() {
                   {combinedData.local.title && (
                     <Text style={styles.displayTitle}>{combinedData.local.title}</Text>
                   )}
-                  <Text style={styles.displayContent}>{combinedData.local.content}</Text>
+                  <Text style={styles.displayContent}>{combinedData.local.thought}</Text>
+                  {combinedData.local.solution && (
+                    <View style={styles.solutionDisplay}>
+                      <Text style={styles.solutionLabel}>Your Solution:</Text>
+                      <Text style={styles.solutionText}>{combinedData.local.solution}</Text>
+                    </View>
+                  )}
                 </View>
               )}
             </View>
@@ -502,80 +571,89 @@ export default function JournalDetailScreen() {
                 </View>
               ) : combinedData.server ? (
                 <View style={styles.contentDisplay}>
-                  {combinedData.server.title && (
-                    <Text style={styles.displayTitle}>{combinedData.server.title}</Text>
-                  )}
-                  
-                  {/* Display structured AI-processed content */}
-                  {combinedData.server.rating && (
-                    <View style={styles.ratingSection}>
-                      <View style={styles.ratingBadge}>
-                        <Text style={styles.ratingText}>★ {combinedData.server.rating}/10</Text>
+                  {/* Category and Intensity */}
+                  <View style={styles.metadataRow}>
+                    {combinedData.server.category && (
+                      <View style={styles.categoryBadge}>
+                        <Text style={styles.categoryText}>
+                          {combinedData.server.category.charAt(0).toUpperCase() + combinedData.server.category.slice(1)}
+                        </Text>
                       </View>
-                      <Text style={styles.ratingLabel}>Day Rating</Text>
-                    </View>
-                  )}
-                  
-                  {/* Summary Points */}
-                  {combinedData.server.summary && combinedData.server.summary.length > 0 && (
-                    <View style={styles.summarySection}>
-                      <Text style={styles.sectionTitle}>Summary</Text>
-                      {combinedData.server.summary.map((point, index) => (
-                        <View key={index} style={styles.summaryPoint}>
-                          <Text style={styles.bulletPoint}>•</Text>
-                          <Text style={styles.pointText}>{point}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  )}
-                  
-                  {/* Positives */}
-                  {combinedData.server.positives && combinedData.server.positives.length > 0 && (
+                    )}
+                    {combinedData.server.intensity && (
+                      <View style={styles.intensityBadge}>
+                        <Ionicons name="flash" size={12} color="#FFFFFF" />
+                        <Text style={styles.intensityText}>
+                          {combinedData.server.intensity}/10
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+
+                  {/* Triggers */}
+                  {combinedData.server.triggers && combinedData.server.triggers.length > 0 && (
                     <View style={styles.insightSection}>
-                      <Text style={styles.insightTitle}>😊 Positives</Text>
-                      {combinedData.server.positives.map((positive, index) => (
+                      <Text style={styles.insightTitle}>🔍 Triggers</Text>
+                      {combinedData.server.triggers.map((trigger, index) => (
                         <View key={index} style={styles.insightPoint}>
                           <Text style={styles.bulletPoint}>•</Text>
-                          <Text style={styles.pointText}>{positive}</Text>
+                          <Text style={styles.pointText}>{trigger}</Text>
                         </View>
                       ))}
                     </View>
                   )}
                   
-                  {/* Negatives/Challenges */}
-                  {combinedData.server.negatives && combinedData.server.negatives.length > 0 && (
+                  {/* Thought Patterns */}
+                  {combinedData.server.patterns && combinedData.server.patterns.length > 0 && (
                     <View style={styles.insightSection}>
-                      <Text style={styles.insightTitle}>⚠️ Challenges</Text>
-                      {combinedData.server.negatives.map((negative, index) => (
+                      <Text style={styles.insightTitle}>🧠 Thought Patterns</Text>
+                      {combinedData.server.patterns.map((pattern, index) => (
                         <View key={index} style={styles.insightPoint}>
                           <Text style={styles.bulletPoint}>•</Text>
-                          <Text style={styles.pointText}>{negative}</Text>
+                          <Text style={styles.pointText}>{pattern}</Text>
                         </View>
                       ))}
                     </View>
                   )}
                   
-                  {/* Lessons */}
-                  {combinedData.server.lessons && combinedData.server.lessons.length > 0 && (
+                  {/* Coping Strategies */}
+                  {combinedData.server.coping_strategies && combinedData.server.coping_strategies.length > 0 && (
                     <View style={styles.insightSection}>
-                      <Text style={styles.insightTitle}>💡 Lessons Learned</Text>
-                      {combinedData.server.lessons.map((lesson, index) => (
+                      <Text style={styles.insightTitle}>💪 Coping Strategies</Text>
+                      {combinedData.server.coping_strategies.map((strategy, index) => (
                         <View key={index} style={styles.insightPoint}>
                           <Text style={styles.bulletPoint}>•</Text>
-                          <Text style={styles.pointText}>{lesson}</Text>
+                          <Text style={styles.pointText}>{strategy}</Text>
                         </View>
                       ))}
                     </View>
                   )}
                   
-                  {(combinedData.server.tags?.length > 0 || combinedData.server.mood) && (
-                    <View style={styles.extraInfo}>
-                      {combinedData.server.tags?.length > 0 && (
-                        <Text style={styles.tags}>Tags: {combinedData.server.tags.join(", ")}</Text>
-                      )}
-                      {combinedData.server.mood && (
-                        <Text style={styles.mood}>Mood: {combinedData.server.mood}</Text>
-                      )}
+                  {/* Reframe */}
+                  {combinedData.server.reframe && (
+                    <View style={styles.reframeSection}>
+                      <Text style={styles.insightTitle}>🔄 Reframe</Text>
+                      <Text style={styles.reframeText}>{combinedData.server.reframe}</Text>
+                    </View>
+                  )}
+                  
+                  {/* Urgency Level */}
+                  {combinedData.server.urgency && (
+                    <View style={styles.urgencyRow}>
+                      <View style={[styles.urgencyBadge, 
+                        combinedData.server.urgency === 'high' && styles.urgencyHigh,
+                        combinedData.server.urgency === 'medium' && styles.urgencyMedium,
+                        combinedData.server.urgency === 'low' && styles.urgencyLow
+                      ]}>
+                        <Ionicons 
+                          name={combinedData.server.urgency === 'high' ? 'warning' : combinedData.server.urgency === 'medium' ? 'time' : 'checkmark-circle'} 
+                          size={12} 
+                          color="#FFFFFF" 
+                        />
+                        <Text style={styles.urgencyText}>
+                          {combinedData.server.urgency.charAt(0).toUpperCase() + combinedData.server.urgency.slice(1)} Urgency
+                        </Text>
+                      </View>
                     </View>
                   )}
                 </View>
@@ -605,11 +683,6 @@ export default function JournalDetailScreen() {
             </Text>
             
             <View style={styles.statusRow}>
-              <View style={styles.sentimentContainer}>
-                <Text style={styles.sentimentEmoji}>{entry.sentiment}</Text>
-                <Text style={styles.sentimentLabel}>Mood</Text>
-              </View>
-              
               <View style={styles.syncStatusContainer}>
                 {entry.synced ? (
                   <View style={styles.syncStatus}>
@@ -625,7 +698,7 @@ export default function JournalDetailScreen() {
                     <Ionicons 
                       name={isSyncing ? "sync-outline" : "cloud-upload-outline"} 
                       size={16} 
-                      color={isSyncing ? "#9CA3AF" : "#F59E0B"} 
+                      color={isSyncing ? "#9CA3AF" : "#8B5CF6"} 
                     />
                     <Text style={styles.unsyncedText}>
                       {isSyncing ? "Syncing..." : "Tap to sync"}
@@ -651,14 +724,25 @@ export default function JournalDetailScreen() {
                 
                 <TextInput
                   style={styles.contentInput}
-                  placeholder="What's on your mind?"
+                  placeholder="What are you overthinking about?"
                   placeholderTextColor="#9CA3AF"
                   multiline
-                  numberOfLines={20}
-                  value={editContent}
-                  onChangeText={setEditContent}
+                  numberOfLines={12}
+                  value={editThought}
+                  onChangeText={setEditThought}
                   textAlignVertical="top"
                   autoFocus
+                />
+
+                <TextInput
+                  style={styles.solutionInput}
+                  placeholder="Potential solution (optional)"
+                  placeholderTextColor="#9CA3AF"
+                  multiline
+                  numberOfLines={6}
+                  value={editSolution}
+                  onChangeText={setEditSolution}
+                  textAlignVertical="top"
                 />
               </>
             ) : (
@@ -666,47 +750,21 @@ export default function JournalDetailScreen() {
                 {entry.title && (
                   <Text style={styles.entryTitle}>{entry.title}</Text>
                 )}
-                <Text style={styles.entryText}>{entry.content}</Text>
+                <Text style={styles.entryText}>{entry.thought}</Text>
+                {entry.solution && (
+                  <View style={styles.solutionDisplay}>
+                    <Text style={styles.solutionLabel}>Your Solution:</Text>
+                    <Text style={styles.solutionText}>{entry.solution}</Text>
+                  </View>
+                )}
               </>
             )}
           </View>
 
-          {/* Server Meta Info (if synced) - Keep for backward compatibility */}
-          {entry.synced && entry.server_meta && (
-            <View style={styles.serverMetaContainer}>
-              <Text style={styles.serverMetaTitle}>Cloud Information</Text>
-              
-              <View style={styles.serverMetaRow}>
-                <Ionicons name="cloud" size={16} color="#6B7280" />
-                <Text style={styles.serverMetaText}>
-                  Synced to cloud on {formatDate(entry.server_meta.updatedAt)}
-                </Text>
-              </View>
-              
-              {entry.server_meta.tags && entry.server_meta.tags.length > 0 && (
-                <View style={styles.serverMetaRow}>
-                  <Ionicons name="pricetags" size={16} color="#6B7280" />
-                  <Text style={styles.serverMetaText}>
-                    Tags: {entry.server_meta.tags.join(", ")}
-                  </Text>
-                </View>
-              )}
-              
-              {entry.server_meta.mood && (
-                <View style={styles.serverMetaRow}>
-                  <Ionicons name="happy" size={16} color="#6B7280" />
-                  <Text style={styles.serverMetaText}>
-                    Server mood: {entry.server_meta.mood}
-                  </Text>
-                </View>
-              )}
-            </View>
-          )}
-
           {/* Not Synced Warning */}
           {!entry.synced && (
             <View style={styles.warningContainer}>
-              <Ionicons name="warning-outline" size={20} color="#F59E0B" />
+              <Ionicons name="warning-outline" size={20} color="#8B5CF6" />
               <Text style={styles.warningText}>
                 This entry hasn't been synced to the cloud yet. {isOnline ? "Tap the sync button above to save it online." : "Connect to the internet to sync."}
               </Text>
@@ -752,7 +810,7 @@ const styles = StyleSheet.create({
     marginTop: 20,
     paddingHorizontal: 20,
     paddingVertical: 12,
-    backgroundColor: "#3B82F6",
+    backgroundColor: "#8B5CF6",
     borderRadius: 8,
   },
   backButtonText: {
@@ -793,7 +851,7 @@ const styles = StyleSheet.create({
     marginLeft: 12,
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: "#3B82F6",
+    backgroundColor: "#8B5CF6",
     borderRadius: 8,
   },
   saveButtonText: {
@@ -817,24 +875,10 @@ const styles = StyleSheet.create({
   },
   statusRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    justifyContent: "flex-end",
     alignItems: "center",
-  },
-  sentimentContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  sentimentEmoji: {
-    fontSize: 24,
-  },
-  sentimentLabel: {
-    fontSize: 12,
-    color: "#6B7280",
-    fontWeight: "500",
   },
   syncStatusContainer: {
-    flex: 1,
     alignItems: "flex-end",
   },
   syncStatus: {
@@ -851,7 +895,7 @@ const styles = StyleSheet.create({
   },
   unsyncedText: {
     fontSize: 12,
-    color: "#F59E0B",
+    color: "#8B5CF6",
     fontWeight: "500",
   },
   entryContent: {
@@ -874,6 +918,15 @@ const styles = StyleSheet.create({
     padding: 0,
     textAlignVertical: "top",
     minHeight: 200,
+    marginBottom: 16,
+  },
+  solutionInput: {
+    fontSize: 16,
+    color: "#374151",
+    lineHeight: 24,
+    padding: 0,
+    textAlignVertical: "top",
+    minHeight: 100,
   },
   entryTitle: {
     fontSize: 22,
@@ -887,46 +940,40 @@ const styles = StyleSheet.create({
     color: "#374151",
     lineHeight: 24,
   },
-  serverMetaContainer: {
-    backgroundColor: "#FFFFFF",
-    margin: 16,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
+  solutionDisplay: {
+    marginTop: 16,
+    padding: 12,
+    backgroundColor: "#F0FDF4",
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: "#10B981",
   },
-  serverMetaTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#111827",
-    marginBottom: 12,
-  },
-  serverMetaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 8,
-  },
-  serverMetaText: {
+  solutionLabel: {
     fontSize: 14,
-    color: "#6B7280",
-    flex: 1,
+    fontWeight: "600",
+    color: "#059669",
+    marginBottom: 4,
+  },
+  solutionText: {
+    fontSize: 16,
+    color: "#374151",
+    lineHeight: 24,
   },
   warningContainer: {
     flexDirection: "row",
     alignItems: "flex-start",
-    backgroundColor: "#FFFBEB",
+    backgroundColor: "#F5F3FF",
     margin: 16,
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#FED7AA",
+    borderColor: "#C4B5FD",
     gap: 12,
   },
   warningText: {
     flex: 1,
     fontSize: 14,
-    color: "#92400E",
+    color: "#5B21B6",
     lineHeight: 20,
   },
   // Scrollable view styles for flexible sections
@@ -961,7 +1008,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: "#3B82F6",
+    backgroundColor: "#8B5CF6",
   },
   cloudDot: {
     width: 8,
@@ -979,11 +1026,7 @@ const styles = StyleSheet.create({
     color: "#6B7280",
     fontWeight: "500",
   },
-  contentArea: {
-    flex: 1,
-  },
   flexibleContentArea: {
-    // Flexible content area that takes as much space as needed
     minHeight: 100,
   },
   editContainer: {
@@ -1003,21 +1046,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#374151",
     lineHeight: 24,
-  },
-  extraInfo: {
-    marginTop: 20,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: "#E5E7EB",
-  },
-  tags: {
-    fontSize: 13,
-    color: "#6B7280",
-    marginBottom: 4,
-  },
-  mood: {
-    fontSize: 13,
-    color: "#6B7280",
   },
   unavailableContainer: {
     flex: 1,
@@ -1050,42 +1078,56 @@ const styles = StyleSheet.create({
     fontFamily: "SpaceGrotesk-Medium",
   },
   
-  // Structured content styles for cloud data
-  ratingSection: {
+  // AI Insights styles
+  metadataRow: {
     flexDirection: "row",
-    alignItems: "center",
+    gap: 8,
     marginBottom: 16,
+    flexWrap: "wrap",
   },
-  ratingBadge: {
-    backgroundColor: "#F59E0B",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    marginRight: 12,
+  categoryBadge: {
+    backgroundColor: "#8B5CF6",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
-  ratingText: {
+  categoryText: {
+    fontSize: 12,
     color: "#FFFFFF",
-    fontSize: 14,
     fontWeight: "600",
   },
-  ratingLabel: {
-    fontSize: 14,
-    color: "#6B7280",
-    fontWeight: "500",
+  intensityBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#EF4444",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
   },
-  summarySection: {
+  intensityText: {
+    fontSize: 12,
+    color: "#FFFFFF",
+    fontWeight: "600",
+  },
+  insightSection: {
     marginBottom: 20,
+    padding: 16,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: "#8B5CF6",
   },
-  sectionTitle: {
+  insightTitle: {
     fontSize: 16,
-    fontWeight: "700",
+    fontWeight: "600",
     color: "#111827",
     marginBottom: 12,
   },
-  summaryPoint: {
+  insightPoint: {
     flexDirection: "row",
     alignItems: "flex-start",
-    marginBottom: 8,
+    marginBottom: 6,
   },
   bulletPoint: {
     fontSize: 16,
@@ -1099,23 +1141,44 @@ const styles = StyleSheet.create({
     color: "#374151",
     lineHeight: 22,
   },
-  insightSection: {
+  reframeSection: {
     marginBottom: 20,
     padding: 16,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "#F0F9FF",
     borderRadius: 12,
     borderLeftWidth: 4,
-    borderLeftColor: "#3B82F6",
+    borderLeftColor: "#0EA5E9",
   },
-  insightTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#111827",
-    marginBottom: 12,
+  reframeText: {
+    fontSize: 15,
+    color: "#374151",
+    lineHeight: 22,
   },
-  insightPoint: {
+  urgencyRow: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    marginBottom: 6,
+    justifyContent: "flex-end",
+    marginTop: 16,
+  },
+  urgencyBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    gap: 4,
+  },
+  urgencyHigh: {
+    backgroundColor: "#EF4444",
+  },
+  urgencyMedium: {
+    backgroundColor: "#F59E0B",
+  },
+  urgencyLow: {
+    backgroundColor: "#10B981",
+  },
+  urgencyText: {
+    fontSize: 12,
+    color: "#FFFFFF",
+    fontWeight: "600",
   },
 });

@@ -7,11 +7,9 @@ const mistakeSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
-    mistake: {
-      type: String,
-      required: true,
-    },
-    solution: {
+       // AI-generated structured analysis
+
+    description: {
       type: String,
       required: true,
     },
@@ -22,48 +20,33 @@ const mistakeSchema = new mongoose.Schema(
         "Relationships",
         "Health",
         "Finance",
-        "Persona Growth",
+        "Personal Growth",
         "Communication",
         "Time Management",
         "Decision Making",
         "Other",
       ],
-      default: "Other",
+      required: true,
+    },
+    learning: {
+      type: String,
+      default: ''
+    },
+    solution: {
+      type: String,
+      default: ''
+    },
+    intensity: {
+      type: Number,
+      min: 1,
+      max: 10,
+      required: true
     },
     date: {
       type: String,
       required: true,
       index: true,
-    },
-    avoided: {
-      type: Boolean,
-      default: false,
-    },
-    streakInfo: {
-      currentStreak: {
-        type: Number,
-        default: 0,
-      },
-      bestStreak: {
-        type: Number,
-        default: 0,
-      },
-      lastAvoidedDate: {
-        type: String,
-        default: "",
-      },
-    },
-    tags: [
-      {
-        type: String,
-        lowercase: true,
-        trim: true,
-      },
-    ],
-    type: {
-      type: String,
-      default: "mistake",
-    },
+    }
   },
   {
     timestamps: true,

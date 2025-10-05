@@ -6,36 +6,40 @@ const journalSchema = new mongoose.Schema({
     required: true,
     index: true
   },
-  content: {
+  // Structured content processed by AI from raw text
+  summary: [{
     type: String,
     required: true
-  },
-  title: {
+  }],
+  positives: [{
+    type: String
+  }],
+  negatives: [{
+    type: String
+  }],
+  lessons: [{
+    type: String
+  }],
+  intensity: {
     type: String,
-    default: null
+    enum: ['low', 'medium', 'high'],
+    default: 'medium'
+  },
+  rating: {
+    type: Number,
+    min: 1,
+    max: 10,
+    required: true
   },
   date: {
     type: String,
     required: true,
     index: true
   },
-  tags: [{
-    type: String,
-    lowercase: true,
-    trim: true
-  }],
   mood: {
     type: String,
     enum: ['very_happy', 'happy', 'neutral', 'sad', 'very_sad'],
     default: 'neutral'
-  },
-  type: {
-    type: String,
-    default: 'journal'
-  },
-  aiResponse: {
-    type: String,
-    default: null
   },
   aiMetadata: {
     provider: String,
