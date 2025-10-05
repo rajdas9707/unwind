@@ -55,6 +55,21 @@ app.get("/api/health", (req, res) => {
   });
 });
 
+// LLM health check endpoint
+app.get("/api/health/llm", async (req, res) => {
+  try {
+    const aiService = require("./llm/services/aiService");
+    const health = await aiService.checkHealth();
+    res.json(health);
+  } catch (error) {
+    res.status(500).json({
+      status: "unhealthy",
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);

@@ -1,6 +1,5 @@
 import axios from "axios";
 import { auth } from "../firebaseConfig";
-import { Alert } from "react-native";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://192.168.29.225:5000";
 
@@ -15,16 +14,9 @@ const apiClient = axios.create({
 export const authorizedFetch = async (path, options = {}) => {
   // Auto-attach Firebase ID token if available
   let token;
-  try {
-    if (auth?.currentUser) {
-      token = await auth.currentUser.getIdToken();
-    }
-  } catch {
-    Alert.alert(
-      "Authentication Error",
-      "Failed to retrieve authentication token. Please log in again."
-    );
-    throw new Error("Failed to retrieve authentication token");
+  if (auth?.currentUser) {
+    // Force refresh token to ensure it's valid
+    token = await auth.currentUser.getIdToken(true);
   }
 
   const headers = {
@@ -48,25 +40,16 @@ export const authorizedFetch = async (path, options = {}) => {
     data = options.body;
   }
 
-  try {
-    const response = await apiClient.request({
-      url: path,
-      method,
-      headers,
-      data,
-      params: options.params,
-      signal: options.signal,
-    });
-    return { data: response.data, status: response.status };
-  } catch (error) {
-    const status = error?.response?.status;
-    const payload = error?.response?.data;
-    const message =
-      (payload && (payload.error || payload.message)) ||
-      error?.message ||
-      (status ? `Request failed with ${status}` : "Network request failed");
-    throw new Error(message);
-  }
+  const response = await apiClient.request({
+    url: path,
+    method,
+    headers,
+    data,
+    params: options.params,
+    signal: options.signal,
+  });
+  
+  return { data: response.data, status: response.status };
 };
 
 // Get help center URL

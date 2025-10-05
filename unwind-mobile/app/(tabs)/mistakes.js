@@ -735,26 +735,6 @@ export default function MistakesScreen() {
     );
   };
 
-  const isScreenActiveRef = useRef(true);
-  const showAlert = (title, message, buttons) => {
-    if (!isScreenActiveRef.current) return;
-    Alert.alert(title, message, buttons);
-  };
-  const logError = (...args) => {
-    if (!isScreenActiveRef.current) return;
-    // eslint-disable-next-line no-console
-    console.error(...args);
-  };
-
-  useFocusEffect(
-    React.useCallback(() => {
-      isScreenActiveRef.current = true;
-      return () => {
-        isScreenActiveRef.current = false;
-      };
-    }, [])
-  );
-
   return (
     <View style={styles.container}>
       <StatusBar style="dark" />

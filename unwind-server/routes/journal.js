@@ -66,28 +66,33 @@ router.post("/", async (req, res) => {
   try {
     const userId = req.user?.uid;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
-    const { content, date, tags, mood } = req.body;
+    const { content, title, date, tags, mood } = req.body;
     console.log(`[journal] POST / - userId=${userId} body=`, {
       contentLength: content?.length,
+      title,
       date,
       tagsCount: tags?.length,
       mood,
     });
 
-    if (!content || !date) {
-      return res.status(400).json({ error: "Content and date are required" });
+    if (!content) {
+      return res.status(400).json({ error: "Content is required" });
     }
+
+    // Auto-generate date if not provided
+    const entryDate = date || new Date().toISOString().split('T')[0];
 
     // Create journal entry object
     const journalData = {
       userId,
       content,
-      date,
+      title: title || null,
+      date: entryDate,
       tags: tags || [],
       mood: mood || "neutral",
     };
 
-    // Process with LLM
+    // Process with LLM - REQUIRED for journal creation
     console.log(`[journal] Processing with LLM for user ${userId}`);
     try {
       const aiPrompt = `Please provide supportive, empathetic feedback for this journal entry. Keep it encouraging and helpful:\n\n"${content}"`;
@@ -112,11 +117,12 @@ router.post("/", async (req, res) => {
         `[journal] LLM processing failed for user ${userId}:`,
         aiError.message
       );
-      // Still save the journal entry, but with error metadata
-      journalData.aiMetadata = {
-        error: aiError.message,
-        timestamp: new Date(),
-      };
+      // Don't save the entry if LLM processing fails
+      return res.status(503).json({ 
+        error: "AI service is currently unavailable. Please try again later.",
+        code: "LLM_UNAVAILABLE",
+        details: "The journal entry could not be processed because our AI feedback service is temporarily unreachable."
+      });
     }
 
     const entry = new Journal(journalData);
@@ -141,7 +147,7 @@ router.put("/:id", async (req, res) => {
     const userId = req.user?.uid;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
     const { id } = req.params;
-    const { content, tags, mood } = req.body;
+    const { content, title, tags, mood } = req.body;
     console.log(`[journal] PUT /:id - userId=${userId} id=${id}`);
 
     const entry = await Journal.findOne({ _id: id, userId });
@@ -151,6 +157,7 @@ router.put("/:id", async (req, res) => {
     }
 
     if (content) entry.content = content;
+    if (title !== undefined) entry.title = title; // Allow setting title to null
     if (tags) entry.tags = tags;
     if (mood) entry.mood = mood;
 

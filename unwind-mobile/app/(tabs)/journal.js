@@ -33,7 +33,11 @@ import {
   createJournalEntry,
   deleteJournalEntry,
   getJournalEntry,
+  listJournalEntries,
 } from "../../api/journal";
+
+// Import Firebase auth
+import { auth } from "../../firebaseConfig";
 
 // Import database operations
 import {
@@ -93,27 +97,68 @@ export default function JournalScreen() {
       return entry; // Already synced
     }
 
-    // Create entry on server
-    const serverEntry = await createJournalEntry({
-      content: entry.content,
-      date: entry.created_at.split("T")[0],
-      title: entry.title,
-    });
+  // Check if user is authenticated
+  if (!auth?.currentUser) {
+    throw new Error("User not authenticated. Please sign in and try again.");
+  }
 
-    console.log("Server entry created:", serverEntry);
+  // Test authentication before proceeding
+  console.log("Syncing entry for user:", auth.currentUser.uid);
+
+
+    let serverEntry;
+    try {
+      // Get fresh token to ensure it's not expired
+      const token = await auth.currentUser.getIdToken(true);
+      if (!token) {
+        throw new Error("Unable to get authentication token. Please sign in again.");
+      }
+
+      console.log("Syncing entry to server...");
+      
+      // Create entry on server
+      serverEntry = await createJournalEntry({
+        content: entry.content,
+        title: entry.title,
+      });
+
+      console.log("Server entry created successfully:", serverEntry);
+    } catch (error) {
+      console.error("Error syncing to server:", error);
+      console.error("Error response:", error.response?.data);
+      console.error("Error status:", error.response?.status);
+      console.error("Error headers:", error.response?.headers);
+      
+      if (error.response?.status === 401) {
+        console.error("Authentication failed - token may be invalid or expired");
+        throw new Error("Authentication failed. Please sign out and sign in again.");
+      }
+      
+      if (error.response?.status === 503 && error.response?.data?.code === 'LLM_UNAVAILABLE') {
+        console.error("AI service unavailable");
+        throw new Error("AI feedback service is currently unavailable. Please try again later.");
+      }
+      
+      if (error.code === 'NETWORK_ERROR') {
+        throw new Error("Network error. Please check your internet connection and server status.");
+      }
+      
+      throw new Error(error.message || "Failed to sync entry to server");
+    }
+
     if (!serverEntry || !serverEntry._id) {
-      return null;
+      throw new Error("Server did not return a valid entry ID");
     }
 
     // Mark as synced locally
     const syncedEntry = await markJournalEntrySynced({
       id: entry.id,
-      server_id: serverEntry?._id,
+      server_id: serverEntry._id,
       server_meta: {
-        createdAt: serverEntry?.createdAt,
-        updatedAt: serverEntry?.updatedAt,
-        tags: serverEntry?.tags || [],
-        mood: serverEntry?.mood || null,
+        createdAt: serverEntry.createdAt,
+        updatedAt: serverEntry.updatedAt,
+        tags: serverEntry.tags || [],
+        mood: serverEntry.mood || null,
       },
     });
 
@@ -494,11 +539,21 @@ export default function JournalScreen() {
       );
     } catch (error) {
       logError("Sync error:", error);
-      showAlert(
-        "Sync Failed",
-        error.message || "Failed to sync entry. Please try again later.",
-        [{ text: "OK" }]
-      );
+      
+      // Handle specific error types
+      if (error.message.includes("AI feedback service is currently unavailable")) {
+        showAlert(
+          "AI Service Unavailable",
+          "Our AI feedback service is temporarily unavailable. Please try again later when the service is restored.",
+          [{ text: "OK" }]
+        );
+      } else {
+        showAlert(
+          "Sync Failed",
+          error.message || "Failed to sync entry. Please try again later.",
+          [{ text: "OK" }]
+        );
+      }
     } finally {
       // Clear loading state
       setSyncingEntries((prev) => {
@@ -594,11 +649,21 @@ export default function JournalScreen() {
           }
         } catch (syncError) {
           logError("Failed to sync new entry:", syncError);
-          showAlert(
-            "Sync Failed",
-            "Entry saved locally but couldn't be synced. You can try again later.",
-            [{ text: "OK" }]
-          );
+          
+          // Handle specific error types
+          if (syncError.message.includes("AI feedback service is currently unavailable")) {
+            showAlert(
+              "AI Service Unavailable",
+              "Our AI feedback service is temporarily unavailable. Your entry was saved locally and will be processed when the service is restored.",
+              [{ text: "OK" }]
+            );
+          } else {
+            showAlert(
+              "Sync Failed",
+              "Entry saved locally but couldn't be synced. You can try again later.",
+              [{ text: "OK" }]
+            );
+          }
         } finally {
           setSyncingEntries((prev) => {
             const newSet = new Set(prev);

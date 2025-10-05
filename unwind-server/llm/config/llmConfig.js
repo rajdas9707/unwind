@@ -11,7 +11,7 @@ const LLM_CONFIG = {
     timeout: parseInt(process.env.AI_REQUEST_TIMEOUT) || 30000,
   },
   model: {
-    default: process.env.AI_DEFAULT_MODEL || 'llama-3.1-sonar-small-128k-online',
+    default: process.env.AI_DEFAULT_MODEL || 'sonar',
     maxTokens: parseInt(process.env.AI_MAX_TOKENS) || 1000,
     temperature: parseFloat(process.env.AI_TEMPERATURE) || 0.7,
   },

@@ -2,8 +2,6 @@ import { authorizedFetch } from "./utils";
 
 // List journal entries with optional date filter
 export const listJournalEntries = async ({ date, page = 1, limit = 50 } = {}) => {
-  console.log("listJournalEntries called with:", { date, page, limit });
-  
   // Build query parameters explicitly
   const params = new URLSearchParams();
   if (date) {
@@ -17,96 +15,78 @@ export const listJournalEntries = async ({ date, page = 1, limit = 50 } = {}) =>
   }
   const queryString = params.toString() ? `?${params.toString()}` : "";
   
-  console.log("Making request to:", `/api/journal${queryString}`);
-
-  try {
-    const result = await authorizedFetch(`/api/journal${queryString}`, {
-      method: "GET",
-    });
-    
-    console.log("listJournalEntries result:", result);
-    
-    if (result.status !== 200) {
-      throw new Error(`Unexpected response status: ${result.status}`);
-    }
-    
-    return result.data;
-  } catch (error) {
-    console.log("listJournalEntries error:", error);
-    throw error;
+  const result = await authorizedFetch(`/api/journal${queryString}`, {
+    method: "GET",
+  });
+  
+  if (result.status !== 200) {
+    throw new Error(`Unexpected response status: ${result.status}`);
   }
+  
+  return result.data;
 };
 
 // Create a new journal entry
-export const createJournalEntry = async ({ content, date, tags, mood, title }) => {
-  console.log("createJournalEntry called with:", { content, date, tags, mood, title });
-  const body = JSON.stringify({ content, date, tags, mood, title });
-  console.log("Request body:", body);
-
-  try {
-    const result = await authorizedFetch("/api/journal", {
-      method: "POST",
-      body,
-    });
-    
-    console.log("createJournalEntry result:", result);
-    
-    if (result.status !== 201) {
-      throw new Error(`Unexpected response status: ${result.status}`);
-    }
-
-    return result.data;
-  } catch (error) {
-    console.log("createJournalEntry error:", error);
-    throw error;
+// Required: content (string, 1-5000 chars)
+// Optional: title (string, max 200 chars)
+export const createJournalEntry = async ({ content, title }) => {
+  // Client-side validation
+  if (!content || typeof content !== "string" || content.trim().length === 0) {
+    throw new Error("Journal content is required and cannot be empty");
   }
+  
+  if (content.trim().length > 5000) {
+    throw new Error("Journal content must be less than 5000 characters");
+  }
+  
+  if (title && typeof title !== "string") {
+    throw new Error("Title must be a string");
+  }
+  
+  if (title && title.length > 200) {
+    throw new Error("Title must be less than 200 characters");
+  }
+
+  const body = JSON.stringify({ 
+    content: content.trim(),
+    title: title ? title.trim() : ""
+  });
+
+  const result = await authorizedFetch("/api/journal", {
+    method: "POST",
+    body,
+  });
+  
+  if (result.status !== 201) {
+    throw new Error(`Unexpected response status: ${result.status}`);
+  }
+
+  return result.data;
 };
 
 // Get a single journal entry by ID
 export const getJournalEntry = async ({ id, signal }) => {
-  console.log("getJournalEntry called with:", { id });
+  const result = await authorizedFetch(`/api/journal/${id}`, {
+    method: "GET",
+    signal,
+  });
   
-  console.log("Making request to:", `/api/journal/${id}`);
-  
-  try {
-    const result = await authorizedFetch(`/api/journal/${id}`, {
-      method: "GET",
-      signal,
-    });
-    
-    console.log("getJournalEntry result:", result);
-    
-    if (result.status !== 200) {
-      throw new Error(`Unexpected response status: ${result.status}`);
-    }
-    
-    return result.data;
-  } catch (error) {
-    console.log("getJournalEntry error:", error);
-    throw error;
+  if (result.status !== 200) {
+    throw new Error(`Unexpected response status: ${result.status}`);
   }
+  
+  return result.data;
 };
 
 // Delete a journal entry
 export const deleteJournalEntry = async ({ id }) => {
-  console.log("deleteJournalEntry called with:", { id });
+  const result = await authorizedFetch(`/api/journal/${id}`, {
+    method: "DELETE",
+  });
   
-  console.log("Making request to:", `/api/journal/${id}`);
-  
-  try {
-    const result = await authorizedFetch(`/api/journal/${id}`, {
-      method: "DELETE",
-    });
-    
-    console.log("deleteJournalEntry result:", result);
-    
-    if (result.status !== 200 && result.status !== 204) {
-      throw new Error(`Unexpected response status: ${result.status}`);
-    }
-    
-    return result.data;
-  } catch (error) {
-    console.log("deleteJournalEntry error:", error);
-    throw error;
+  if (result.status !== 200 && result.status !== 204) {
+    throw new Error(`Unexpected response status: ${result.status}`);
   }
+  
+  return result.data;
 };

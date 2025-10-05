@@ -10,6 +10,10 @@ const journalSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  title: {
+    type: String,
+    default: null
+  },
   date: {
     type: String,
     required: true,
