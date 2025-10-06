@@ -54,7 +54,11 @@ export const authorizedFetch = async (path, options = {}) => {
 
 // Get help center URL
 export const getHelpCenterUrl = () => {
-  return "https://your-help-center-url.com"; // Replace with your actual help center URL
+  // Serve the static Help Center from the same API base host under /help-center
+  // This respects EXPO_PUBLIC_API_URL when set; otherwise falls back to API_BASE_URL default.
+  const base = (API_BASE_URL || "").replace(/\/+$/, "");
+  // If base is empty (shouldn't happen), default to local dev server
+  return base ? `${base}/help-center/` : "http://localhost:5000/help-center/";
 };
 
 export { API_BASE_URL };

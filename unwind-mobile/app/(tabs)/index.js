@@ -505,20 +505,9 @@ export default function IdeaScreen() {
               </TouchableOpacity>
             ))}
           </View>
-        </View>
+        </View> 
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Guides & Tutorials</Text>
-          {guides.map((guide) => (
-            <TouchableOpacity key={guide.id} style={styles.guideCard}>
-              <View style={styles.guideContent}>
-                <Text style={styles.guideTitle}>{guide.title}</Text>
-                <Text style={styles.guideDescription}>{guide.description}</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
-            </TouchableOpacity>
-          ))}
-        </View>
+    
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Today's Progress</Text>
