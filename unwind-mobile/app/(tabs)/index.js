@@ -168,6 +168,14 @@ export default function IdeaScreen() {
       color: "#FF6B6B",
       click: () => router.push("/pomodoro"),
     },
+    {
+      id: 8,
+      title: "Everyday Habits Reminder",
+      subtitle: "Build daily routines",
+      icon: "repeat",
+      color: "#22C55E",
+      click: () => router.push("/habits-reminder"),
+    },
   ];
 
   const guides = [

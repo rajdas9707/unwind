@@ -20,7 +20,6 @@ const NOTIFICATION_STORAGE_KEY = "notificationSettings";
 const defaultSettings = {
   waterReminder: true,
   reminder: true,
-  mistakePatternReminder: true,
   positivityReminder: true,
   allPushNotifications: true,
 };
@@ -171,15 +170,6 @@ export default function NotificationsScreen() {
             disabled={!settings.allPushNotifications}
           />
 
-          <ToggleSwitch
-            value={settings.mistakePatternReminder}
-            onValueChange={(value) => handleToggle("mistakePatternReminder", value)}
-            title="Mistake Pattern Reminder"
-            subtitle="Gentle nudges to reflect on growth opportunities"
-            icon="trending-up"
-            activeColor="#F59E0B"
-            disabled={!settings.allPushNotifications}
-          />
 
           <ToggleSwitch
             value={settings.positivityReminder}

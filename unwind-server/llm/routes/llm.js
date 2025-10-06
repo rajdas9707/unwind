@@ -21,6 +21,10 @@ router.post('/ask', verifyToken, aiController.askAI);
 // Generate daily summary endpoint (with auth)
 router.post('/generate-summary', verifyToken, dailySummaryController.generateDailySummary);
 
+// Get daily summary by date (with auth)
+router.get('/summary', verifyToken, dailySummaryController.getDailySummaryByDate);
+
+
 // Health check endpoint (no auth needed)
 router.get('/health', aiController.healthCheck);
 

@@ -16,7 +16,7 @@ export const generateDailySummary = async () => {
     if (result.status === 201 && result.data?.success) {
       return {
         success: true,
-        data: result.data.data,
+        data: result.data.data, // { date, highlights, ..., score }
         message: result.data.message
       };
     } else if (result.status === 409) {
@@ -69,3 +69,27 @@ export const generateDailySummary = async () => {
     };
   }
 };
+
+/**
+ * Fetch an existing daily summary by date (YYYY-MM-DD)
+ */
+export const fetchDailySummaryByDate = async (date) => {
+  try {
+    const qs = new URLSearchParams({ date }).toString();
+    const result = await authorizedFetch(`/api/llm/summary?${qs}`, {
+      method: "GET",
+    });
+
+    if (result.status === 200 && result.data?.success) {
+      return { success: true, data: result.data.data };
+    }
+    if (result.status === 404) {
+      return { success: false, error: "NOT_FOUND", message: "Summary not found" };
+    }
+    throw new Error(`Unexpected response status: ${result.status}`);
+  } catch (error) {
+    console.error("Error fetching summary by date:", error);
+    return { success: false, error: "UNKNOWN_ERROR", message: error.message };
+  }
+};
+

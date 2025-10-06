@@ -15,6 +15,7 @@ const overthinkingRoutes = require("./routes/overthinking");
 const mistakeRoutes = require("./routes/mistakes");
 const todoRoutes = require("./routes/todos");
 const llmRoutes = require("./llm/routes/llm");
+const dataRoutes = require("./routes/data");
 
 // Middleware
 app.use(helmet());
@@ -45,6 +46,7 @@ app.use("/api/overthinking", verifyToken, overthinkingRoutes);
 app.use("/api/mistakes", verifyToken, mistakeRoutes);
 app.use("/api/todos", verifyToken, todoRoutes);
 app.use("/api/llm", llmRoutes);
+app.use("/api/data", dataRoutes);
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {

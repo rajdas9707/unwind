@@ -24,6 +24,12 @@ import { checkTodaySyncStatus, getSyncStatusMessage } from "../../utils/syncStat
 import * as FileSystem from "expo-file-system/legacy";
 import * as SQLite from "expo-sqlite";
 import { closeDB, openDB } from "../../storage/mainDb";
+import { upsertSummaryScore, getSummaryScoresInRange } from "../../storage/summaryscore/db";
+import { getJournalEntriesByDate } from "../../storage/journal/db";
+import { getMistakesEntriesByDate } from "../../storage/mistakes/db";
+import { getOverthinkingEntriesByDate } from "../../storage/overthinking/db";
+import { purgeAllUserData } from "../../api/data";
+import { authorizedFetch } from "../../api/utils";
 import {
   EmailAuthProvider,
   reauthenticateWithCredential,
@@ -54,6 +60,11 @@ export default function AccountScreen() {
   const [syncStatus, setSyncStatus] = useState(null);
   const [isSyncing, setIsSyncing] = useState(false);
 
+  // Summary scores and UI state
+  const [scoreRange, setScoreRange] = useState({ days: 14 });
+  const [scores, setScores] = useState([]); // [{date, score}]
+  const [cards, setCards] = useState([]); // [{date, score, counts:{journal,mistakes,overthinking}}]
+
   useEffect(() => {
     let isMounted = true;
 
@@ -65,6 +76,7 @@ export default function AccountScreen() {
         await loadUserStats();
         await fetchProfile();
         await checkDailySummaryStatus();
+        await loadSummaryScoresForRange();
       } catch (error) {
         if (!isMounted) return;
 
@@ -236,7 +248,41 @@ export default function AccountScreen() {
       const credential = EmailAuthProvider.credential(email, clearDataPassword);
       await reauthenticateWithCredential(auth.currentUser, credential);
 
+      // Check server availability
+      let online = false;
+      try {
+        const health = await authorizedFetch("/api/health", { method: "GET" });
+        online = health?.status === 200;
+      } catch (_) {
+        online = false;
+      }
+
+      // If offline, do not allow deletion
+      if (!online) {
+        setDeleting(false);
+        Alert.alert("Offline", "You must be online to delete. Please connect to the internet and try again.");
+        return;
+      }
+
+      // Purge remote data first (required)
+      const res = await purgeAllUserData();
+      if (!res.success) {
+        setDeleting(false);
+        Alert.alert("Server Error", res.message || "Failed to delete data on server. Try again later.");
+        return;
+      }
+
+      // Only after successful server purge, wipe local data
       await wipeAppSandbox();
+
+      // Clear rate limit so summary can be generated again
+      try {
+        await AsyncStorage.removeItem('lastDailySummaryGenerated');
+        setSummaryAlreadyGenerated(false);
+      } catch (e) {
+        // ignore
+      }
+
       // Re-open a fresh empty DB to reset any in-memory references
       try {
         await openDB();
@@ -244,7 +290,7 @@ export default function AccountScreen() {
       setClearDataModalVisible(false);
       setClearDataPassword("");
       loadUserStats();
-      Alert.alert("Deleted", "All in-app data and files have been deleted.");
+      Alert.alert("Deleted", "All server and local data have been deleted.");
     } catch (error) {
       if (
         error?.code === "auth/invalid-credential" ||
@@ -345,9 +391,18 @@ export default function AccountScreen() {
       
       if (result.success) {
         // Mark as generated today
-        const today = new Date().toISOString().split('T')[0];
+        const today = result.data?.date || new Date().toISOString().split('T')[0];
+        const score = Number(result.data?.score ?? 0);
         await AsyncStorage.setItem('lastDailySummaryGenerated', today);
         setSummaryAlreadyGenerated(true);
+
+        // Persist score locally for graphs/cards
+        try {
+          await upsertSummaryScore({ date: today, score });
+          await loadSummaryScoresForRange();
+        } catch (e) {
+          console.warn('Failed to store summary score locally:', e);
+        }
         
         Alert.alert(
           '✅ Daily Summary Generated!',
@@ -368,6 +423,41 @@ export default function AccountScreen() {
       setIsGeneratingSummary(false);
     }
   };
+
+  const loadSummaryScoresForRange = async () => {
+    try {
+      // Determine range: last N days (default 14)
+      const today = new Date();
+      const endDate = today.toISOString().slice(0, 10);
+      const start = new Date(today);
+      start.setDate(today.getDate() - (scoreRange.days - 1));
+      const startDate = start.toISOString().slice(0, 10);
+
+      const rows = await getSummaryScoresInRange({ startDate, endDate });
+      setScores(rows);
+
+      // Build cards with counts
+      const cardPromises = rows.map(async (row) => {
+        const [j, m, o] = await Promise.all([
+          getJournalEntriesByDate(row.date),
+          getMistakesEntriesByDate(row.date),
+          getOverthinkingEntriesByDate(row.date),
+        ]);
+        return {
+          date: row.date,
+          score: row.score,
+          counts: { journal: j.length, mistakes: m.length, overthinking: o.length },
+        };
+      });
+      const cardData = await Promise.all(cardPromises);
+      setCards(cardData.reverse()); // show latest first
+    } catch (e) {
+      console.warn('Failed to load summary scores:', e);
+      setScores([]);
+      setCards([]);
+    }
+  };
+
 
   const handleSummaryError = (result) => {
     switch (result.error) {
@@ -596,114 +686,114 @@ export default function AccountScreen() {
 
         {/* Stats Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Your Statistics</Text>
+          <Text style={styles.sectionTitle}>Statistics</Text>
+
+          {/* Daily Summary Insights (Line Graph) */}
+          <View style={{ marginTop: 8, marginBottom: 12 }}>
+            <Text style={[styles.sectionTitle, { fontSize: 14, marginBottom: 6 }]}>Daily Summary Insights</Text>
+            {scores.length === 0 ? (
+              <Text style={{ color: '#6B7280' }}>No summary scores yet</Text>
+            ) : (
+              <View style={{ flexDirection: 'row', alignItems: 'flex-end' }}>
+                {/* Y-axis */}
+                {(() => { const maxScore = Math.max(10, ...scores.map(x => x.score || 0)); return (
+                  <View style={{ width: 30, height: 100, justifyContent: 'space-between', marginRight: 6 }}>
+                    <Text style={{ fontSize: 10, color: '#6B7280' }}>{maxScore}</Text>
+                    <Text style={{ fontSize: 10, color: '#6B7280' }}>0</Text>
+                  </View>
+                ); })()}
+                {/* Line chart area */}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <View style={{ height: 100, paddingRight: 8 }}>
+                    {(() => {
+                      const maxScore = Math.max(10, ...scores.map(x => x.score || 0));
+                      const H = 100; const STEP = 24; const R = 3;
+                      return (
+                        <View style={{ width: (scores.length - 1) * STEP + 16, height: H, position: 'relative' }}>
+                          {scores.map((s, i) => {
+                            const y = H - Math.round(((s.score || 0) / maxScore) * H);
+                            const x = i * STEP;
+                            const next = scores[i + 1];
+                            let line = null;
+                            if (next) {
+                              const y2 = H - Math.round(((next.score || 0) / maxScore) * H);
+                              const x2 = (i + 1) * STEP;
+                              const dx = x2 - x;
+                              const dy = y2 - y;
+                              const length = Math.sqrt(dx*dx + dy*dy);
+                              const angle = Math.atan2(dy, dx);
+                              line = (
+                                <View
+                                  key={`l-${i}`}
+                                  style={{ position: 'absolute', left: x + R, top: y + R, width: length, height: 2, backgroundColor: '#3B82F6', transform: [{ rotate: `${angle}rad` }] }}
+                                />
+                              );
+                            }
+                            return (
+                              <React.Fragment key={`p-${s.date}-${i}`}>
+                                {line}
+                                <View style={{ position: 'absolute', left: x - R, top: y - R, width: R*2, height: R*2, borderRadius: R, backgroundColor: '#3B82F6' }} />
+                                <Text style={{ position: 'absolute', top: H + 4, left: Math.max(0, x - 8), fontSize: 10, color: '#6B7280' }}>{String(s.date).slice(5)}</Text>
+                              </React.Fragment>
+                            );
+                          })}
+                        </View>
+                      );
+                    })()}
+                  </View>
+                </ScrollView>
+              </View>
+            )}
+          </View>
 
           <View style={styles.statsGrid}>
-            <LinearGradient
-              colors={["#E0F2FE", "#FFFFFF"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.statCardGradient}
-            >
-              <View style={styles.statCardInner}>
-                <View style={[styles.iconChip, { backgroundColor: "#DBEAFE" }]}>
-                  <Ionicons name="book" size={18} color="#2563EB" />
-                </View>
-                <Text style={styles.statValue}>{stats.journalEntries}</Text>
-                <Text style={styles.statLabel}>Journal Entries</Text>
-              </View>
-            </LinearGradient>
 
-            <LinearGradient
-              colors={["#EDE9FE", "#FFFFFF"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.statCardGradient}
-            >
-              <View style={styles.statCardInner}>
-                <View style={[styles.iconChip, { backgroundColor: "#DDD6FE" }]}>
-                  <Ionicons name="bulb" size={18} color="#7C3AED" />
-                </View>
-                <Text style={styles.statValue}>{stats.overthinkingLogs}</Text>
-                <Text style={styles.statLabel}>Thoughts Released</Text>
-              </View>
-            </LinearGradient>
 
-            <LinearGradient
-              colors={["#FEF3C7", "#FFFFFF"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.statCardGradient}
-            >
-              <View style={styles.statCardInner}>
-                <View style={[styles.iconChip, { backgroundColor: "#FDE68A" }]}>
-                  <Ionicons name="alert-circle" size={18} color="#D97706" />
-                </View>
-                <Text style={styles.statValue}>{stats.mistakeEntries}</Text>
-                <Text style={styles.statLabel}>Lessons Learned</Text>
-              </View>
-            </LinearGradient>
 
-            <LinearGradient
-              colors={["#FEE2E2", "#FFFFFF"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.statCardGradient}
+
+            {/* Generate Summary (grid card) */}
+            <TouchableOpacity
+              style={[styles.statCardGradient, (summaryAlreadyGenerated || isGeneratingSummary) && { opacity: 0.7 }]}
+              onPress={handleGenerateDailySummary}
+              disabled={summaryAlreadyGenerated || isGeneratingSummary}
             >
-              <View style={styles.statCardInner}>
-                <View style={[styles.iconChip, { backgroundColor: "#FECACA" }]}>
-                  <Ionicons name="flame" size={18} color="#DC2626" />
+              <LinearGradient colors={["#ECFEFF", "#FFFFFF"]} start={{x:0,y:0}} end={{x:1,y:1}} style={{ borderRadius: 16, flex: 1 }}>
+                <View style={styles.statCardInner}>
+                  <View style={[styles.iconChip, { backgroundColor: "#CFFAFE" }]}>
+                    {isGeneratingSummary ? (
+                      <ActivityIndicator size="small" color="#06B6D4" />
+                    ) : (
+                      <Ionicons name={summaryAlreadyGenerated ? "checkmark-circle" : "analytics"} size={18} color={summaryAlreadyGenerated ? "#10B981" : "#06B6D4"} />
+                    )}
+                  </View>
+                  <Text style={styles.statLabel}>
+                    {isGeneratingSummary ? "Generating..." : summaryAlreadyGenerated ? "Generated Today" : "Generate Summary"}
+                  </Text>
                 </View>
-                <Text style={styles.statValue}>{stats.streaks}</Text>
-                <Text style={styles.statLabel}>Week Streaks</Text>
-              </View>
-            </LinearGradient>
+              </LinearGradient>
+            </TouchableOpacity>
+
+            {/* View Summary (grid card) */}
+            <TouchableOpacity
+              style={styles.statCardGradient}
+              onPress={() => router.push("/summary")}
+            >
+              <LinearGradient colors={["#EEF2FF", "#FFFFFF"]} start={{x:0,y:0}} end={{x:1,y:1}} style={{ borderRadius: 16, flex: 1 }}>
+                <View style={styles.statCardInner}>
+                  <View style={[styles.iconChip, { backgroundColor: "#E0E7FF" }]}>
+                    <Ionicons name="bar-chart" size={18} color="#6366F1" />
+                  </View>
+                  <Text style={styles.statLabel}>View Daily Summary</Text>
+                </View>
+              </LinearGradient>
+            </TouchableOpacity>
           </View>
         </View>
 
-        {/* Settings Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Settings</Text>
 
-          {/* Generate Daily Summary Button */}
-          <TouchableOpacity 
-            style={[
-              styles.settingItem, 
-              styles.dailySummaryButton,
-              (summaryAlreadyGenerated || isGeneratingSummary) && styles.disabledSetting
-            ]}
-            onPress={handleGenerateDailySummary}
-            disabled={summaryAlreadyGenerated || isGeneratingSummary}
-          >
-            <View style={styles.dailySummaryIconContainer}>
-              {isGeneratingSummary ? (
-                <ActivityIndicator size="small" color="#3B82F6" />
-              ) : (
-                <Ionicons 
-                  name={summaryAlreadyGenerated ? "checkmark-circle" : "analytics"} 
-                  size={20} 
-                  color={summaryAlreadyGenerated ? "#10B981" : "#3B82F6"} 
-                />
-              )}
-            </View>
-            <View style={styles.dailySummaryTextContainer}>
-              <Text style={[
-                styles.settingText, 
-                styles.dailySummaryText,
-                (summaryAlreadyGenerated || isGeneratingSummary) && styles.disabledSettingText
-              ]}>
-                {isGeneratingSummary ? 'Generating Summary...' : 
-                 summaryAlreadyGenerated ? 'Daily Summary Generated' : 'Generate Daily Summary'}
-              </Text>
-              <Text style={styles.dailySummarySubtext}>
-                {isGeneratingSummary ? 'Please wait...' :
-                 summaryAlreadyGenerated ? 'Generated for today' : 'AI-powered daily insights'}
-              </Text>
-            </View>
-            {!summaryAlreadyGenerated && !isGeneratingSummary && (
-              <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
-            )}
-          </TouchableOpacity>
+        {/* Settings Section */}
+        <View className="section" style={styles.section}>
+          <Text style={styles.sectionTitle}>Settings</Text>
 
           <TouchableOpacity 
             style={styles.settingItem}
@@ -773,6 +863,7 @@ export default function AccountScreen() {
           <Text style={styles.signOutText}>Sign Out</Text>
         </TouchableOpacity>
       </ScrollView>
+
 
       {/* Confirm Delete Modal */}
       <Modal
