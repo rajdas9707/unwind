@@ -1,10 +1,9 @@
 const DailySummary = require('../models/DailySummary');
-const RepetitiveMistakes = require('../models/RepetitiveMistakes');
+
 const Journal = require('../models/Journal');
 const Mistake = require('../models/Mistake');
 const Overthinking = require('../models/Overthinking');
 const { queryAI } = require('../llm/services/aiService');
-const embeddingService = require('./embeddingService');
 
 class DailySummaryService {
   /**
@@ -254,81 +253,8 @@ class DailySummaryService {
     return mistakes;
   }
 
-  /**
-   * Update repetitive mistakes tracking
-   * @param {string} userId 
-   * @param {Object} userData 
-   */
-  async updateRepetitiveMistakes(userId, userData) {
-    try {
-      const mistakeTexts = this.extractMistakeTexts(userData);
-      
-      for (const mistakeData of mistakeTexts) {
-        await this.processIndividualMistake(userId, mistakeData);
-      }
-      
-      console.log(`Processed ${mistakeTexts.length} mistakes for repetitive pattern detection`);
-    } catch (error) {
-      console.error('Error updating repetitive mistakes:', error);
-      throw error;
-    }
-  }
 
-  /**
-   * Process individual mistake for repetitive pattern detection
-   * @param {string} userId 
-   * @param {Object} mistakeData 
-   */
-  async processIndividualMistake(userId, mistakeData) {
-    const embedding = await embeddingService.generateEmbedding(mistakeData.text);
-    
-    // Find existing similar mistakes
-    const existingMistakes = await RepetitiveMistakes.find({ userId });
-    
-    let similarMistake = null;
-    for (const existing of existingMistakes) {
-      const similarity = embeddingService.calculateCosineSimilarity(
-        embedding, 
-        existing.embedding
-      );
-      
-      if (similarity >= 0.75) { // 75% similarity threshold
-        similarMistake = existing;
-        break;
-      }
-    }
 
-    if (similarMistake) {
-      // Update existing repetitive mistake
-      similarMistake.occurrences += 1;
-      similarMistake.lastOccurred = new Date();
-      similarMistake.sources.push(mistakeData.source);
-      
-      // Update severity based on frequency
-      if (similarMistake.occurrences >= 5) {
-        similarMistake.severity = 'high';
-      } else if (similarMistake.occurrences >= 3) {
-        similarMistake.severity = 'medium';
-      }
-      
-      await similarMistake.save();
-      console.log(`Updated repetitive mistake: ${similarMistake.mistakeText} (${similarMistake.occurrences} times)`);
-    } else {
-      // Create new repetitive mistake entry
-      const newRepetitiveMistake = new RepetitiveMistakes({
-        userId,
-        mistakeText: mistakeData.text,
-        embedding,
-        occurrences: 1,
-        category: mistakeData.category || 'Other',
-        sources: [mistakeData.source],
-        severity: 'low'
-      });
-      
-      await newRepetitiveMistake.save();
-      console.log(`Created new mistake pattern: ${mistakeData.text}`);
-    }
-  }
 
   /**
    * Generate complete daily summary with repetitive mistakes tracking
@@ -362,9 +288,8 @@ class DailySummaryService {
       
       await dailySummary.save();
 
-      // Update repetitive mistakes tracking
-      await this.updateRepetitiveMistakes(userId, userData);
 
+      
       console.log(`Generated daily summary for user ${userId} on ${date}`);
       
       return {
