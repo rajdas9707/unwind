@@ -16,40 +16,14 @@ async function processJournalEntry(rawText) {
 Analyze the following journal entry and provide a structured summary. Extract key insights and present them in the following JSON format:
 
 {
-  "summary": [
-    "Point 1: Brief summary of main event/thought",
-    "Point 2: Another key aspect", 
-    "Point 3: Additional important detail",
-    "Point 4: Another relevant point (if applicable)",
-    "Point 5: Final important aspect (if applicable)"
-  ],
-  "positives": [
-    "Positive aspect 1",
-    "Positive aspect 2 (if any)",
-    "Positive aspect 3 (if any)"
-  ],
-  "negatives": [
-    "Negative/challenging aspect 1", 
-    "Negative/challenging aspect 2 (if any)",
-    "Negative/challenging aspect 3 (if any)"
-  ],
-  "lessons": [
-    "Key lesson or insight 1",
-    "Key lesson or insight 2 (if applicable)",
-    "Key lesson or insight 3 (if applicable)"
-  ],
-  "intensity": "low|medium|high",
-  "rating": 7
+  "summary": ["3-5 short one-liners (main events/thoughts)"],
+  "positives": ["1-3 short positive points "],
+  "negatives": ["1-3 short negative/challenging points"],
+  "lessons": ["1-3 short lessons or insights"],
+  "intensity": "low | medium | high",
+  "rating": "1-10 (based on clarity, mistake awareness, and overthinking control — higher clarity & awareness = higher score)"
 }
 
-Rules:
-- Provide 3-5 summary points maximum
-- Extract 1-3 positive aspects if they exist
-- Extract 1-3 negative/challenging aspects if they exist  
-- Identify 1-3 key lessons or insights
-- Determine emotional intensity level
-- Rate the overall day/experience on a scale of 1-10 (1=very bad, 10=excellent)
-- Keep each point concise (1-2 sentences max)
 - If no positives/negatives/lessons exist, use empty arrays
 - Respond ONLY with valid JSON, no additional text
 

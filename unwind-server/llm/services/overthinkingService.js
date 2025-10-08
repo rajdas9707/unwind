@@ -19,51 +19,29 @@ async function processOverthinkingEntry(thought, userSolution = '') {
 
   try {
     // Create comprehensive prompt for AI processing
-    const analysisPrompt = `
-Analyze this overthinking pattern and provide comprehensive structured insights:
+const analysisPrompt = `
+Analyze this mistake and return a structured JSON as below. Keep tone professional, constructive, and concise.
 
-Overthinking Description: "${thought}"
-${userSolution ? `User's Initial Solution: "${userSolution}"` : 'User provided no initial solution.'}
+Mistake:
+"${description}"
+Category: ${category}
+${userLearning ? `User Learning: "${userLearning}"` : 'No initial learning provided.'}
 
-Please provide a JSON response with the following structure:
+Respond ONLY with valid JSON:
+
 {
-  "thought_summary": "A concise, professional 1-2 sentence summary of the main concern (max 100 words)",
-  "solution": "A helpful, actionable solution (if user provided a solution, build upon it)",
-  "category": "One of: work, relationships, health, finance, future, past, other",
-  "intensity": "A number from 1-10 representing the stress/anxiety level",
-  "triggers": [
-    "Primary trigger or cause 1",
-    "Secondary trigger 2 (if applicable)",
-    "Additional trigger 3 (if applicable)"
-  ],
-  "patterns": [
-    "Thought pattern 1 (e.g., catastrophizing, all-or-nothing thinking)",
-    "Thought pattern 2 (if applicable)"
-  ],
-  "coping_strategies": [
-    "Specific coping strategy 1",
-    "Specific coping strategy 2",
-    "Specific coping strategy 3 (if applicable)"
-  ],
-  "reframe": "A positive, realistic reframing of the overthinking thought",
-  "urgency": "low|medium|high (how urgent/critical is this concern really?)"
+  "description_summary": "1-2 sentence summary (max 40 words). Concisely describe what went wrong without judgment.",
+  "learning": "Meaningful insight gained (build upon user's input if provided). Keep under 25 words.",
+  "solution": "Clear, actionable step(s) to avoid or handle this mistake better next time. Max 30 words.",
+  "intensity": "1-10 number based on impact: 
+                1-3 = minor issue, small effect; 
+                4-6 = moderate mistake, noticeable impact; 
+                7-10 = major or recurring issue with strong emotional or practical effect."
 }
 
-Guidelines:
-- Thought Summary: Concise, clean 1-2 sentence summary of the core concern. Remove rambling, make it professional.
-- Solution: Practical, supportive advice. Build on user's solution if provided.
-- Category: Best fitting category for the overthinking topic.
-- Intensity: 1=mild worry, 5=moderate stress, 10=severe anxiety/panic.
-- Triggers: 1-3 root causes or triggers that led to this overthinking.
-- Patterns: 1-2 cognitive patterns (catastrophizing, rumination, etc.).
-- Coping Strategies: 2-3 specific, actionable coping techniques.
-- Reframe: Balanced, realistic perspective on the situation.
-- Urgency: Actual urgency level of the concern (most overthinking is low urgency).
-- Keep all responses concise (1-2 sentences per item).
-- If arrays would be empty, use empty arrays [].
+Keep responses growth-oriented, short, and specific.
+`;
 
-Respond ONLY with valid JSON in the exact format specified above.
-    `.trim();
 
     const aiResponse = await queryAI(analysisPrompt, {
       max_tokens: 300,

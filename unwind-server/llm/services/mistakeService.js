@@ -33,20 +33,16 @@ ${userLearning ? `User's Initial Learning: "${userLearning}"` : 'User provided n
 
 Please provide a JSON response with the following structure:
 {
-  "description_summary": "A concise, professional 1-2 sentence summary of the mistake (max 100 words)",
-  "learning": "Key insights and lessons from this mistake (if user provided learning, build upon it and enhance it)",
-  "solution": "Practical steps to avoid this mistake in the future and/or how to handle similar situations",
-  "intensity": "A number from 1-10 representing the severity/impact of this mistake"
+  "description_summary": "1-2 sentence summary (max 40 words). Concisely describe what went wrong without judgment.",
+  "learning": "Meaningful insight gained (build upon user's input if provided). Keep under 25 words.",
+  "solution": "Clear, actionable step(s) to avoid or handle this mistake better next time. Max 30 words.",
+  "intensity": "1-10 number based on impact: 
+                1-3 = minor issue, small effect; 
+                4-6 = moderate mistake, noticeable impact; 
+                7-10 = major or recurring issue with strong emotional or practical effect."
 }
 
-Guidelines:
-- Description Summary: Concise, clean 1-2 sentence summary of what went wrong. Remove rambling, make it professional.
-- Learning: Provide meaningful insights about what can be learned from this mistake. If user gave learning, acknowledge and expand upon it.
-- Solution: Offer specific, actionable steps to prevent similar mistakes or handle them better next time.
-- Intensity: Rate 1-10 where 1=minor mistake with little impact, 5=moderate mistake with noticeable consequences, 10=major mistake with significant impact.
-- Keep responses encouraging and growth-focused, not judgmental.
-- Focus on constructive learning and improvement.
-
+Keep responses growth-oriented, short, and specific.
 Respond ONLY with valid JSON in the exact format specified above.
     `.trim();
 
