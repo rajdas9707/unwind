@@ -16,10 +16,16 @@ export const initwaterRemindersTable = async (db) => {
         interval_unit TEXT NOT NULL,
         quantity INTEGER NOT NULL,
         is_active INTEGER DEFAULT 1,
+        repeat_until TEXT,
+        repeat_every_days INTEGER DEFAULT 1,
         created_at TEXT,
         updated_at TEXT
       )`
     );
+
+    // Best-effort migrations for existing installs (ignore if columns already exist)
+    try { await db.execAsync("ALTER TABLE reminders ADD COLUMN repeat_until TEXT"); } catch (e) {}
+    try { await db.execAsync("ALTER TABLE reminders ADD COLUMN repeat_every_days INTEGER DEFAULT 1"); } catch (e) {}
 
     // Create checkpoints table with simple schema
     await db.execAsync(
@@ -44,19 +50,21 @@ export const initwaterRemindersTable = async (db) => {
 export const createReminder = async (reminderData) => {
   try {
     const database = await openDB();
-    const { startTime, endTime, intervalValue, intervalUnit, quantity } =
+    const { startTime, endTime, intervalValue, intervalUnit, quantity, repeatUntil = null, repeatEveryDays = 1 } =
       reminderData;
     const currentTimestamp = new Date().toISOString();
 
     const result = await database.runAsync(
-      `INSERT INTO reminders (start_time, end_time, interval_value, interval_unit, quantity, created_at, updated_at) 
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO reminders (start_time, end_time, interval_value, interval_unit, quantity, repeat_until, repeat_every_days, created_at, updated_at) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         startTime,
         endTime,
         intervalValue,
         intervalUnit,
         quantity,
+        repeatUntil,
+        repeatEveryDays,
         currentTimestamp,
         currentTimestamp,
       ]
@@ -99,13 +107,13 @@ export const getReminderById = async (id) => {
 export const updateReminder = async (id, reminderData) => {
   try {
     const database = await openDB();
-    const { startTime, endTime, intervalValue, intervalUnit, quantity } =
+    const { startTime, endTime, intervalValue, intervalUnit, quantity, repeatUntil = null, repeatEveryDays = 1 } =
       reminderData;
     const currentTimestamp = new Date().toISOString();
 
     await database.runAsync(
       `UPDATE reminders 
-       SET start_time = ?, end_time = ?, interval_value = ?, interval_unit = ?, quantity = ?, updated_at = ?
+       SET start_time = ?, end_time = ?, interval_value = ?, interval_unit = ?, quantity = ?, repeat_until = ?, repeat_every_days = ?, updated_at = ?
        WHERE id = ?`,
       [
         startTime,
@@ -113,6 +121,8 @@ export const updateReminder = async (id, reminderData) => {
         intervalValue,
         intervalUnit,
         quantity,
+        repeatUntil,
+        repeatEveryDays,
         currentTimestamp,
         id,
       ]

@@ -34,6 +34,8 @@ import {
   EmailAuthProvider,
   reauthenticateWithCredential,
   deleteUser,
+  updateProfile,
+  updateEmail,
 } from "firebase/auth";
 // import { exportDatabase } from "../testDb";
 
@@ -64,6 +66,16 @@ export default function AccountScreen() {
   const [scoreRange, setScoreRange] = useState({ days: 14 });
   const [scores, setScores] = useState([]); // [{date, score}]
   const [cards, setCards] = useState([]); // [{date, score, counts:{journal,mistakes,overthinking}}]
+
+  // Change Name / Email UI state
+  const [nameModalVisible, setNameModalVisible] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [updatingName, setUpdatingName] = useState(false);
+
+  const [emailModalVisible, setEmailModalVisible] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [emailPassword, setEmailPassword] = useState("");
+  const [updatingEmail, setUpdatingEmail] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -305,6 +317,112 @@ export default function AccountScreen() {
       }
     } finally {
       setDeleting(false);
+    }
+  };
+
+  // Change Name flow
+  const openChangeName = () => {
+    setNewName(userInfo?.name || "");
+    setNameModalVisible(true);
+  };
+
+  const handleSaveNewName = async () => {
+    try {
+      const trimmed = (newName || "").trim();
+      if (!trimmed) {
+        Alert.alert("Invalid name", "Please enter a valid name.");
+        return;
+      }
+      if (!auth?.currentUser) {
+        Alert.alert("Not signed in", "Please sign in again and retry.");
+        return;
+      }
+      setUpdatingName(true);
+      const userId = auth.currentUser.uid;
+
+      // 1) Update in backend (MongoDB)
+      await authorizedFetch("/api/user/updateName", {
+        method: "PUT",
+        body: { userId, newName: trimmed },
+      });
+
+      // 2) Update Firebase profile displayName
+      await updateProfile(auth.currentUser, { displayName: trimmed });
+
+      // 3) Update AsyncStorage userInfo
+      try {
+        const stored = await AsyncStorage.getItem("userInfo");
+        let parsed = stored ? JSON.parse(stored) : {};
+        parsed = { ...parsed, name: trimmed };
+        await AsyncStorage.setItem("userInfo", JSON.stringify(parsed));
+        setUserInfo(parsed);
+      } catch (e) {
+        // Non-fatal: just log it
+        console.warn("Failed updating local userInfo name:", e?.message);
+      }
+
+      setNameModalVisible(false);
+      Alert.alert("Success", "Name updated successfully.");
+    } catch (e) {
+      console.error("Change name failed:", e);
+      Alert.alert("Error", e?.message || "Failed to update name. Please try again.");
+    } finally {
+      setUpdatingName(false);
+    }
+  };
+
+  // Change Email flow
+  const openChangeEmail = () => {
+    const current = userInfo?.email || auth?.currentUser?.email || "";
+    setNewEmail(current);
+    setEmailPassword("");
+    setEmailModalVisible(true);
+  };
+
+  const handleSaveNewEmail = async () => {
+    try {
+      const email = (newEmail || "").trim();
+      const pwd = (emailPassword || "").trim();
+      if (!email) {
+        Alert.alert("Invalid email", "Please enter a valid email.");
+        return;
+      }
+      if (!pwd) {
+        Alert.alert("Password required", "Please enter your password to continue.");
+        return;
+      }
+      if (!auth?.currentUser) {
+        Alert.alert("Not signed in", "Please sign in again and retry.");
+        return;
+      }
+      setUpdatingEmail(true);
+      const userId = auth.currentUser.uid;
+
+      // 1) Reauthenticate with current credentials
+      const currentEmail = userInfo?.email || auth.currentUser.email;
+      const credential = EmailAuthProvider.credential(currentEmail, pwd);
+      await reauthenticateWithCredential(auth.currentUser, credential);
+
+      // 2) Update in backend (MongoDB)
+      await authorizedFetch("/api/user/updateEmail", {
+        method: "PUT",
+        body: { userId, newEmail: email },
+      });
+
+      // 3) Update Firebase user email
+      await updateEmail(auth.currentUser, email);
+
+      setEmailModalVisible(false);
+      Alert.alert("Success", "Email updated successfully! Please re-login.");
+    } catch (e) {
+      console.error("Change email failed:", e);
+      let msg = e?.message || "Failed to update email. Please try again.";
+      if (e?.code === "auth/invalid-credential" || e?.code === "auth/wrong-password") {
+        msg = "Incorrect password. Please try again.";
+      }
+      Alert.alert("Error", msg);
+    } finally {
+      setUpdatingEmail(false);
     }
   };
 
@@ -795,6 +913,26 @@ export default function AccountScreen() {
         <View className="section" style={styles.section}>
           <Text style={styles.sectionTitle}>Settings</Text>
 
+          {/* Change Name */}
+          <TouchableOpacity 
+            style={styles.settingItem}
+            onPress={openChangeName}
+          >
+            <Ionicons name="person" size={20} color="#6B7280" />
+            <Text style={styles.settingText}>Change Name</Text>
+            <Ionicons name="pencil" size={16} color="#9CA3AF" />
+          </TouchableOpacity>
+
+          {/* Change Email */}
+          <TouchableOpacity 
+            style={styles.settingItem}
+            onPress={openChangeEmail}
+          >
+            <Ionicons name="mail" size={20} color="#6B7280" />
+            <Text style={styles.settingText}>Change Email</Text>
+            <Ionicons name="pencil" size={16} color="#9CA3AF" />
+          </TouchableOpacity>
+
           <TouchableOpacity 
             style={styles.settingItem}
             onPress={() => router.push("/settings/notifications")}
@@ -863,6 +1001,216 @@ export default function AccountScreen() {
           <Text style={styles.signOutText}>Sign Out</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Change Name Modal */}
+      <Modal
+        visible={nameModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setNameModalVisible(false)}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.6)",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+        >
+          <View
+            style={{
+              width: "88%",
+              backgroundColor: "#fff",
+              borderRadius: 16,
+              padding: 20,
+            }}
+          >
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                marginBottom: 12,
+              }}
+            >
+              <Ionicons name="person" size={22} color="#111827" />
+              <Text
+                style={{
+                  marginLeft: 8,
+                  fontSize: 18,
+                  fontWeight: "700",
+                  color: "#111827",
+                }}
+              >
+                Change Name
+              </Text>
+            </View>
+
+            <Text style={{ color: "#6B7280", fontSize: 13, marginBottom: 8 }}>
+              Enter your new display name
+            </Text>
+            <TextInput
+              value={newName}
+              onChangeText={setNewName}
+              placeholder="New name"
+              placeholderTextColor="#9CA3AF"
+              style={{
+                borderWidth: 1,
+                borderColor: "#E5E7EB",
+                borderRadius: 10,
+                padding: 12,
+                marginBottom: 16,
+              }}
+              editable={!updatingName}
+            />
+            <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
+              <TouchableOpacity
+                onPress={() => setNameModalVisible(false)}
+                style={{
+                  paddingVertical: 10,
+                  paddingHorizontal: 14,
+                  borderRadius: 10,
+                  backgroundColor: "#F3F4F6",
+                  marginRight: 8,
+                }}
+                disabled={updatingName}
+              >
+                <Text style={{ color: "#374151", fontWeight: "700" }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleSaveNewName}
+                style={{
+                  paddingVertical: 10,
+                  paddingHorizontal: 14,
+                  borderRadius: 10,
+                  backgroundColor: "#10B981",
+                  flexDirection: "row",
+                  alignItems: "center",
+                }}
+                disabled={updatingName}
+              >
+                {updatingName && (
+                  <ActivityIndicator color="#fff" style={{ marginRight: 8 }} />
+                )}
+                <Text style={{ color: "#fff", fontWeight: "700" }}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Change Email Modal */}
+      <Modal
+        visible={emailModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setEmailModalVisible(false)}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.6)",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+        >
+          <View
+            style={{
+              width: "88%",
+              backgroundColor: "#fff",
+              borderRadius: 16,
+              padding: 20,
+            }}
+          >
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                marginBottom: 12,
+              }}
+            >
+              <Ionicons name="mail" size={22} color="#111827" />
+              <Text
+                style={{
+                  marginLeft: 8,
+                  fontSize: 18,
+                  fontWeight: "700",
+                  color: "#111827",
+                }}
+              >
+                Change Email
+              </Text>
+            </View>
+
+            <Text style={{ color: "#6B7280", fontSize: 13, marginBottom: 8 }}>
+              Enter your new email and current password
+            </Text>
+            <TextInput
+              value={newEmail}
+              onChangeText={setNewEmail}
+              placeholder="New email"
+              placeholderTextColor="#9CA3AF"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              style={{
+                borderWidth: 1,
+                borderColor: "#E5E7EB",
+                borderRadius: 10,
+                padding: 12,
+                marginBottom: 12,
+              }}
+              editable={!updatingEmail}
+            />
+            <TextInput
+              value={emailPassword}
+              onChangeText={setEmailPassword}
+              placeholder="Current password"
+              placeholderTextColor="#9CA3AF"
+              secureTextEntry
+              style={{
+                borderWidth: 1,
+                borderColor: "#E5E7EB",
+                borderRadius: 10,
+                padding: 12,
+                marginBottom: 16,
+              }}
+              editable={!updatingEmail}
+            />
+
+            <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
+              <TouchableOpacity
+                onPress={() => setEmailModalVisible(false)}
+                style={{
+                  paddingVertical: 10,
+                  paddingHorizontal: 14,
+                  borderRadius: 10,
+                  backgroundColor: "#F3F4F6",
+                  marginRight: 8,
+                }}
+                disabled={updatingEmail}
+              >
+                <Text style={{ color: "#374151", fontWeight: "700" }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleSaveNewEmail}
+                style={{
+                  paddingVertical: 10,
+                  paddingHorizontal: 14,
+                  borderRadius: 10,
+                  backgroundColor: "#3B82F6",
+                  flexDirection: "row",
+                  alignItems: "center",
+                }}
+                disabled={updatingEmail}
+              >
+                {updatingEmail && (
+                  <ActivityIndicator color="#fff" style={{ marginRight: 8 }} />
+                )}
+                <Text style={{ color: "#fff", fontWeight: "700" }}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
 
       {/* Confirm Delete Modal */}
