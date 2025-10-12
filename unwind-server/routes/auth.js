@@ -57,4 +57,32 @@ router.post("/signup", async (req, res) => {
   // For demonstration, we'll just return the received data
 });
 
+
+
+
+// PUT route to update user name
+router.put("/update-name",verifyToken, async (req, res) => {
+  
+  const user=req.user;
+  console.log("User from token:", user);
+  const { newName } = req.body;
+  // if (!newName) {
+  //   return res.status(400).json({ error: "UID and name are required" });
+  // }
+  // try {
+  //   const user = await User.findOneAndUpdate(
+  //     { firebaseUid: uid },
+  //     { name },
+  //     { new: true }
+  //   );
+  //   if (!user) {
+  //     return res.status(404).json({ error: "User not found" });
+  //   }
+  //   return res.json({ message: "User name updated successfully", user });
+  // } catch (error) {
+  //   console.error("Error updating user name:", error);
+  //   return res.status(500).json({ error: "Internal server error" });
+  // }
+});
+
 module.exports = router; // ✅ must export router

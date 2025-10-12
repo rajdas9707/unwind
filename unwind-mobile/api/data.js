@@ -1,11 +1,23 @@
-import { authorizedFetch } from "./utils";
+import axios from "axios";
+import { getFreshToken, API_BASE_URL } from "./utils";
 
 export const purgeAllUserData = async () => {
   try {
-    const result = await authorizedFetch("/api/data/all", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
+    const token = await getFreshToken();
+    
+    const headers = {
+      "Content-Type": "application/json",
+    };
+    
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    
+    const result = await axios.delete(`${API_BASE_URL}/api/data/all`, {
+      headers,
+      timeout: 10000,
     });
+    
     if (result.status === 200 && result.data?.success) {
       return { success: true, deleted: result.data.deleted };
     }

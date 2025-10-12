@@ -1,7 +1,10 @@
-import { authorizedFetch } from "./utils";
+import axios from "axios";
+import { getFreshToken, API_BASE_URL } from "./utils";
 
 // List todos with optional filters
 export const listTodos = async ({ category, page = 1, limit = 50 } = {}) => {
+  const token = await getFreshToken();
+  
   // Build query parameters explicitly
   const params = new URLSearchParams();
   if (category) {
@@ -15,15 +18,24 @@ export const listTodos = async ({ category, page = 1, limit = 50 } = {}) => {
   }
   const queryString = params.toString() ? `?${params.toString()}` : "";
   
-  const result = await authorizedFetch(`/api/todos${queryString}`, {
-    method: "GET",
-  });
+  const headers = {
+    "Content-Type": "application/json",
+  };
   
-  if (result.status !== 200) {
-    throw new Error(`Unexpected response status: ${result.status}`);
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
   }
   
-  return result.data;
+  const response = await axios.get(`${API_BASE_URL}/api/todos${queryString}`, {
+    headers,
+    timeout: 10000,
+  });
+  
+  if (response.status !== 200) {
+    throw new Error(`Unexpected response status: ${response.status}`);
+  }
+  
+  return response.data;
 };
 
 // Create a new todo
@@ -34,24 +46,32 @@ export const createTodo = async ({
   priority,
   dueDate,
 }) => {
-  const body = JSON.stringify({
+  const token = await getFreshToken();
+  
+  const headers = {
+    "Content-Type": "application/json",
+  };
+  
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  
+  const response = await axios.post(`${API_BASE_URL}/api/todos`, {
     title,
     description,
     category,
     priority,
     dueDate,
+  }, {
+    headers,
+    timeout: 10000,
   });
   
-  const result = await authorizedFetch("/api/todos", {
-    method: "POST",
-    body,
-  });
-  
-  if (result.status !== 201) {
-    throw new Error(`Unexpected response status: ${result.status}`);
+  if (response.status !== 201) {
+    throw new Error(`Unexpected response status: ${response.status}`);
   }
   
-  return result.data;
+  return response.data;
 };
 
 // Update an existing todo
@@ -64,36 +84,55 @@ export const updateTodo = async ({
   dueDate,
   completed,
 }) => {
-  const body = JSON.stringify({
+  const token = await getFreshToken();
+  
+  const headers = {
+    "Content-Type": "application/json",
+  };
+  
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  
+  const response = await axios.put(`${API_BASE_URL}/api/todos/${id}`, {
     title,
     description,
     category,
     priority,
     dueDate,
     completed,
+  }, {
+    headers,
+    timeout: 10000,
   });
   
-  const result = await authorizedFetch(`/api/todos/${id}`, {
-    method: "PUT",
-    body,
-  });
-  
-  if (result.status !== 200) {
-    throw new Error(`Unexpected response status: ${result.status}`);
+  if (response.status !== 200) {
+    throw new Error(`Unexpected response status: ${response.status}`);
   }
   
-  return result.data;
+  return response.data;
 };
 
 // Delete a todo
 export const deleteTodo = async ({ id }) => {
-  const result = await authorizedFetch(`/api/todos/${id}`, {
-    method: "DELETE",
-  });
+  const token = await getFreshToken();
   
-  if (result.status !== 200 && result.status !== 204) {
-    throw new Error(`Unexpected response status: ${result.status}`);
+  const headers = {
+    "Content-Type": "application/json",
+  };
+  
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
   }
   
-  return result.data;
+  const response = await axios.delete(`${API_BASE_URL}/api/todos/${id}`, {
+    headers,
+    timeout: 10000,
+  });
+  
+  if (response.status !== 200 && response.status !== 204) {
+    throw new Error(`Unexpected response status: ${response.status}`);
+  }
+  
+  return response.data;
 };

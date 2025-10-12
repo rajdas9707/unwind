@@ -1,7 +1,10 @@
-import { authorizedFetch } from "./utils";
+import axios from "axios";
+import { getFreshToken, API_BASE_URL } from "./utils";
 
 // List journal entries with optional date filter
 export const listJournalEntries = async ({ date, page = 1, limit = 50 } = {}) => {
+  const token = await getFreshToken();
+  
   // Build query parameters explicitly
   const params = new URLSearchParams();
   if (date) {
@@ -15,15 +18,24 @@ export const listJournalEntries = async ({ date, page = 1, limit = 50 } = {}) =>
   }
   const queryString = params.toString() ? `?${params.toString()}` : "";
   
-  const result = await authorizedFetch(`/api/journal${queryString}`, {
-    method: "GET",
-  });
+  const headers = {
+    "Content-Type": "application/json",
+  };
   
-  if (result.status !== 200) {
-    throw new Error(`Unexpected response status: ${result.status}`);
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
   }
   
-  return result.data;
+  const response = await axios.get(`${API_BASE_URL}/api/journal${queryString}`, {
+    headers,
+    timeout: 10000,
+  });
+  
+  if (response.status !== 200) {
+    throw new Error(`Unexpected response status: ${response.status}`);
+  }
+  
+  return response.data;
 };
 
 // Create a new journal entry
@@ -47,46 +59,76 @@ export const createJournalEntry = async ({ content, title }) => {
     throw new Error("Title must be less than 200 characters");
   }
 
-  const body = JSON.stringify({ 
+  const token = await getFreshToken();
+  
+  const headers = {
+    "Content-Type": "application/json",
+  };
+  
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  
+  const response = await axios.post(`${API_BASE_URL}/api/journal`, {
     content: content.trim(),
-    title: title ? title.trim() : ""
-  });
-
-  const result = await authorizedFetch("/api/journal", {
-    method: "POST",
-    body,
+    title: title ? title.trim() : "",
+  }, {
+    headers,
+    timeout: 10000,
   });
   
-  if (result.status !== 201) {
-    throw new Error(`Unexpected response status: ${result.status}`);
+  if (response.status !== 201) {
+    throw new Error(`Unexpected response status: ${response.status}`);
   }
- console.log("result from createnewjournal/api/journal",result)
-  return result.data;
+  console.log("result from createnewjournal/api/journal", response);
+  return response.data;
 };
 
 // Get a single journal entry by ID
 export const getJournalEntry = async ({ id, signal }) => {
-  const result = await authorizedFetch(`/api/journal/${id}`, {
-    method: "GET",
+  const token = await getFreshToken();
+  
+  const headers = {
+    "Content-Type": "application/json",
+  };
+  
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  
+  const response = await axios.get(`${API_BASE_URL}/api/journal/${id}`, {
+    headers,
+    timeout: 10000,
     signal,
   });
   
-  if (result.status !== 200) {
-    throw new Error(`Unexpected response status: ${result.status}`);
+  if (response.status !== 200) {
+    throw new Error(`Unexpected response status: ${response.status}`);
   }
   
-  return result.data;
+  return response.data;
 };
 
 // Delete a journal entry
 export const deleteJournalEntry = async ({ id }) => {
-  const result = await authorizedFetch(`/api/journal/${id}`, {
-    method: "DELETE",
-  });
+  const token = await getFreshToken();
   
-  if (result.status !== 200 && result.status !== 204) {
-    throw new Error(`Unexpected response status: ${result.status}`);
+  const headers = {
+    "Content-Type": "application/json",
+  };
+  
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
   }
   
-  return result.data;
+  const response = await axios.delete(`${API_BASE_URL}/api/journal/${id}`, {
+    headers,
+    timeout: 10000,
+  });
+  
+  if (response.status !== 200 && response.status !== 204) {
+    throw new Error(`Unexpected response status: ${response.status}`);
+  }
+  
+  return response.data;
 };

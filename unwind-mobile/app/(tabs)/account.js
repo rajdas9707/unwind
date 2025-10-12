@@ -18,7 +18,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { auth } from "../../firebaseConfig"; // Assuming auth is exported from here
-import { getProfile, deleteUserAccount } from "../../api/auth";
+import { getProfile, deleteUserAccount, updateUserName } from "../../api/auth";
 import { generateDailySummary } from "../../api/dailySummary";
 import { checkTodaySyncStatus, getSyncStatusMessage } from "../../utils/syncStatusUtils";
 import * as FileSystem from "expo-file-system/legacy";
@@ -29,7 +29,9 @@ import { getJournalEntriesByDate } from "../../storage/journal/db";
 import { getMistakesEntriesByDate } from "../../storage/mistakes/db";
 import { getOverthinkingEntriesByDate } from "../../storage/overthinking/db";
 import { purgeAllUserData } from "../../api/data";
-import { authorizedFetch } from "../../api/utils";
+import { getFreshToken, API_BASE_URL } from "../../api/utils";
+import ChartWebView from "../../components/ChartWebView";
+import { formatScoresForChart } from "../../utils/chartUtils";
 import {
   EmailAuthProvider,
   reauthenticateWithCredential,
@@ -341,11 +343,10 @@ export default function AccountScreen() {
       const userId = auth.currentUser.uid;
 
       // 1) Update in backend (MongoDB)
-      await authorizedFetch("/api/user/updateName", {
-        method: "PUT",
-        body: { userId, newName: trimmed },
-      });
-
+     const response= await updateUserName({uid:userId, newName: trimmed }
+      );
+      console.log("Backend name update response:", response);
+      
       // 2) Update Firebase profile displayName
       await updateProfile(auth.currentUser, { displayName: trimmed });
 
@@ -404,9 +405,19 @@ export default function AccountScreen() {
       await reauthenticateWithCredential(auth.currentUser, credential);
 
       // 2) Update in backend (MongoDB)
-      await authorizedFetch("/api/user/updateEmail", {
+      const token = await getFreshToken();
+      const headers = {
+        "Content-Type": "application/json",
+      };
+      
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+      
+      const response = await fetch(`${API_BASE_URL}/api/user/updateEmail`, {
         method: "PUT",
-        body: { userId, newEmail: email },
+        headers,
+        body: JSON.stringify({ userId, newEmail: email }),
       });
 
       // 3) Update Firebase user email
@@ -760,45 +771,25 @@ export default function AccountScreen() {
           </View>
 
           <View style={styles.profileInfo}>
-            {isEditing ? (
-              <View style={styles.editContainer}>
-                <TextInput
-                  style={styles.editInput}
-                  value={editName}
-                  onChangeText={setEditName}
-                  placeholder="Enter your name"
-                  placeholderTextColor="#9CA3AF"
-                />
-                <View style={styles.editButtons}>
-                  <TouchableOpacity
-                    style={styles.saveButton}
-                    onPress={saveUserInfo}
-                  >
-                    <Ionicons name="checkmark" size={16} color="#FFFFFF" />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.cancelButton}
-                    onPress={cancelEdit}
-                  >
-                    <Ionicons name="close" size={16} color="#6B7280" />
-                  </TouchableOpacity>
-                </View>
+            <View style={styles.profileDetails}>
+              {/* Name Row with Pencil on right, modern style */}
+              <View style={styles.profileRow}>
+                <Text style={styles.userName} numberOfLines={1}>{userInfo?.name}</Text>
+                <TouchableOpacity onPress={openChangeName} style={styles.pencilButton}>
+                  <Ionicons name="pencil" size={18} color="#6366F1" />
+                </TouchableOpacity>
               </View>
-            ) : (
-              <View style={styles.profileDetails}>
-                <View style={styles.nameContainer}>
-                  <Text style={styles.userName}>{userInfo?.name}</Text>
-                  <TouchableOpacity onPress={() => setIsEditing(true)}>
-                    <Ionicons name="pencil" size={16} color="#6B7280" />
-                  </TouchableOpacity>
-                </View>
-                <Text style={styles.userEmail}>{userInfo?.email}</Text>
-                <Text style={styles.joinDate}>
-                  Member since{" "}
-                  {new Date(userInfo.joinDate).toLocaleDateString()}
-                </Text>
+              {/* Email Row with Pencil on right, modern style */}
+              <View style={styles.profileRow}>
+                <Text style={styles.userEmail} numberOfLines={1}>{userInfo?.email}</Text>
+                <TouchableOpacity onPress={openChangeEmail} style={styles.pencilButton}>
+                  <Ionicons name="pencil" size={18} color="#6366F1" />
+                </TouchableOpacity>
               </View>
-            )}
+              <Text style={styles.joinDate}>
+                Member since {userInfo?.joinDate ? new Date(userInfo.joinDate).toLocaleDateString() : ""}
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -806,62 +797,13 @@ export default function AccountScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Statistics</Text>
 
-          {/* Daily Summary Insights (Line Graph) */}
+          {/* Daily Summary Insights (Modern Chart) */}
           <View style={{ marginTop: 8, marginBottom: 12 }}>
-            <Text style={[styles.sectionTitle, { fontSize: 14, marginBottom: 6 }]}>Daily Summary Insights</Text>
-            {scores.length === 0 ? (
-              <Text style={{ color: '#6B7280' }}>No summary scores yet</Text>
-            ) : (
-              <View style={{ flexDirection: 'row', alignItems: 'flex-end' }}>
-                {/* Y-axis */}
-                {(() => { const maxScore = Math.max(10, ...scores.map(x => x.score || 0)); return (
-                  <View style={{ width: 30, height: 100, justifyContent: 'space-between', marginRight: 6 }}>
-                    <Text style={{ fontSize: 10, color: '#6B7280' }}>{maxScore}</Text>
-                    <Text style={{ fontSize: 10, color: '#6B7280' }}>0</Text>
-                  </View>
-                ); })()}
-                {/* Line chart area */}
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  <View style={{ height: 100, paddingRight: 8 }}>
-                    {(() => {
-                      const maxScore = Math.max(10, ...scores.map(x => x.score || 0));
-                      const H = 100; const STEP = 24; const R = 3;
-                      return (
-                        <View style={{ width: (scores.length - 1) * STEP + 16, height: H, position: 'relative' }}>
-                          {scores.map((s, i) => {
-                            const y = H - Math.round(((s.score || 0) / maxScore) * H);
-                            const x = i * STEP;
-                            const next = scores[i + 1];
-                            let line = null;
-                            if (next) {
-                              const y2 = H - Math.round(((next.score || 0) / maxScore) * H);
-                              const x2 = (i + 1) * STEP;
-                              const dx = x2 - x;
-                              const dy = y2 - y;
-                              const length = Math.sqrt(dx*dx + dy*dy);
-                              const angle = Math.atan2(dy, dx);
-                              line = (
-                                <View
-                                  key={`l-${i}`}
-                                  style={{ position: 'absolute', left: x + R, top: y + R, width: length, height: 2, backgroundColor: '#3B82F6', transform: [{ rotate: `${angle}rad` }] }}
-                                />
-                              );
-                            }
-                            return (
-                              <React.Fragment key={`p-${s.date}-${i}`}>
-                                {line}
-                                <View style={{ position: 'absolute', left: x - R, top: y - R, width: R*2, height: R*2, borderRadius: R, backgroundColor: '#3B82F6' }} />
-                                <Text style={{ position: 'absolute', top: H + 4, left: Math.max(0, x - 8), fontSize: 10, color: '#6B7280' }}>{String(s.date).slice(5)}</Text>
-                              </React.Fragment>
-                            );
-                          })}
-                        </View>
-                      );
-                    })()}
-                  </View>
-                </ScrollView>
-              </View>
-            )}
+            <ChartWebView 
+              data={formatScoresForChart(scores)} 
+              height={200}
+              onError={(error) => console.log('Chart error:', error)}
+            />
           </View>
 
           <View style={styles.statsGrid}>
@@ -912,27 +854,6 @@ export default function AccountScreen() {
         {/* Settings Section */}
         <View className="section" style={styles.section}>
           <Text style={styles.sectionTitle}>Settings</Text>
-
-          {/* Change Name */}
-          <TouchableOpacity 
-            style={styles.settingItem}
-            onPress={openChangeName}
-          >
-            <Ionicons name="person" size={20} color="#6B7280" />
-            <Text style={styles.settingText}>Change Name</Text>
-            <Ionicons name="pencil" size={16} color="#9CA3AF" />
-          </TouchableOpacity>
-
-          {/* Change Email */}
-          <TouchableOpacity 
-            style={styles.settingItem}
-            onPress={openChangeEmail}
-          >
-            <Ionicons name="mail" size={20} color="#6B7280" />
-            <Text style={styles.settingText}>Change Email</Text>
-            <Ionicons name="pencil" size={16} color="#9CA3AF" />
-          </TouchableOpacity>
-
           <TouchableOpacity 
             style={styles.settingItem}
             onPress={() => router.push("/settings/notifications")}
@@ -953,7 +874,7 @@ export default function AccountScreen() {
 
           <TouchableOpacity style={styles.settingItem} onPress={clearAllData}>
             <Ionicons name="trash" size={20} color="#EF4444" />
-            <Text style={[styles.settingText, { color: "#EF4444" }]}>
+            <Text style={[styles.settingText, { color: "#EF4444" }]}> 
               Clear All Data
             </Text>
           </TouchableOpacity>
@@ -1522,33 +1443,54 @@ const styles = StyleSheet.create({
   profileInfo: {
     flex: 1,
   },
-  editContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  editInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: "#D1D5DB",
-    borderRadius: 8,
-    paddingHorizontal: 12,
+  profileRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F8FAFF',
+    borderRadius: 10,
     paddingVertical: 8,
-    fontSize: 16,
-    color: "#374151",
+    paddingHorizontal: 12,
+    marginBottom: 8,
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  userName: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#111827',
+    flex: 1,
     marginRight: 8,
+    letterSpacing: 0.1,
   },
-  editButtons: {
-    flexDirection: "row",
-  },
-  saveButton: {
-    backgroundColor: "#10B981",
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: "center",
-    alignItems: "center",
+  userEmail: {
+    fontSize: 15,
+    color: '#374151',
+    fontWeight: '500',
+    flex: 1,
     marginRight: 8,
+    letterSpacing: 0.05,
   },
+  pencilButton: {
+    marginLeft: 8,
+    padding: 6,
+    borderRadius: 20,
+    backgroundColor: '#EEF2FF',
+    elevation: 2,
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.10,
+    shadowRadius: 2,
+  },
+  joinDate: {
+    color: '#6B7280',
+    fontSize: 13,
+    marginTop: 2,
+  },
+    
   cancelButton: {
     backgroundColor: "#F3F4F6",
     width: 32,
@@ -1817,5 +1759,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: "#FFFFFF",
+
   },
 });
+
+

@@ -1,4 +1,5 @@
-import { authorizedFetch } from "./utils";
+import axios from "axios";
+import { getFreshToken, API_BASE_URL } from "./utils";
 
 /**
  * Generate daily summary using AI
@@ -6,11 +7,19 @@ import { authorizedFetch } from "./utils";
  */
 export const generateDailySummary = async () => {
   try {
-    const result = await authorizedFetch("/api/llm/generate-summary", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+    const token = await getFreshToken();
+    
+    const headers = {
+      "Content-Type": "application/json",
+    };
+    
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    
+    const result = await axios.post(`${API_BASE_URL}/api/llm/generate-summary`, {}, {
+      headers,
+      timeout: 10000,
     });
 
     if (result.status === 201 && result.data?.success) {
@@ -75,9 +84,20 @@ export const generateDailySummary = async () => {
  */
 export const fetchDailySummaryByDate = async (date) => {
   try {
+    const token = await getFreshToken();
+    
+    const headers = {
+      "Content-Type": "application/json",
+    };
+    
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    
     const qs = new URLSearchParams({ date }).toString();
-    const result = await authorizedFetch(`/api/llm/summary?${qs}`, {
-      method: "GET",
+    const result = await axios.get(`${API_BASE_URL}/api/llm/summary?${qs}`, {
+      headers,
+      timeout: 10000,
     });
 
     if (result.status === 200 && result.data?.success) {
