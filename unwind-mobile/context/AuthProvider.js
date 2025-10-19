@@ -1,60 +1,32 @@
 import React, { createContext, useEffect, useState } from "react";
-import { auth } from "../firebaseConfig";
 import { View, ActivityIndicator } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-
-import { useNetworkStatus } from "../utils/networkUtils";
-import { getProfile } from "../api/auth";
+import { onAuthStateChanged, signOut } from "firebase/auth";
+import { auth } from "../firebaseConfig"; // must use initializeAuth with getReactNativePersistence
 
 export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const isOnline = useNetworkStatus();
-
-  const fetchUserDetailsFromBackend = async () => {
-    try {
-      if (!auth.currentUser) return;
-      const data = await getProfile({ uid: auth.currentUser.uid });
-      if (data?.user) {
-        setUser((prev) => ({ ...(prev || {}), ...data.user }));
-      }
-    } catch (error) {
-      console.log("Error fetching user details from backend:", error);
-    }
-  };
 
   useEffect(() => {
-    if (isOnline && auth.currentUser) {
-      fetchUserDetailsFromBackend();
-    }
-  }, [isOnline]);
-
-  useEffect(() => {
-    const bootstrap = async () => {
-      try {
-        const stored = await AsyncStorage.getItem("userInfo");
-        if (stored) {
-          try {
-            const parsed = JSON.parse(stored);
-            setUser(parsed);
-          } catch {
-            // if it was stored as a string previously
-            setUser(stored);
-          }
-        } else {
-          setUser(null);
-        }
-      } catch (error) {
-        console.log("AuthProvider bootstrap error:", error?.message);
+    // ✅ Listen for Firebase Auth state changes (auto-persistent across app restarts)
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        console.log("✅ User logged in:", firebaseUser.email);
+        setUser({
+          uid: firebaseUser.uid,
+          email: firebaseUser.email,
+        });
+      } else {
+        console.log("🚪 No user logged in");
         setUser(null);
-      } finally {
-        setLoading(false);
       }
-    };
-    bootstrap();
-  }, [isOnline]);
+      setLoading(false);
+    });
+
+    return unsubscribe; // cleanup listener on unmount
+  }, []);
 
   if (loading) {
     return (
@@ -64,7 +36,18 @@ export const AuthProvider = ({ children }) => {
     );
   }
 
+  // ✅ Expose user and auth actions
   return (
-    <AuthContext.Provider value={{ user }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider
+      value={{
+        user,
+        setUser,
+        logout: async () => {
+          await signOut(auth);
+        },
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
   );
 };

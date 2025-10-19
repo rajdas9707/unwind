@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useEffectEvent, useContext } from "react";
 import {
   View,
   Text,
@@ -38,7 +38,9 @@ import {
   deleteUser,
   updateProfile,
   updateEmail,
+  signOut,
 } from "firebase/auth";
+import { AuthContext } from "../../context/AuthProvider";
 // import { exportDatabase } from "../testDb";
 
 export default function AccountScreen() {
@@ -57,6 +59,7 @@ export default function AccountScreen() {
     streaks: 0,
   });
   
+   const { user: storedUserInfo } = useContext(AuthContext);
   // Daily Summary states
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
   const [summaryAlreadyGenerated, setSummaryAlreadyGenerated] = useState(false);
@@ -105,17 +108,20 @@ export default function AccountScreen() {
     };
   }, []);
 
+  useEffect(() => {
+    console.log("User info updated:account screen");
+    console.log("Auth object changed in Account screen:", auth);
+  }, [auth]);
+
   const loadUserInfo = async () => {
     try {
-      const storedUserInfo = await AsyncStorage.getItem("userInfo");
+
+       
+       console.log("Loading user info from AuthContext:", storedUserInfo);
       if (storedUserInfo) {
-        const parsed = JSON.parse(storedUserInfo); /*userInfo:{
-    name: 'John Doe',
-    email: 'john.doe@example.com',
-    joinDate: '2024-01-15',
-  }*/
-        setUserInfo(parsed);
-        setEditName(parsed.name);
+      
+        setUserInfo(storedUserInfo);
+        setEditName(storedUserInfo.name);
       }
     } catch (error) {
       console.error("Error loading user info:", error);
@@ -209,7 +215,15 @@ export default function AccountScreen() {
         text: "Sign Out",
         style: "destructive",
         onPress: async () => {
+            try {
+    // 1️⃣ Attempt to sign out (may fail offline)
+    await signOut(auth);
+  } catch (error) {
+    console.warn("Firebase signOut failed (maybe offline):", error.message);
+    // return;
+  }
           try {
+             
             await AsyncStorage.removeItem("userInfo");
             router.replace("/auth");
           } catch (error) {
@@ -919,7 +933,7 @@ export default function AccountScreen() {
         {/* Sign Out Button */}
         <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
           <Ionicons name="log-out" size={20} color="#EF4444" />
-          <Text style={styles.signOutText}>Sign Out</Text>
+          <Text style={styles.signOutText}>Sign Out here</Text>
         </TouchableOpacity>
       </ScrollView>
 

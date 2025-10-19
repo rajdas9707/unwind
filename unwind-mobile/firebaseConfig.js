@@ -20,15 +20,16 @@ const firebaseConfig = {
   measurementId: "G-QZNWB8F8RE",
 };
 
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+
 
 let auth;
-if (!getApps().length) {
-  // This block will run only on first init
+try {
   auth = initializeAuth(app, {
     persistence: getReactNativePersistence(AsyncStorage),
   });
-} else {
+} catch (e) {
+  // If already initialized (e.g., Fast Refresh in Expo)
   auth = getAuth(app);
 }
 const db = getFirestore(app);

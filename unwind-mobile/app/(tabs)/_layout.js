@@ -1,11 +1,12 @@
-import React, { useEffect, useState } from "react";
+import React, { useContext, useEffect, useState } from "react";
 import { View, ActivityIndicator, Text } from "react-native";
-import { Tabs } from "expo-router";
+import { Redirect, Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { initTable } from "../../storage/initTable";
+import { AuthContext } from "../../context/AuthProvider";
 
 export default function TabLayout() {
-  // const [dbReady, setDbReady] = useState(false);
+  const {user } = useContext(AuthContext);
 
   // useEffect(() => {
   //   (async () => {
@@ -36,6 +37,10 @@ export default function TabLayout() {
   //     </View>
   //   );
   // }
+
+console.log("Rendering TabLayout, user:", user);
+
+if (!user) return <Redirect href="/(auth)" />;
   return (
     <Tabs
       screenOptions={{

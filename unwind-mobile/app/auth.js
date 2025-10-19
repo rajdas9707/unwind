@@ -7,7 +7,7 @@ import {
   updateProfile,
 } from "firebase/auth";
 // import { doc, setDoc } from "firebase/firestore";
-import React, { useState } from "react";
+import React, { useContext, useState } from "react";
 import {
   View,
   Text,
@@ -23,6 +23,7 @@ import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { signup } from "../api/auth";
+import { AuthContext } from "../context/AuthProvider";
 
 export default function AuthScreen() {
   const [isLogin, setIsLogin] = useState(true);
@@ -31,6 +32,8 @@ export default function AuthScreen() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [name, setName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const{user}=useContext(AuthContext);
+  console.log("AuthScreen rendered, user:", user);
 
   const handleSubmit = async () => {
     if (!email || !password) {
@@ -66,23 +69,23 @@ export default function AuthScreen() {
           return;
         }
 
-        await AsyncStorage.setItem(
-          "userInfo",
-          JSON.stringify({
-            name: userCredential?.user.displayName || "User",
-            email: userCredential?.user.email,
-            joinDate: new Date(userCredential.user.metadata.creationTime)
-              .toISOString()
-              .split("T")[0],
+        // await AsyncStorage.setItem(
+        //   "userInfo",
+        //   JSON.stringify({
+        //     name: userCredential?.user.displayName || "User",
+        //     email: userCredential?.user.email,
+        //     joinDate: new Date(userCredential.user.metadata.creationTime)
+        //       .toISOString()
+        //       .split("T")[0],
 
-            subscription: {
-              isActive: false,
-              plan: "trial",
-            },
-            trialStart: "25-05-2025",
-            trialEnd: "01-06-2025",
-          })
-        );
+        //     subscription: {
+        //       isActive: false,
+        //       plan: "trial",
+        //     },
+        //     trialStart: "25-05-2025",
+        //     trialEnd: "01-06-2025",
+        //   })
+        // );
 
         Alert.alert("Success", "Logged in successfully!");
       } else {
