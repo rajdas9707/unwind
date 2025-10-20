@@ -253,31 +253,32 @@ export default function Document() {
             </LinearGradient>
 
             {/* Tabs */}
-            <LinearGradient
-              colors={['#F1F5F9', '#E2E8F0']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.tabsContainer}
-            >
+            <View style={styles.tabsWrapper}>
               <ScrollView 
                 horizontal 
                 showsHorizontalScrollIndicator={false}
                 style={styles.tabsScrollView}
                 contentContainerStyle={styles.tabsContent}
+                bounces={true}
+                decelerationRate="fast"
               >
                 {CATEGORIES.map((t) => {
                   const active = activeTab === t;
                   return (
                     <TouchableOpacity
                       key={t}
-                      style={[styles.tabItem, active && styles.tabActive]}
+                      style={[
+                        styles.tabItem, 
+                        active && styles.tabActive
+                      ]}
                       onPress={() => filterDocs(t)}
+                      activeOpacity={0.8}
                     >
                       {active ? (
                         <LinearGradient
                           colors={['#667EEA', '#764BA2']}
                           start={{ x: 0, y: 0 }}
-                          end={{ x: 1, y: 1 }}
+                          end={{ x: 1, y: 0 }}
                           style={styles.activeTabGradient}
                         >
                           <Text style={[styles.tabText, styles.tabTextActive]}>
@@ -293,7 +294,7 @@ export default function Document() {
                   );
                 })}
               </ScrollView>
-            </LinearGradient>
+            </View>
 
             {/* Cards */}
             <ScrollView 
@@ -492,26 +493,18 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: "#FF6B6B",
   },
-  tabsContainer: {
+  tabsWrapper: {
     marginHorizontal: 16,
-    marginBottom: 8,
-    borderRadius: 18,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 3,
-    paddingVertical: 4,
-    paddingHorizontal: 4,
+    marginBottom: 16,
   },
   tabsScrollView: {
     flexGrow: 0,
   },
   tabsContent: {
-    paddingHorizontal: 0,
     alignItems: "center",
-    gap: 6,
-    paddingVertical: 0,
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
   },
   tabs: {
     flexDirection: "row",
@@ -531,50 +524,34 @@ const styles = StyleSheet.create({
     
   },
   tabItem: {
+    paddingHorizontal: 16,
     paddingVertical: 8,
-    paddingHorizontal: 14,
     borderRadius: 16,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "rgba(255, 255, 255, 0.7)",
     alignItems: "center",
     justifyContent: "center",
-    marginHorizontal: 2,
-    minWidth: 70,
     minHeight: 36,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 2,
   },
   tabActive: {
-    borderColor: "transparent",
-    shadowColor: "#667EEA",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 8,
-    transform: [{ scale: 1.02 }],
+    backgroundColor: "transparent",
   },
   activeTabGradient: {
+    paddingHorizontal: 16,
     paddingVertical: 8,
-    paddingHorizontal: 14,
     borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
-    minWidth: 70,
     minHeight: 36,
   },
   tabText: { 
-    color: "#6B7280", 
+    color: "#64748B", 
     fontSize: 14, 
-    fontWeight: "600",
-    letterSpacing: 0.1,
+    fontWeight: "500",
+    letterSpacing: 0.2,
   },
   tabTextActive: { 
     color: "#FFFFFF", 
-    fontWeight: "700",
+    fontWeight: "600",
     letterSpacing: 0.3,
   },
   cardsContainer: {

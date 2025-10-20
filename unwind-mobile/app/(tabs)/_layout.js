@@ -8,39 +8,10 @@ import { AuthContext } from "../../context/AuthProvider";
 export default function TabLayout() {
   const {user } = useContext(AuthContext);
 
-  // useEffect(() => {
-  //   (async () => {
-  //     try {
-  //       await initTable();
-  //       setDbReady(true);
-  //     } catch (e) {
-  //       console.error("Failed to initialize database tables:", e);
-  //       setDbReady(true); // allow app to render even if init partially fails
-  //     }
-  //   })();
-  // }, []);
-
-  // if (!dbReady) {
-  //   return (
-  //     <View
-  //       style={{
-  //         flex: 1,
-  //         alignItems: "center",
-  //         justifyContent: "center",
-  //         backgroundColor: "#FFFFFF",
-  //       }}
-  //     >
-  //       <ActivityIndicator size="large" color="#3B82F6" />
-  //       <Text style={{ marginTop: 12, color: "#6B7280" }}>
-  //         Preparing your data...
-  //       </Text>
-  //     </View>
-  //   );
-  // }
 
 console.log("Rendering TabLayout, user:", user);
 
-if (!user) return <Redirect href="/(auth)" />;
+if (!user) return <Redirect href="/auth" />;
   return (
     <Tabs
       screenOptions={{

@@ -36,14 +36,35 @@ import { AuthContext } from "../../context/AuthProvider.js";
 
 const { width } = Dimensions.get("window");
 
-export default function IdeaScreen() {
+export default function HomeScreen() {
   const { user } = useContext(AuthContext);
-  const capitalize = (str) => {
-    if (!str) return "";
-    return str.charAt(0).toUpperCase() + str.slice(1);
-  };
-  // const [userInfo, setUserInfo] = useState({});
+ const capitalize = (s) => s?.charAt(0).toUpperCase() + s?.slice(1);
+  const [userInfo, setUserInfo] = useState({});
   const [taskCount, setTaskCount] = useState(0);
+
+// Function to get dynamic greeting based on time
+const getGreeting = () => {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
+};
+
+
+  useEffect(() => {
+
+    const userInfo = async () => {
+      try {
+        const userInfoString = JSON.parse(await AsyncStorage.getItem("userInfo"));
+        setUserInfo(userInfoString);
+      } catch (error) {
+        console.error("Error fetching user info:", error);
+      }
+
+    }
+    userInfo();
+  }, []);
+
 
   // Water reminder states
   const [waterReminders, setWaterReminders] = useState([]);
@@ -422,10 +443,8 @@ export default function IdeaScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <Text style={styles.greeting}>{`Good morning ${capitalize(
-            user?.name
-          )} !`}</Text>
-          <Text style={styles.subtitle}>How are you feeling today?</Text>
+          <Text style={styles.greeting}>{`${getGreeting()} ${capitalize(userInfo?.name)} 👋`}</Text>
+          <Text style={styles.subtitle}> Hope you’re having a productive day! ✨</Text>
         </View>
 
         <View style={styles.quoteCard}>
@@ -435,7 +454,7 @@ export default function IdeaScreen() {
           <Text style={styles.quote}>
             {
               motivationalQuotes[
-                Math.floor(Math.random() * motivationalQuotes.length)
+              Math.floor(Math.random() * motivationalQuotes.length)
               ]
             }
           </Text>
@@ -505,9 +524,9 @@ export default function IdeaScreen() {
               </TouchableOpacity>
             ))}
           </View>
-        </View> 
+        </View>
 
-    
+
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Today's Progress</Text>
@@ -807,6 +826,7 @@ const styles = StyleSheet.create({
   header: {
     paddingTop: 60,
     paddingBottom: 24,
+    // backgroundColor:'red'
   },
   greeting: {
     fontSize: 28,

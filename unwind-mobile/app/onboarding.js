@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Dimensions, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -10,31 +10,45 @@ const { width } = Dimensions.get('window');
 const onboardingData = [
   {
     id: 1,
-    title: "Welcome to Mental Clarity",
-    description: "Your personal journey to mental wellness and self-improvement starts here.",
+    title: "Welcome to ZenithMind",
+    description: "Your all-in-one productivity and mindfulness companion for a better life.",
     icon: "heart-outline",
     color: "#3B82F6"
   },
   {
     id: 2,
-    title: "Journal Your Thoughts",
-    description: "Write down your daily experiences, thoughts, and reflections to gain clarity.",
-    icon: "book-outline",
+    title: "Stay Organized & Productive",
+    description: "Manage to-dos, shopping lists, reminders, and access frequently used documents in one place.",
+    icon: "list-outline",
     color: "#10B981"
   },
   {
     id: 3,
-    title: "Manage Overthinking",
-    description: "Track and release overthinking patterns to find peace of mind.",
-    icon: "bulb-outline",
+    title: "Build Better Habits",
+    description: "Track daily habits, set water reminders, and use Pomodoro technique to boost productivity.",
+    icon: "time-outline",
     color: "#8B5CF6"
   },
   {
     id: 4,
-    title: "Learn from Mistakes",
-    description: "Transform mistakes into valuable learning opportunities for growth.",
-    icon: "trending-up-outline",
+    title: "Capture Ideas & Learning",
+    description: "Save brilliant ideas, maintain reading lists, and organize topics you want to explore.",
+    icon: "bulb-outline",
     color: "#F59E0B"
+  },
+  {
+    id: 5,
+    title: "Mindfulness & Wellness",
+    description: "Practice meditation, journaling, and self-reflection for mental clarity and peace.",
+    icon: "leaf-outline",
+    color: "#EF4444"
+  },
+  {
+    id: 6,
+    title: "AI-Powered Insights",
+    description: "Get AI analysis of your journal entries and summaries to understand patterns and gain insights.",
+    icon: "sparkles-outline",
+    color: "#06B6D4"
   }
 ];
 
@@ -58,7 +72,8 @@ export default function OnboardingScreen() {
       await AsyncStorage.setItem('hasSeenOnboarding', 'true');
       router.replace('/auth');
     } catch (error) {
-      console.error('Error completing onboarding:', error);
+      Alert.alert('Error', 'There was an issue completing the onboarding process. Please try again.');
+    
     }
   };
 

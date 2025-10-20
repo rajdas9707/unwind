@@ -471,9 +471,7 @@ export default function CategoryTasks() {
 
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={[`${categoryColor}15`, `${categoryColor}05`, "transparent"]}
-        locations={[0, 0.6, 1]}
+      <View
         style={styles.headerContainer}
       >
         <View style={styles.headerRow}>
@@ -489,7 +487,7 @@ export default function CategoryTasks() {
           <View style={styles.headerTitleContainer}>
             <View style={styles.headerTitleRow}>
               <Text style={styles.headerEmoji}>{categoryEmoji}</Text>
-              <Text style={[styles.headerTitleBottom, { color: categoryColor }]}>{category}</Text>
+              <Text style={[styles.headerTitleBottom, { color: categoryColor }]}>-Task</Text>
             </View>
           </View>
           <TopBarToggle
@@ -506,7 +504,7 @@ export default function CategoryTasks() {
         <Text style={[styles.headerStatus, { color: categoryColor }]}>
           {topSelection === "backlogs" ? "Backlogs" : "Fresh"}
         </Text>
-      </LinearGradient>
+      </View>
 
       <View style={{ paddingHorizontal: 16, marginTop: 12 }}>
         <TopBarToggle
@@ -586,7 +584,7 @@ export default function CategoryTasks() {
       >
         <BlurView
           style={styles.modalOverlay}
-          intensity={20}
+          intensity={25}
           tint="dark"
         >
           <TouchableOpacity
@@ -601,45 +599,94 @@ export default function CategoryTasks() {
             <View
               style={[
                 styles.modalGradient,
-                { backgroundColor: `${categoryColor}10` },
+                { backgroundColor: `${categoryColor}08` },
               ]}
             >
-              <Text style={styles.modalTitle}>
-                {editingTaskId ? "Edit Task" : "Add New Task"}
-              </Text>
-              <TextInput
-                style={styles.modalInput}
-                placeholder="Task description..."
-                placeholderTextColor="#9CA3AF"
-                value={newTask}
-                onChangeText={setNewTask}
-              />
-              <TextInput
-                style={styles.modalInput}
-                placeholder="Set an intention (e.g., Build clarity)"
-                placeholderTextColor="#9CA3AF"
-                value={intention}
-                onChangeText={setIntention}
-              />
+              {/* Modal Header with Icon */}
+              <View style={styles.modalHeader}>
+                <View style={[styles.modalIconContainer, { backgroundColor: `${categoryColor}15` }]}>
+                  <Text style={styles.modalEmoji}>
+                    {editingTaskId ? "✏️" : "✨"}
+                  </Text>
+                </View>
+                <Text style={styles.modalTitle}>
+                  {editingTaskId ? "Edit Task" : "Create New Task"}
+                </Text>
+                <Text style={[styles.modalSubtitle, { color: categoryColor }]}>
+                  {editingTaskId ? "Update your task details" : "What would you like to accomplish?"}
+                </Text>
+              </View>
+
+              {/* Task Input */}
+              <View style={styles.inputGroup}>
+                <View style={styles.inputLabelContainer}>
+                  <Ionicons name="clipboard-outline" size={18} color={categoryColor} />
+                  <Text style={styles.inputLabel}>Task Description</Text>
+                </View>
+                <TextInput
+                  style={[styles.modalInput, { borderColor: `${categoryColor}20` }]}
+                  placeholder="What do you want to do? 📝"
+                  placeholderTextColor="#9CA3AF"
+                  value={newTask}
+                  onChangeText={setNewTask}
+                  multiline={true}
+                  numberOfLines={2}
+                />
+              </View>
+
+              {/* Intention Input */}
+              <View style={styles.inputGroup}>
+                <View style={styles.inputLabelContainer}>
+                  <Ionicons name="heart-outline" size={18} color={categoryColor} />
+                  <Text style={styles.inputLabel}>Intention</Text>
+                  <Text style={styles.inputOptional}>Optional</Text>
+                </View>
+                <TextInput
+                  style={[styles.modalInput, { borderColor: `${categoryColor}20` }]}
+                  placeholder="Why is this important? 🎯"
+                  placeholderTextColor="#9CA3AF"
+                  value={intention}
+                  onChangeText={setIntention}
+                  multiline={true}
+                  numberOfLines={2}
+                />
+              </View>
+
+              {/* Action Buttons */}
               <View style={styles.modalButtons}>
                 <TouchableOpacity
-                  style={styles.modalButton}
+                  style={styles.modalCancelButton}
                   onPress={() => setModalVisible(false)}
+                  activeOpacity={0.8}
                 >
-                  <Text style={styles.modalButtonText}>Cancel</Text>
+                  <Ionicons name="close-circle-outline" size={20} color="#6B7280" />
+                  <Text style={styles.modalCancelText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[
-                    styles.modalButton,
-                    styles.modalAddButton,
+                    styles.modalSaveButton,
                     { backgroundColor: categoryColor },
                   ]}
                   onPress={editingTaskId ? saveEditedTask : addNewTask}
+                  activeOpacity={0.8}
+                  disabled={!newTask.trim()}
                 >
-                  <Text style={styles.modalButtonText}>
+                  <Ionicons 
+                    name={editingTaskId ? "checkmark-circle" : "add-circle"} 
+                    size={20} 
+                    color="#FFFFFF" 
+                  />
+                  <Text style={styles.modalSaveText}>
                     {editingTaskId ? "Save Changes" : "Add Task"}
                   </Text>
                 </TouchableOpacity>
+              </View>
+
+              {/* Quick Tips */}
+              <View style={styles.modalTips}>
+                <Text style={styles.modalTipText}>
+                  💡 <Text style={styles.modalTipBold}>Pro tip:</Text> Set clear intentions to boost your motivation!
+                </Text>
               </View>
             </View>
           </View>
@@ -656,15 +703,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#F8FAFC",
   },
   headerContainer: {
-    padding: 24,
+    padding: 15,
     paddingTop: 60,
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.1,
-    shadowRadius: 24,
-    elevation: 12,
+  
+ 
   },
   headerRow: {
     flexDirection: "row",
@@ -754,7 +796,7 @@ const styles = StyleSheet.create({
   headerTitleRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 1,
   },
   headerEmoji: {
     fontSize: 28,
@@ -770,7 +812,7 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
   headerTitleBottom: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: "900",
     letterSpacing: 0.5,
     textShadowColor: "rgba(0, 0, 0, 0.1)",
@@ -902,74 +944,159 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
   },
   modalContent: {
     marginHorizontal: 0,
-    borderRadius: 24,
+    borderRadius: 28,
     overflow: "hidden",
     backgroundColor: "rgba(255, 255, 255, 0.98)",
     backdropFilter: "blur(20px)",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 20 },
-    shadowOpacity: 0.25,
-    shadowRadius: 30,
-    elevation: 15,
+    shadowOffset: { width: 0, height: 25 },
+    shadowOpacity: 0.3,
+    shadowRadius: 35,
+    elevation: 20,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.3)",
+    borderColor: "rgba(255, 255, 255, 0.4)",
   },
   modalGradient: {
-    padding: 28,
+    padding: 32,
     backgroundColor: "transparent",
   },
+  modalHeader: {
+    alignItems: "center",
+    marginBottom: 32,
+  },
+  modalIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: "rgba(255, 255, 255, 0.3)",
+  },
+  modalEmoji: {
+    fontSize: 36,
+  },
   modalTitle: {
-    fontSize: 26,
-    fontWeight: "900",
+    fontSize: 28,
+    fontWeight: "800",
     color: "#1F2937",
-    marginBottom: 24,
+    marginBottom: 8,
     textAlign: "center",
+    letterSpacing: -0.5,
+  },
+  modalSubtitle: {
+    fontSize: 16,
+    fontWeight: "500",
+    textAlign: "center",
+    opacity: 0.8,
+    lineHeight: 22,
+  },
+  inputGroup: {
+    marginBottom: 24,
+  },
+  inputLabelContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+    gap: 8,
+  },
+  inputLabel: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#374151",
+    flex: 1,
+  },
+  inputOptional: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#9CA3AF",
+    backgroundColor: "#F3F4F6",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    textTransform: "uppercase",
     letterSpacing: 0.5,
-    textShadowColor: "rgba(0, 0, 0, 0.05)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
   },
   modalInput: {
-    backgroundColor: "rgba(249, 250, 251, 0.8)",
+    backgroundColor: "rgba(249, 250, 251, 0.95)",
+   
     borderRadius: 16,
-    padding: 18,
-    marginBottom: 20,
-    fontSize: 17,
+    padding: 16,
+   
+    fontSize: 16,
     color: "#1F2937",
     borderWidth: 2,
-    borderColor: "rgba(229, 231, 235, 0.6)",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    borderColor: "rgba(229, 231, 235, 0.4)",
     fontWeight: "500",
+    minHeight: 52,
+    textAlignVertical: "top",
   },
   modalButtons: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 24,
-    gap: 16,
+    gap: 12,
+    marginBottom: 20,
   },
-  modalButton: {
-    backgroundColor: "rgba(243, 244, 246, 0.8)",
-    borderRadius: 16,
-    padding: 18,
+  modalCancelButton: {
     flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(243, 52, 10, 0.8)",
+    borderRadius: 16,
+    padding: 16,
     borderWidth: 1,
     borderColor: "rgba(229, 231, 235, 0.5)",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
+   
+    gap: 8,
   },
-  modalAddButton: {
-    backgroundColor: "#8B5CF6",
+  modalCancelText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#6B7280",
+    
+    letterSpacing: 0.2,
+  },
+  modalSaveButton: {
+    flex: 2,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: "#8B5CF6",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 6,
+    gap: 8,
+  },
+  modalSaveText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    letterSpacing: 0.3,
+  },
+  modalTips: {
+    backgroundColor: "rgba(249, 250, 251, 0.6)",
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "rgba(229, 231, 235, 0.4)",
+  },
+  modalTipText: {
+    fontSize: 14,
+    color: "#6B7280",
+    lineHeight: 20,
+    textAlign: "center",
+  },
+  modalTipBold: {
+    fontWeight: "600",
+    color: "#374151",
   },
   floatingButtonsContainer: {
     position: "absolute",
@@ -1007,13 +1134,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "rgba(255, 255, 255, 0.3)",
     transform: [{ scale: 1 }],
-  },
-  modalButtonText: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: "#1F2937",
-    textAlign: "center",
-    letterSpacing: 0.3,
   },
   segmentedControl: {
     flexDirection: "row",

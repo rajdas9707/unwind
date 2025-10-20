@@ -46,7 +46,7 @@ export default function IdeaDetail() {
       const fileUri = idea.files[index];
       await deleteStoredFile(fileUri);
       const nextFiles = idea.files.filter((_, i) => i !== index);
-   // import { AuthContext } from "../../context/AuthProvider";
+      // import { AuthContext } from "../../context/AuthProvider";
       setIdea({ ...idea, files: nextFiles });
     } catch (error) {
       console.log("error removing file", error);
@@ -113,35 +113,51 @@ export default function IdeaDetail() {
     >
       <SafeAreaView style={styles.container}>
         {/* Header */}
+       
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#111827" />
-        </TouchableOpacity>
+           <View style={styles.headerLeft}>
+<TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color="#111827" />
+          </TouchableOpacity>
+          <View style={styles.ideaInfo}>
+            <Text style={styles.ideaTitle}>
+              {idea.name || "Untitled Idea"}
+            </Text>
+            <View style={styles.categoryContainer}>
+              <Ionicons name="pricetag" size={14} color="#6366F1" />
+              <Text style={styles.categoryText}>
+                {idea.tag || "miscellaneous"}
+              </Text>
+            </View>
+          </View>
+        </View>
+          
+          
           <View style={styles.headerActions}>
-          <TouchableOpacity
-            onPress={handleEditIdea}
+            <TouchableOpacity
+              onPress={handleEditIdea}
               style={styles.editButton}
             >
               <Ionicons name="create-outline" size={18} color="#fff" />
               <Text style={styles.actionButtonText}>Edit</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={handleDeleteIdea}
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleDeleteIdea}
               style={styles.deleteButton}
             >
               <Ionicons name="trash-outline" size={18} color="#fff" />
               <Text style={styles.actionButtonText}>Delete</Text>
-          </TouchableOpacity>
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
 
-        <ScrollView 
+        <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
           {/* Idea Info Card */}
-          <View style={styles.ideaCard}>
+          {/* <View style={styles.ideaCard}>
             <View style={styles.ideaHeader}>
               <View style={styles.ideaIcon}>
                 <Ionicons name="bulb" size={28} color="#F59E0B" />
@@ -158,8 +174,8 @@ export default function IdeaDetail() {
                 </View>
               </View>
             </View>
-          </View>
-          
+          </View> */}
+
           {/* Description Section */}
           {idea.idea && (
             <View style={styles.section}>
@@ -176,35 +192,75 @@ export default function IdeaDetail() {
           )}
 
           {/* URLs Section */}
-      {idea.urls?.length > 0 && (
+          {idea.urls?.length > 0 && (
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <Ionicons name="link" size={20} color="#10B981" />
                 <Text style={styles.sectionTitle}>Links ({idea.urls.length})</Text>
               </View>
               <View style={styles.urlsList}>
-                {idea.urls.map((url, index) => (
-              <TouchableOpacity
-                    key={`${url}-${index}`}
-                    onPress={() => Linking.openURL(url)}
-                    style={styles.urlItem}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.urlIcon}>
-                      <Ionicons name="link" size={16} color="#10B981" />
-                    </View>
-                    <Text style={styles.urlText} numberOfLines={1}>
-                      {url}
-                </Text>
-                    <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
-              </TouchableOpacity>
-                ))}
+                {idea.urls.map((url, index) => {
+                  const handleUrlPress = async () => {
+                    try {
+                      // First try with https://
+                      let formattedUrl = url.startsWith('http://') || url.startsWith('https://')
+                        ? url
+                        : `https://${url}`;
+
+                      const canOpen = await Linking.canOpenURL(formattedUrl);
+                      if (canOpen) {
+                        await Linking.openURL(formattedUrl);
+                      } else {
+                        // Try with http:// if https:// fails
+                        formattedUrl = url.startsWith('http://') || url.startsWith('https://')
+                          ? url
+                          : `http://${url}`;
+
+                        const canOpenHttp = await Linking.canOpenURL(formattedUrl);
+                        if (canOpenHttp) {
+                          await Linking.openURL(formattedUrl);
+                        } else {
+                          // As last resort, try to search for it
+                          const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(url)}`;
+                          await Linking.openURL(searchUrl);
+                        }
+                      }
+                    } catch (error) {
+                      console.log('Error opening URL:', error);
+                      // Fallback: search on Google
+                      try {
+                        const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(url)}`;
+                        await Linking.openURL(searchUrl);
+                      } catch (fallbackError) {
+                        console.log('Fallback search also failed:', fallbackError);
+                        Alert.alert('Error', 'Unable to open URL or search for it');
+                      }
+                    }
+                  };
+
+                  return (
+                    <TouchableOpacity
+                      key={`${url}-${index}`}
+                      onPress={handleUrlPress}
+                      style={styles.urlItem}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.urlIcon}>
+                        <Ionicons name="link" size={16} color="#10B981" />
+                      </View>
+                      <Text style={styles.urlText} numberOfLines={1}>
+                        {url}
+                      </Text>
+                      <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
-        </View>
-      )}
+            </View>
+          )}
 
           {/* Files Section */}
-      {idea.files?.length > 0 && (
+          {idea.files?.length > 0 && (
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <Ionicons name="folder" size={20} color="#8B5CF6" />
@@ -216,16 +272,16 @@ export default function IdeaDetail() {
                   const fileName = uri.split('/').pop() || `File ${index + 1}`;
                   const isPdf = typeof uri === "string" && uri.toLowerCase().endsWith(".pdf");
                   const isImage = !isPdf && (uri.includes("image") || uri.match(/\.(jpg|jpeg|png|gif|bmp|webp)$/i));
-                  
-              return (
-                <TouchableOpacity
+
+                  return (
+                    <TouchableOpacity
                       key={`${uri}-${index}`}
                       style={styles.fileItem}
-                  onPress={() => handleFilePress(index)}
-                  activeOpacity={0.7}
-                >
+                      onPress={() => handleFilePress(index)}
+                      activeOpacity={0.7}
+                    >
                       <View style={styles.fileIconContainer}>
-                  {isPdf ? (
+                        {isPdf ? (
                           <Ionicons name="document-text-outline" size={24} color="#8B5CF6" />
                         ) : isImage ? (
                           <Image source={{ uri }} style={styles.fileThumbnail} />
@@ -241,36 +297,36 @@ export default function IdeaDetail() {
                           {isPdf ? 'PDF' : isImage ? 'Image' : 'File'}
                         </Text>
                       </View>
-                      <TouchableOpacity 
+                      <TouchableOpacity
                         onPress={() => removeFile(index)}
                         style={styles.removeButton}
                       >
                         <Ionicons name="close-circle" size={20} color="#EF4444" />
-                  </TouchableOpacity>
-                </TouchableOpacity>
-              );
+                      </TouchableOpacity>
+                    </TouchableOpacity>
+                  );
                 })}
               </View>
-        </View>
-      )}
+            </View>
+          )}
         </ScrollView>
 
-      {/* Edit Modal */}
-      <NewIdeaModal
-        visible={editModalVisible}
-        onClose={() => setEditModalVisible(false)}
-        onSave={handleSaveEdit}
-        ideaId={idea.id}
-        initialIdea={idea}
-      />
+        {/* Edit Modal */}
+        <NewIdeaModal
+          visible={editModalVisible}
+          onClose={() => setEditModalVisible(false)}
+          onSave={handleSaveEdit}
+          ideaId={idea.id}
+          initialIdea={idea}
+        />
 
-      <FileViewer
-        visible={viewerVisible}
-        onClose={() => setViewerVisible(false)}
-        files={idea.files?.map((uri) => ({ uri })) || []}
-        currentIndex={viewerIndex}
-      />
-    </SafeAreaView>
+        <FileViewer
+          visible={viewerVisible}
+          onClose={() => setViewerVisible(false)}
+          files={idea.files?.map((uri) => ({ uri })) || []}
+          currentIndex={viewerIndex}
+        />
+      </SafeAreaView>
     </LinearGradient>
   );
 }
@@ -294,6 +350,14 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#F1F5F9",
     backdropFilter: "blur(10px)",
+    // backgroundColor:"green"
+  },
+  headerLeft: {
+    // backgroundColor: 'red',
+    display: "flex",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
   },
   backButton: {
     width: 40,
@@ -384,7 +448,8 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   ideaInfo: {
-    flex: 1,
+    disfplay: "flex",
+    flexDirection: "column",
   },
   ideaTitle: {
     fontSize: 24,

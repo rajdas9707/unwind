@@ -178,16 +178,22 @@ export default function NewIdeaModal({
         });
       }
 
-      // Save files with unique names bound to idea id
-      const savedUris = await saveFiles({
-        files,
-        fileLabel: "idea",
-        ideaId: id,
+      // Separate new files from existing files
+      const existingUris = (initialIdea?.files || []).filter(Boolean);
+      const newFiles = files.filter(file => {
+        const uri = file.uri || file.fileCopyUri || file.localUri;
+        return uri && !existingUris.includes(uri);
       });
 
-      // Merge existing files if editing
-      const existingUris = (initialIdea?.files || []).filter(Boolean);
-      const finalFiles = ideaId ? [...existingUris, ...savedUris] : savedUris;
+      // Only save new files
+      const savedUris = newFiles.length > 0 ? await saveFiles({
+        files: newFiles,
+        fileLabel: "idea",
+        ideaId: id,
+      }) : [];
+
+      // Combine existing files with newly saved files
+      const finalFiles = [...existingUris, ...savedUris];
 
       await updateIdea({
         id,

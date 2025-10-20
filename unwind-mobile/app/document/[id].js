@@ -27,7 +27,7 @@ import FileViewer from "../../components/shared/FileViewer";
 export default function DocumentDetail() {
   const { id } = useLocalSearchParams();
   const [document, setDocument] = useState(null);
-   // import { AuthContext } from "../../context/AuthProvider";
+  // import { AuthContext } from "../../context/AuthProvider";
   const [viewerVisible, setViewerVisible] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
   const [editModalVisible, setEditModalVisible] = useState(false);
@@ -123,30 +123,46 @@ export default function DocumentDetail() {
       <SafeAreaView style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#111827" />
-        </TouchableOpacity>
-        <View style={styles.headerActions}>
-          <TouchableOpacity
-            onPress={handleEditDocument}
-            style={styles.editButton}
-            accessibilityLabel="Edit Document"
-          >
-            <Ionicons name="create-outline" size={20} color="#fff" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={handleDeleteDocument}
-            style={styles.deleteButton}
-            accessibilityLabel="Delete Document"
-          >
-            <Ionicons name="trash-outline" size={20} color="#fff" />
-          </TouchableOpacity>
-        </View>
-      </View>
+          <View style={styles.headerLeft}>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Document Info Card */}
-        <View style={styles.documentCard}>
+
+            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+              <Ionicons name="arrow-back" size={24} color="#111827" />
+            </TouchableOpacity>
+            <View style={styles.documentInfo}>
+              <Text style={styles.documentTitle}>
+                {document.docName}
+              </Text>
+              <View style={styles.categoryContainer}>
+                <Ionicons name="pricetag-outline" size={14} color="#6366F1" />
+                <Text style={styles.categoryText}>
+                  {document.tag || "miscellaneous"}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              onPress={handleEditDocument}
+              style={styles.editButton}
+              accessibilityLabel="Edit Document"
+            >
+              <Ionicons name="create-outline" size={20} color="#fff" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleDeleteDocument}
+              style={styles.deleteButton}
+              accessibilityLabel="Delete Document"
+            >
+              <Ionicons name="trash-outline" size={20} color="#fff" />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+          {/* Document Info Card */}
+          {/* <View style={styles.documentCard}>
           <View style={styles.documentHeader}>
             <View style={styles.documentIcon}>
               <Ionicons name="document-outline" size={28} color="#6366F1" />
@@ -163,82 +179,82 @@ export default function DocumentDetail() {
               </View>
             </View>
           </View>
-        </View>
+        </View> */}
 
-        {/* Files Section */}
-        {document.files?.length > 0 && (
-          <View style={styles.filesSection}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="folder-outline" size={20} color="#6366F1" />
-              <Text style={styles.sectionTitle}>
-                Files ({(document.files || []).length})
-              </Text>
-            </View>
-            
-            {document.files.map((item, index) => {
-              const uri = item;
-              const isPdf = typeof uri === "string" && uri.toLowerCase().endsWith(".pdf");
-              return (
-                <TouchableOpacity
-                  key={`${item}-${index}`}
-                  style={styles.fileItem}
-                  onPress={() => handleFilePress(index)}
-                  activeOpacity={0.8}
-                >
-                  <View style={styles.fileIconContainer}>
-                    {isPdf ? (
-                      <Ionicons
-                        name="document-text-outline"
-                        size={24}
-                        color="#6366F1"
-                      />
-                    ) : (
-                      <Image
-                        source={{ uri }}
-                        style={styles.fileImage}
-                      />
-                    )}
-                  </View>
-                  
-                  <View style={styles.fileInfo}>
-                    <Text style={styles.fileName} numberOfLines={1}>
-                      {uri.split('/').pop() || uri}
-                    </Text>
-                    <Text style={styles.fileType}>
-                      {isPdf ? 'PDF Document' : 'Image'}
-                    </Text>
-                  </View>
-                  
+          {/* Files Section */}
+          {document.files?.length > 0 && (
+            <View style={styles.filesSection}>
+              <View style={styles.sectionHeader}>
+                <Ionicons name="folder-outline" size={20} color="#6366F1" />
+                <Text style={styles.sectionTitle}>
+                  Files ({(document.files || []).length})
+                </Text>
+              </View>
+
+              {document.files.map((item, index) => {
+                const uri = item;
+                const isPdf = typeof uri === "string" && uri.toLowerCase().endsWith(".pdf");
+                return (
                   <TouchableOpacity
-                    onPress={() => removeFile(index)}
-                    style={styles.removeButton}
-                    accessibilityLabel="Remove File"
-                    activeOpacity={0.7}
+                    key={`${item}-${index}`}
+                    style={styles.fileItem}
+                    onPress={() => handleFilePress(index)}
+                    activeOpacity={0.8}
                   >
-                    <Ionicons name="trash-outline" size={18} color="#DC2626" />
+                    <View style={styles.fileIconContainer}>
+                      {isPdf ? (
+                        <Ionicons
+                          name="document-text-outline"
+                          size={24}
+                          color="#6366F1"
+                        />
+                      ) : (
+                        <Image
+                          source={{ uri }}
+                          style={styles.fileImage}
+                        />
+                      )}
+                    </View>
+
+                    <View style={styles.fileInfo}>
+                      <Text style={styles.fileName} numberOfLines={1}>
+                        {uri.split('/').pop() || uri}
+                      </Text>
+                      <Text style={styles.fileType}>
+                        {isPdf ? 'PDF Document' : 'Image'}
+                      </Text>
+                    </View>
+
+                    <TouchableOpacity
+                      onPress={() => removeFile(index)}
+                      style={styles.removeButton}
+                      accessibilityLabel="Remove File"
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="trash-outline" size={18} color="#DC2626" />
+                    </TouchableOpacity>
                   </TouchableOpacity>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        )}
-      </ScrollView>
+                );
+              })}
+            </View>
+          )}
+        </ScrollView>
 
-      {/* Edit Modal */}
-      <UploadDocModal
-        visible={editModalVisible}
-        onClose={() => setEditModalVisible(false)}
-        onSave={handleSaveEdit}
-        docId={document.id}
-        initialDoc={document}
-      />
+        {/* Edit Modal */}
+        <UploadDocModal
+          visible={editModalVisible}
+          onClose={() => setEditModalVisible(false)}
+          onSave={handleSaveEdit}
+          docId={document.id}
+          initialDoc={document}
+        />
 
-      <FileViewer
-        visible={viewerVisible}
-        onClose={() => setViewerVisible(false)}
-        files={document.files?.map((uri) => ({ uri })) || []}
-        currentIndex={viewerIndex}
-      />
+        <FileViewer
+          visible={viewerVisible}
+          onClose={() => setViewerVisible(false)}
+          files={document.files?.map((uri) => ({ uri })) || []}
+          currentIndex={viewerIndex}
+        />
       </SafeAreaView>
     </LinearGradient>
   );
@@ -263,6 +279,14 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#F1F5F9",
     backdropFilter: "blur(10px)",
+    // backgroundColor:'red'
+  },
+  headerLeft: {
+    // backgroundColor:'green',
+    display:'flex',
+    flexDirection:'row',
+    alignItems:'center',
+    gap:12
   },
   backButton: {
     width: 40,
@@ -337,7 +361,9 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   documentInfo: {
-    flex: 1,
+   display:'flex',
+   flexDirection:'column',
+   
   },
   documentTitle: {
     fontSize: 24,

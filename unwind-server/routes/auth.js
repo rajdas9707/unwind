@@ -18,7 +18,7 @@ router.get("/profile", verifyToken, async (req, res) => {
     return res.status(404).json({ error: "User not found" });
   }
 
-  res.json({ message: "Secure profile data", user: user });
+  return res.status(200).json({ message: "Secure profile data", user: user });
 });
 
 router.post("/signup", async (req, res) => {
@@ -30,6 +30,14 @@ router.post("/signup", async (req, res) => {
     return res.status(400).json({ error: "UID and email are required" });
   }
   // Here you would typically create the user in your database
+  
+  const user = await User.findOne({
+  $or: [{ firebaseUid: uid }, { email }],
+});
+
+  if (user) {
+    return res.status(401).json({ error: "User already exists" });
+  }
   try {
     const user = new User({
       firebaseUid: uid,
@@ -46,7 +54,7 @@ router.post("/signup", async (req, res) => {
 
     await user.save();
 
-    return res.status(201).json({
+    return res.status(200).json({
       message: "User signed up successfully",
       user: { uid, email, name },
     });

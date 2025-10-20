@@ -16,7 +16,7 @@ import { useWindowDimensions } from "react-native";
 export default function MeditationScreen() {
   const router = useRouter();
   const { width, height, scale } = useWindowDimensions();
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(true);
   const webViewRef = useRef(null);
 
   const localUri = useMemo(() => {
