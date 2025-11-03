@@ -20,11 +20,17 @@ import { LinearGradient } from "expo-linear-gradient";
 import { auth } from "../../firebaseConfig"; // Assuming auth is exported from here
 import { getProfile, deleteUserAccount, updateUserName } from "../../api/auth";
 import { generateDailySummary } from "../../api/dailySummary";
-import { checkTodaySyncStatus, getSyncStatusMessage } from "../../utils/syncStatusUtils";
+import {
+  checkTodaySyncStatus,
+  getSyncStatusMessage,
+} from "../../utils/syncStatusUtils";
 import * as FileSystem from "expo-file-system/legacy";
 import * as SQLite from "expo-sqlite";
 import { closeDB, openDB } from "../../storage/mainDb";
-import { upsertSummaryScore, getSummaryScoresInRange } from "../../storage/summaryscore/db";
+import {
+  upsertSummaryScore,
+  getSummaryScoresInRange,
+} from "../../storage/summaryscore/db";
 import { getJournalEntriesByDate } from "../../storage/journal/db";
 import { getMistakesEntriesByDate } from "../../storage/mistakes/db";
 import { getOverthinkingEntriesByDate } from "../../storage/overthinking/db";
@@ -41,6 +47,7 @@ import {
   signOut,
 } from "firebase/auth";
 import { AuthContext } from "../../context/AuthProvider";
+import { useNetworkStatus } from "../../utils/networkUtils";
 // import { exportDatabase } from "../testDb";
 
 export default function AccountScreen() {
@@ -52,13 +59,15 @@ export default function AccountScreen() {
   const [clearDataPassword, setClearDataPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [deleting, setDeleting] = useState(false);
+  const isOnline = useNetworkStatus();
+
   const [stats, setStats] = useState({
     journalEntries: 0,
     overthinkingLogs: 0,
     mistakeEntries: 0,
     streaks: 0,
   });
-  
+
   //  const { user: storedUserInfo } = useContext(AuthContext);
   // Daily Summary states
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
@@ -115,11 +124,10 @@ export default function AccountScreen() {
 
   const loadUserInfo = async () => {
     try {
-
-       const storedUserInfo = await AsyncStorage.getItem("userInfo");
-       console.log("Loading user info from AuthContext:", storedUserInfo);
+      const storedUserInfo = await AsyncStorage.getItem("userInfo");
+      console.log("Loading user info from AuthContext:", storedUserInfo);
       if (storedUserInfo) {
-      const parsed=JSON.parse(storedUserInfo);
+        const parsed = JSON.parse(storedUserInfo);
         setUserInfo(parsed);
         setEditName(parsed.name);
       }
@@ -279,26 +287,32 @@ export default function AccountScreen() {
       await reauthenticateWithCredential(auth.currentUser, credential);
 
       // Check server availability
-      let online = false;
-      try {
-        const health = await authorizedFetch("/api/health", { method: "GET" });
-        online = health?.status === 200;
-      } catch (_) {
-        online = false;
-      }
+
+      // try {
+      //   const health = await authorizedFetch("/api/health", { method: "GET" });
+      //   online = health?.status === 200;
+      // } catch (_) {
+      //   online = false;
+      // }
 
       // If offline, do not allow deletion
-      if (!online) {
+      if (!isOnline) {
         setDeleting(false);
-        Alert.alert("Offline", "You must be online to delete. Please connect to the internet and try again.");
+        Alert.alert(
+          "Offline",
+          "You must be online to delete. Please connect to the internet and try again."
+        );
         return;
       }
-
+      console.log("Authenticated for data deletion, proceeding...");
       // Purge remote data first (required)
       const res = await purgeAllUserData();
       if (!res.success) {
         setDeleting(false);
-        Alert.alert("Server Error", res.message || "Failed to delete data on server. Try again later.");
+        Alert.alert(
+          "Server Error",
+          res.message || "Failed to delete data on server. Try again later."
+        );
         return;
       }
 
@@ -307,7 +321,7 @@ export default function AccountScreen() {
 
       // Clear rate limit so summary can be generated again
       try {
-        await AsyncStorage.removeItem('lastDailySummaryGenerated');
+        await AsyncStorage.removeItem("lastDailySummaryGenerated");
         setSummaryAlreadyGenerated(false);
       } catch (e) {
         // ignore
@@ -319,8 +333,31 @@ export default function AccountScreen() {
       } catch {}
       setClearDataModalVisible(false);
       setClearDataPassword("");
-      loadUserStats();
-      Alert.alert("Deleted", "All server and local data have been deleted.");
+      
+      // Reset local state
+      setStats({
+        journalEntries: 0,
+        overthinkingLogs: 0,
+        mistakeEntries: 0,
+        streaks: 0,
+      });
+      setScores([]);
+      setCards([]);
+      
+      // Show success alert and navigate to home tab to force refresh
+      Alert.alert(
+        "Deleted", 
+        "All server and local data have been deleted.",
+        [
+          {
+            text: "OK",
+            onPress: () => {
+              // Navigate to home tab to force UI refresh across all tabs
+              router.replace('/(tabs)');
+            }
+          }
+        ]
+      );
     } catch (error) {
       if (
         error?.code === "auth/invalid-credential" ||
@@ -359,10 +396,9 @@ export default function AccountScreen() {
       const userId = auth.currentUser.uid;
 
       // 1) Update in backend (MongoDB)
-     const response= await updateUserName({uid:userId, newName: trimmed }
-      );
+      const response = await updateUserName({ uid: userId, newName: trimmed });
       console.log("Backend name update response:", response);
-      
+
       // 2) Update Firebase profile displayName
       await updateProfile(auth.currentUser, { displayName: trimmed });
 
@@ -382,7 +418,10 @@ export default function AccountScreen() {
       Alert.alert("Success", "Name updated successfully.");
     } catch (e) {
       console.error("Change name failed:", e);
-      Alert.alert("Error", e?.message || "Failed to update name. Please try again.");
+      Alert.alert(
+        "Error",
+        e?.message || "Failed to update name. Please try again."
+      );
     } finally {
       setUpdatingName(false);
     }
@@ -405,7 +444,10 @@ export default function AccountScreen() {
         return;
       }
       if (!pwd) {
-        Alert.alert("Password required", "Please enter your password to continue.");
+        Alert.alert(
+          "Password required",
+          "Please enter your password to continue."
+        );
         return;
       }
       if (!auth?.currentUser) {
@@ -425,11 +467,11 @@ export default function AccountScreen() {
       const headers = {
         "Content-Type": "application/json",
       };
-      
+
       if (token) {
         headers.Authorization = `Bearer ${token}`;
       }
-      
+
       const response = await fetch(`${API_BASE_URL}/api/user/updateEmail`, {
         method: "PUT",
         headers,
@@ -444,7 +486,10 @@ export default function AccountScreen() {
     } catch (e) {
       console.error("Change email failed:", e);
       let msg = e?.message || "Failed to update email. Please try again.";
-      if (e?.code === "auth/invalid-credential" || e?.code === "auth/wrong-password") {
+      if (
+        e?.code === "auth/invalid-credential" ||
+        e?.code === "auth/wrong-password"
+      ) {
         msg = "Incorrect password. Please try again.";
       }
       Alert.alert("Error", msg);
@@ -478,7 +523,19 @@ export default function AccountScreen() {
       await FileSystem.deleteAsync(`${FileSystem.documentDirectory}files/`, {
         idempotent: true,
       });
+      
+      // Clear AsyncStorage (all local data)
+      // Keep only essential auth-related data, clear everything else
+      const keysToKeep = ['userInfo']; // Keep user info for the session
+      const allKeys = await AsyncStorage.getAllKeys();
+      const keysToRemove = allKeys.filter(key => !keysToKeep.includes(key));
+      
+      if (keysToRemove.length > 0) {
+        await AsyncStorage.multiRemove(keysToRemove);
+        console.log('Cleared AsyncStorage keys:', keysToRemove);
+      }
     } catch (e) {
+      console.error('Error wiping app sandbox:', e);
       throw e;
     }
   };
@@ -486,11 +543,13 @@ export default function AccountScreen() {
   // Daily Summary Functions
   const checkDailySummaryStatus = async () => {
     try {
-      const today = new Date().toISOString().split('T')[0];
-      const lastGenerated = await AsyncStorage.getItem('lastDailySummaryGenerated');
+      const today = new Date().toISOString().split("T")[0];
+      const lastGenerated = await AsyncStorage.getItem(
+        "lastDailySummaryGenerated"
+      );
       setSummaryAlreadyGenerated(lastGenerated === today);
     } catch (error) {
-      console.error('Error checking daily summary status:', error);
+      console.error("Error checking daily summary status:", error);
     }
   };
 
@@ -499,9 +558,9 @@ export default function AccountScreen() {
       // Check if already generated today
       if (summaryAlreadyGenerated) {
         Alert.alert(
-          'Summary Already Generated',
-          'Daily summary has already been generated today. Try again tomorrow!',
-          [{ text: 'OK' }]
+          "Summary Already Generated",
+          "Daily summary has already been generated today. Try again tomorrow!",
+          [{ text: "OK" }]
         );
         return;
       }
@@ -509,8 +568,11 @@ export default function AccountScreen() {
       // Check sync status
       setIsGeneratingSummary(true);
       const syncStatusResult = await checkTodaySyncStatus();
-      
-      if (!syncStatusResult.isAllSynced && syncStatusResult.totalUnsyncedCount > 0) {
+
+      if (
+        !syncStatusResult.isAllSynced &&
+        syncStatusResult.totalUnsyncedCount > 0
+      ) {
         setIsGeneratingSummary(false);
         setSyncStatus(syncStatusResult);
         setShowSyncModal(true);
@@ -520,25 +582,24 @@ export default function AccountScreen() {
       // Generate summary
       await generateSummaryWithAPI();
     } catch (error) {
-      console.error('Error in handleGenerateDailySummary:', error);
+      console.error("Error in handleGenerateDailySummary:", error);
       setIsGeneratingSummary(false);
-      Alert.alert(
-        'Error',
-        'Failed to check sync status. Please try again.',
-        [{ text: 'OK' }]
-      );
+      Alert.alert("Error", "Failed to check sync status. Please try again.", [
+        { text: "OK" },
+      ]);
     }
   };
 
   const generateSummaryWithAPI = async () => {
     try {
       const result = await generateDailySummary();
-      
+
       if (result.success) {
         // Mark as generated today
-        const today = result.data?.date || new Date().toISOString().split('T')[0];
+        const today =
+          result.data?.date || new Date().toISOString().split("T")[0];
         const score = Number(result.data?.score ?? 0);
-        await AsyncStorage.setItem('lastDailySummaryGenerated', today);
+        await AsyncStorage.setItem("lastDailySummaryGenerated", today);
         setSummaryAlreadyGenerated(true);
 
         // Persist score locally for graphs/cards
@@ -546,23 +607,24 @@ export default function AccountScreen() {
           await upsertSummaryScore({ date: today, score });
           await loadSummaryScoresForRange();
         } catch (e) {
-          console.warn('Failed to store summary score locally:', e);
+          console.warn("Failed to store summary score locally:", e);
         }
-        
+
         Alert.alert(
-          '✅ Daily Summary Generated!',
-          result.message || 'Your daily summary has been generated successfully.',
-          [{ text: 'Great!' }]
+          "✅ Daily Summary Generated!",
+          result.message ||
+            "Your daily summary has been generated successfully.",
+          [{ text: "Great!" }]
         );
       } else {
         handleSummaryError(result);
       }
     } catch (error) {
-      console.error('Error generating summary:', error);
+      console.error("Error generating summary:", error);
       Alert.alert(
-        'Generation Failed',
-        'Failed to generate daily summary. Please try again later.',
-        [{ text: 'OK' }]
+        "Generation Failed",
+        "Failed to generate daily summary. Please try again later.",
+        [{ text: "OK" }]
       );
     } finally {
       setIsGeneratingSummary(false);
@@ -591,54 +653,58 @@ export default function AccountScreen() {
         return {
           date: row.date,
           score: row.score,
-          counts: { journal: j.length, mistakes: m.length, overthinking: o.length },
+          counts: {
+            journal: j.length,
+            mistakes: m.length,
+            overthinking: o.length,
+          },
         };
       });
       const cardData = await Promise.all(cardPromises);
       setCards(cardData.reverse()); // show latest first
     } catch (e) {
-      console.warn('Failed to load summary scores:', e);
+      console.warn("Failed to load summary scores:", e);
       setScores([]);
       setCards([]);
     }
   };
 
-
   const handleSummaryError = (result) => {
     switch (result.error) {
-      case 'SUMMARY_EXISTS':
+      case "SUMMARY_EXISTS":
         Alert.alert(
-          'Already Generated',
-          'Daily summary has already been generated today.',
-          [{ text: 'OK' }]
+          "Already Generated",
+          "Daily summary has already been generated today.",
+          [{ text: "OK" }]
         );
         break;
-      case 'NO_DATA':
+      case "NO_DATA":
         Alert.alert(
-          'No Data Available',
-          'No journal entries, mistakes, or overthinking logs found for today. Please add some data first.',
-          [{ text: 'OK' }]
+          "No Data Available",
+          "No journal entries, mistakes, or overthinking logs found for today. Please add some data first.",
+          [{ text: "OK" }]
         );
         break;
-      case 'AI_UNAVAILABLE':
+      case "AI_UNAVAILABLE":
         Alert.alert(
-          'AI Service Unavailable',
-          'The AI service is temporarily unavailable. Please try again later.',
-          [{ text: 'OK' }]
+          "AI Service Unavailable",
+          "The AI service is temporarily unavailable. Please try again later.",
+          [{ text: "OK" }]
         );
         break;
-      case 'AUTH_ERROR':
+      case "AUTH_ERROR":
         Alert.alert(
-          'Authentication Error',
-          'Please sign out and sign in again.',
-          [{ text: 'OK' }]
+          "Authentication Error",
+          "Please sign out and sign in again.",
+          [{ text: "OK" }]
         );
         break;
       default:
         Alert.alert(
-          'Generation Failed',
-          result.message || 'Failed to generate daily summary. Please try again.',
-          [{ text: 'OK' }]
+          "Generation Failed",
+          result.message ||
+            "Failed to generate daily summary. Please try again.",
+          [{ text: "OK" }]
         );
     }
   };
@@ -648,8 +714,8 @@ export default function AccountScreen() {
     try {
       // Here you would call your existing sync functions
       // For now, we'll simulate syncing and then close the modal
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate sync
-      
+      await new Promise((resolve) => setTimeout(resolve, 2000)); // Simulate sync
+
       // Check sync status again
       const newSyncStatus = await checkTodaySyncStatus();
       if (newSyncStatus.isAllSynced) {
@@ -658,26 +724,22 @@ export default function AccountScreen() {
         await generateSummaryWithAPI();
       } else {
         Alert.alert(
-          'Sync Incomplete',
-          'Some data is still not synced. Please try again or check your internet connection.',
-          [{ text: 'OK' }]
+          "Sync Incomplete",
+          "Some data is still not synced. Please try again or check your internet connection.",
+          [{ text: "OK" }]
         );
       }
     } catch (error) {
-      console.error('Error syncing data:', error);
-      Alert.alert(
-        'Sync Failed',
-        'Failed to sync data. Please try again.',
-        [{ text: 'OK' }]
-      );
+      console.error("Error syncing data:", error);
+      Alert.alert("Sync Failed", "Failed to sync data. Please try again.", [
+        { text: "OK" },
+      ]);
     } finally {
       setIsSyncing(false);
     }
   };
 
   const handleDeleteAccount = () => {
-    
-
     setConfirmPassword("");
     setConfirmVisible(true);
   };
@@ -724,7 +786,8 @@ export default function AccountScreen() {
                   // The API client's error handler will throw an error,
                   // but we can add an extra check here.
                   throw new Error(
-                    result.error?.message || "Failed to delete account on server."
+                    result.error?.message ||
+                      "Failed to delete account on server."
                   );
                 }
 
@@ -790,20 +853,33 @@ export default function AccountScreen() {
             <View style={styles.profileDetails}>
               {/* Name Row with Pencil on right, modern style */}
               <View style={styles.profileRow}>
-                <Text style={styles.userName} numberOfLines={1}>{userInfo?.name}</Text>
-                <TouchableOpacity onPress={openChangeName} style={styles.pencilButton}>
+                <Text style={styles.userName} numberOfLines={1}>
+                  {userInfo?.name}
+                </Text>
+                <TouchableOpacity
+                  onPress={openChangeName}
+                  style={styles.pencilButton}
+                >
                   <Ionicons name="pencil" size={18} color="#6366F1" />
                 </TouchableOpacity>
               </View>
               {/* Email Row with Pencil on right, modern style */}
               <View style={styles.profileRow}>
-                <Text style={styles.userEmail} numberOfLines={1}>{userInfo?.email}</Text>
-                <TouchableOpacity onPress={openChangeEmail} style={styles.pencilButton}>
+                <Text style={styles.userEmail} numberOfLines={1}>
+                  {userInfo?.email}
+                </Text>
+                <TouchableOpacity
+                  onPress={openChangeEmail}
+                  style={styles.pencilButton}
+                >
                   <Ionicons name="pencil" size={18} color="#6366F1" />
                 </TouchableOpacity>
               </View>
               <Text style={styles.joinDate}>
-                Member since {userInfo?.joinDate ? new Date(userInfo.joinDate).toLocaleDateString() : ""}
+                Member since{" "}
+                {userInfo?.joinDate
+                  ? new Date(userInfo.joinDate).toLocaleDateString()
+                  : ""}
               </Text>
             </View>
           </View>
@@ -815,35 +891,55 @@ export default function AccountScreen() {
 
           {/* Daily Summary Insights (Modern Chart) */}
           <View style={{ marginTop: 8, marginBottom: 12 }}>
-            <ChartWebView 
-              data={formatScoresForChart(scores)} 
+            <ChartWebView
+              data={formatScoresForChart(scores)}
               height={200}
-              onError={(error) => console.log('Chart error:', error)}
+              onError={(error) => console.log("Chart error:", error)}
             />
           </View>
 
           <View style={styles.statsGrid}>
-
-
-
-
             {/* Generate Summary (grid card) */}
             <TouchableOpacity
-              style={[styles.statCardGradient, (summaryAlreadyGenerated || isGeneratingSummary) && { opacity: 0.7 }]}
+              style={[
+                styles.statCardGradient,
+                (summaryAlreadyGenerated || isGeneratingSummary) && {
+                  opacity: 0.7,
+                },
+              ]}
               onPress={handleGenerateDailySummary}
               disabled={summaryAlreadyGenerated || isGeneratingSummary}
             >
-              <LinearGradient colors={["#ECFEFF", "#FFFFFF"]} start={{x:0,y:0}} end={{x:1,y:1}} style={{ borderRadius: 16, flex: 1 }}>
+              <LinearGradient
+                colors={["#ECFEFF", "#FFFFFF"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={{ borderRadius: 16, flex: 1 }}
+              >
                 <View style={styles.statCardInner}>
-                  <View style={[styles.iconChip, { backgroundColor: "#CFFAFE" }]}>
+                  <View
+                    style={[styles.iconChip, { backgroundColor: "#CFFAFE" }]}
+                  >
                     {isGeneratingSummary ? (
                       <ActivityIndicator size="small" color="#06B6D4" />
                     ) : (
-                      <Ionicons name={summaryAlreadyGenerated ? "checkmark-circle" : "analytics"} size={18} color={summaryAlreadyGenerated ? "#10B981" : "#06B6D4"} />
+                      <Ionicons
+                        name={
+                          summaryAlreadyGenerated
+                            ? "checkmark-circle"
+                            : "analytics"
+                        }
+                        size={18}
+                        color={summaryAlreadyGenerated ? "#10B981" : "#06B6D4"}
+                      />
                     )}
                   </View>
                   <Text style={styles.statLabel}>
-                    {isGeneratingSummary ? "Generating..." : summaryAlreadyGenerated ? "Generated Today" : "Generate Summary"}
+                    {isGeneratingSummary
+                      ? "Generating..."
+                      : summaryAlreadyGenerated
+                      ? "Generated Today"
+                      : "Generate Summary"}
                   </Text>
                 </View>
               </LinearGradient>
@@ -854,9 +950,16 @@ export default function AccountScreen() {
               style={styles.statCardGradient}
               onPress={() => router.push("/summary")}
             >
-              <LinearGradient colors={["#EEF2FF", "#FFFFFF"]} start={{x:0,y:0}} end={{x:1,y:1}} style={{ borderRadius: 16, flex: 1 }}>
+              <LinearGradient
+                colors={["#EEF2FF", "#FFFFFF"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={{ borderRadius: 16, flex: 1 }}
+              >
                 <View style={styles.statCardInner}>
-                  <View style={[styles.iconChip, { backgroundColor: "#E0E7FF" }]}>
+                  <View
+                    style={[styles.iconChip, { backgroundColor: "#E0E7FF" }]}
+                  >
                     <Ionicons name="bar-chart" size={18} color="#6366F1" />
                   </View>
                   <Text style={styles.statLabel}>View Daily Summary</Text>
@@ -866,11 +969,10 @@ export default function AccountScreen() {
           </View>
         </View>
 
-
         {/* Settings Section */}
         <View className="section" style={styles.section}>
           <Text style={styles.sectionTitle}>Settings</Text>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.settingItem}
             onPress={() => router.push("/settings/notifications")}
           >
@@ -879,7 +981,7 @@ export default function AccountScreen() {
             <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
           </TouchableOpacity>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.settingItem}
             onPress={() => router.push("/settings/privacy")}
           >
@@ -890,11 +992,10 @@ export default function AccountScreen() {
 
           <TouchableOpacity style={styles.settingItem} onPress={clearAllData}>
             <Ionicons name="trash" size={20} color="#EF4444" />
-            <Text style={[styles.settingText, { color: "#EF4444" }]}> 
+            <Text style={[styles.settingText, { color: "#EF4444" }]}>
               Clear All Data
             </Text>
           </TouchableOpacity>
-
         </View>
 
         {/* Support Section */}
@@ -927,7 +1028,10 @@ export default function AccountScreen() {
         </View>
 
         {/* Delete Account Button */}
-        <TouchableOpacity style={styles.deleteButton} onPress={handleDeleteAccount}>
+        <TouchableOpacity
+          style={styles.deleteButton}
+          onPress={handleDeleteAccount}
+        >
           <Ionicons name="trash" size={20} color="#FFFFFF" />
           <Text style={styles.deleteButtonText}>Delete Account</Text>
         </TouchableOpacity>
@@ -1011,7 +1115,9 @@ export default function AccountScreen() {
                 }}
                 disabled={updatingName}
               >
-                <Text style={{ color: "#374151", fontWeight: "700" }}>Cancel</Text>
+                <Text style={{ color: "#374151", fontWeight: "700" }}>
+                  Cancel
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleSaveNewName}
@@ -1125,7 +1231,9 @@ export default function AccountScreen() {
                 }}
                 disabled={updatingEmail}
               >
-                <Text style={{ color: "#374151", fontWeight: "700" }}>Cancel</Text>
+                <Text style={{ color: "#374151", fontWeight: "700" }}>
+                  Cancel
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleSaveNewEmail}
@@ -1148,7 +1256,6 @@ export default function AccountScreen() {
           </View>
         </View>
       </Modal>
-
 
       {/* Confirm Delete Modal */}
       <Modal
@@ -1340,7 +1447,10 @@ export default function AccountScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={confirmDeleteAll}
-                style={[styles.modalConfirmButton, deleting && styles.modalConfirmButtonDisabled]}
+                style={[
+                  styles.modalConfirmButton,
+                  deleting && styles.modalConfirmButtonDisabled,
+                ]}
                 disabled={deleting}
               >
                 {deleting && (
@@ -1365,24 +1475,25 @@ export default function AccountScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.syncModalContainer}>
             <LinearGradient
-              colors={['#3B82F6', '#1D4ED8']}
+              colors={["#3B82F6", "#1D4ED8"]}
               style={styles.syncModalHeader}
             >
               <Ionicons name="sync" size={24} color="#FFFFFF" />
               <Text style={styles.syncModalTitle}>Sync Required</Text>
             </LinearGradient>
-            
+
             <View style={styles.syncModalBody}>
               <Text style={styles.syncModalMessage}>
-                Some data for today is not synced. Please sync first before generating your daily summary.
+                Some data for today is not synced. Please sync first before
+                generating your daily summary.
               </Text>
-              
+
               {syncStatus && (
                 <Text style={styles.syncStatusDetails}>
                   {getSyncStatusMessage(syncStatus)}
                 </Text>
               )}
-              
+
               <View style={styles.syncModalActions}>
                 <TouchableOpacity
                   style={styles.syncCancelButton}
@@ -1391,9 +1502,12 @@ export default function AccountScreen() {
                 >
                   <Text style={styles.syncCancelText}>Cancel</Text>
                 </TouchableOpacity>
-                
+
                 <TouchableOpacity
-                  style={[styles.syncNowButton, isSyncing && styles.syncNowButtonDisabled]}
+                  style={[
+                    styles.syncNowButton,
+                    isSyncing && styles.syncNowButtonDisabled,
+                  ]}
                   onPress={handleSyncNow}
                   disabled={isSyncing}
                 >
@@ -1403,7 +1517,7 @@ export default function AccountScreen() {
                     <Ionicons name="cloud-upload" size={16} color="#FFFFFF" />
                   )}
                   <Text style={styles.syncNowText}>
-                    {isSyncing ? 'Syncing...' : 'Sync Now'}
+                    {isSyncing ? "Syncing..." : "Sync Now"}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -1460,15 +1574,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   profileRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#F8FAFF',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#F8FAFF",
     borderRadius: 10,
     paddingVertical: 8,
     paddingHorizontal: 12,
     marginBottom: 8,
-    shadowColor: '#6366F1',
+    shadowColor: "#6366F1",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06,
     shadowRadius: 2,
@@ -1476,16 +1590,16 @@ const styles = StyleSheet.create({
   },
   userName: {
     fontSize: 20,
-    fontWeight: '700',
-    color: '#111827',
+    fontWeight: "700",
+    color: "#111827",
     flex: 1,
     marginRight: 8,
     letterSpacing: 0.1,
   },
   userEmail: {
     fontSize: 15,
-    color: '#374151',
-    fontWeight: '500',
+    color: "#374151",
+    fontWeight: "500",
     flex: 1,
     marginRight: 8,
     letterSpacing: 0.05,
@@ -1494,19 +1608,19 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     padding: 6,
     borderRadius: 20,
-    backgroundColor: '#EEF2FF',
+    backgroundColor: "#EEF2FF",
     elevation: 2,
-    shadowColor: '#6366F1',
+    shadowColor: "#6366F1",
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.10,
+    shadowOpacity: 0.1,
     shadowRadius: 2,
   },
   joinDate: {
-    color: '#6B7280',
+    color: "#6B7280",
     fontSize: 13,
     marginTop: 2,
   },
-    
+
   cancelButton: {
     backgroundColor: "#F3F4F6",
     width: 32,
@@ -1660,7 +1774,7 @@ const styles = StyleSheet.create({
   modalConfirmButtonDisabled: {
     backgroundColor: "#FCA5A5",
   },
-  
+
   // Daily Summary Button Styles
   dailySummaryButton: {
     backgroundColor: "#F8FAFC",
@@ -1691,7 +1805,7 @@ const styles = StyleSheet.create({
   disabledSettingText: {
     color: "#9CA3AF",
   },
-  
+
   // Sync Modal Styles
   modalOverlay: {
     flex: 1,
@@ -1775,8 +1889,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: "#FFFFFF",
-
   },
 });
-
-

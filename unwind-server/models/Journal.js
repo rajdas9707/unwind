@@ -48,6 +48,20 @@ const journalSchema = new mongoose.Schema({
     response_time: Number,
     timestamp: Date,
     error: String
+  },
+  editHistory: [{
+    editedAt: {
+      type: Date,
+      required: true
+    },
+    editDate: {
+      type: String,
+      required: true
+    }
+  }],
+  editCount: {
+    type: Number,
+    default: 0
   }
 }, {
   timestamps: true

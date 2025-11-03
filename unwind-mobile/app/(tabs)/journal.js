@@ -9,6 +9,7 @@ import {
   Modal,
   Alert,
   ActivityIndicator,
+  BackHandler,
 } from "react-native";
 // Removed animation imports
 import { StatusBar } from "expo-status-bar";
@@ -51,6 +52,8 @@ import {
 // Import database health check
 // Removed database health/test utilities to avoid errors
 
+import SavingOverlay from "../../components/SavingOverlay";
+
 export default function JournalScreen() {
   // const { isReady } = useDatabaseReady();
 
@@ -64,7 +67,6 @@ export default function JournalScreen() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
   const [newEntry, setNewEntry] = useState("");
-  const [newEntryTitle, setNewEntryTitle] = useState("");
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const isOnline = useNetworkStatus();
@@ -79,6 +81,9 @@ export default function JournalScreen() {
   // const { idToken } = useContext(AuthContext); // removed, now handled in client.js
 
   const isScreenActiveRef = useRef(true);
+  const [isOperating, setIsOperating] = useState(false); // Track any operation in progress
+  const [operationMessage, setOperationMessage] = useState("");
+  
   const showAlert = (title, message, buttons) => {
     if (!isScreenActiveRef.current) return;
     Alert.alert(title, message, buttons);
@@ -90,6 +95,23 @@ export default function JournalScreen() {
   };
 
   // Removed animation logic
+  
+  // Prevent back navigation when operating
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (isOperating) {
+        showAlert(
+          "Operation in Progress",
+          operationMessage || "Please wait while the operation completes.",
+          [{ text: "OK" }]
+        );
+        return true; // Prevent default back action
+      }
+      return false; // Allow default back action
+    });
+
+    return () => backHandler.remove();
+  }, [isOperating, operationMessage]);
 
   // Sync single journal entry to server
   const syncJournalEntryToServer = async ({ entry }) => {
@@ -444,10 +466,32 @@ export default function JournalScreen() {
   useFocusEffect(
     React.useCallback(() => {
       isScreenActiveRef.current = true;
+      
+      // Reload entries when screen comes into focus
+      const reloadData = async () => {
+        try {
+          setLoading(true);
+          let loadedEntries;
+          if (selectedDate) {
+            loadedEntries = await fetchJournalsByDate(selectedDate);
+          } else {
+            loadedEntries = await fetchRecentJournalEntries(10);
+          }
+          setEntries(loadedEntries || []);
+          await updateUnsyncedCount();
+        } catch (error) {
+          console.error("Error reloading entries on focus:", error);
+        } finally {
+          setLoading(false);
+        }
+      };
+      
+      reloadData();
+      
       return () => {
         isScreenActiveRef.current = false;
       };
-    }, [])
+    }, [selectedDate])
   );
 
   // Update unsynced count periodically
@@ -586,19 +630,41 @@ export default function JournalScreen() {
       showAlert("Error", "Please write something in your journal");
       return;
     }
+    
+    // Check if user already has a journal entry for today
+    const today = new Date().toISOString().split("T")[0];
+    const todayEntries = await fetchJournalsByDate(today);
+    
+    if (todayEntries && todayEntries.length > 0) {
+      showAlert(
+        "Journal Already Exists",
+        "You can only create one journal entry per day. You already have an entry for today.",
+        [{ text: "OK" }]
+      );
+      return;
+    }
 
     setIsAddingEntry(true);
+    setIsOperating(true);
+    setOperationMessage("Creating your journal entry...");
 
     try {
+      // Auto-generate title as today's date (formatted nicely)
+      const autoTitle = new Date().toLocaleDateString("en-US", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+      
       // Create entry locally - error handling is now centralized
       const entry = await createJournalEntryLocal({
-        title: newEntryTitle.trim(),
+        title: autoTitle,
         content: newEntry.trim(),
       });
 
       // Reset form and close modal
       setNewEntry("");
-      setNewEntryTitle("");
       setShowAddModal(false);
 
       // Add to current entries list
@@ -677,6 +743,8 @@ export default function JournalScreen() {
       showAlert("Error", error.message || "Failed to create journal entry");
     } finally {
       setIsAddingEntry(false);
+      setIsOperating(false);
+      setOperationMessage("");
     }
   };
 
@@ -691,19 +759,44 @@ export default function JournalScreen() {
           // Set loading state for this specific entry
           setIsDeletingEntry((prev) => new Set(prev).add(entry.id));
 
-          // Remove from UI immediately for responsive feel
-          setEntries(entries.filter((e) => e.id !== entry.id));
-
           try {
-            // Delete from storage - error handling is now centralized
-            await deleteJournalEntryLocal({ entry });
+            // If entry is synced, delete from server FIRST
+            if (entry.synced && entry.server_id) {
+              try {
+                console.log("Deleting from server first...", entry.server_id);
+                await deleteJournalEntry({ id: entry.server_id });
+                console.log("Server deletion successful");
+              } catch (serverError) {
+                console.error("Failed to delete from server:", serverError);
+                
+                // If server deletion fails, don't proceed with local deletion
+                showAlert(
+                  "Delete Failed",
+                  isOnline 
+                    ? "Failed to delete entry from server. Please try again."
+                    : "Cannot delete synced entries while offline. Please connect to the internet and try again."
+                );
+                return; // Exit early - don't delete locally
+              }
+            }
+            
+            // Only delete locally if server deletion succeeded (or entry wasn't synced)
+            console.log("Deleting from local database...");
+            await deleteJournalEntryById(entry.id);
+            console.log("Local deletion successful");
+            
+            // Remove from UI
+            setEntries(entries.filter((e) => e.id !== entry.id));
 
             // Update unsynced count
             await updateUnsyncedCount();
+            
+            showAlert("Success", "Entry deleted successfully");
           } catch (error) {
             console.error("Error deleting entry:", error);
-            showAlert("Error", "Failed to delete entry");
-            // Refresh the list to show the entry again if deletion failed
+            showAlert("Error", error.message || "Failed to delete entry");
+            
+            // Refresh the list to show current state
             setLoading(true);
             try {
               let loadedEntries;
@@ -714,8 +807,8 @@ export default function JournalScreen() {
               }
               setEntries(loadedEntries || []);
               await updateUnsyncedCount();
-            } catch (error) {
-              console.error("Error refreshing entries:", error);
+            } catch (refreshError) {
+              console.error("Error refreshing entries:", refreshError);
             } finally {
               setLoading(false);
             }
@@ -770,6 +863,13 @@ export default function JournalScreen() {
   return (
     <View style={styles.container}>
       <StatusBar style="dark" />
+      
+      {/* Operation Overlay */}
+      <SavingOverlay 
+        visible={isOperating} 
+        message={operationMessage || "Processing..."}
+        submessage="Please don't navigate away"
+      />
 
       <View style={styles.header}>
         <Text style={styles.title}>Journal</Text>
@@ -1010,7 +1110,17 @@ export default function JournalScreen() {
 
       <TouchableOpacity
         style={styles.addButton}
-        onPress={() => setShowAddModal(true)}
+        onPress={() => {
+          if (isOperating) {
+            showAlert(
+              "Operation in Progress",
+              "Please wait while the current operation completes."
+            );
+          } else {
+            setShowAddModal(true);
+          }
+        }}
+        disabled={isOperating}
       >
         <Ionicons name="add" size={24} color="#FFFFFF" />
       </TouchableOpacity>
@@ -1047,14 +1157,17 @@ export default function JournalScreen() {
             </TouchableOpacity>
           </View>
 
-          <TextInput
-            style={styles.titleInput}
-            placeholder="Title (optional)"
-            placeholderTextColor="#9CA3AF"
-            value={newEntryTitle}
-            onChangeText={setNewEntryTitle}
-            maxLength={200}
-          />
+          <View style={styles.dateLabel}>
+            <Ionicons name="calendar" size={16} color="#6B7280" />
+            <Text style={styles.dateLabelText}>
+              {new Date().toLocaleDateString("en-US", {
+                weekday: "long",
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+              })}
+            </Text>
+          </View>
 
           <TextInput
             style={styles.textInput}
@@ -1369,6 +1482,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#374151",
     lineHeight: 24,
+  },
+  dateLabel: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: "#F3F4F6",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+    gap: 8,
+  },
+  dateLabelText: {
+    fontSize: 14,
+    color: "#374151",
+    fontWeight: "500",
   },
   
   // Structured cloud content styles

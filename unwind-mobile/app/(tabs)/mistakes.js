@@ -9,6 +9,7 @@ import {
   Modal,
   Alert,
   ActivityIndicator,
+  BackHandler,
 } from "react-native";
 import Animated, {
   useSharedValue,
@@ -55,6 +56,8 @@ import {
 
 // Removed database health utilities
 
+import SavingOverlay from "../../components/SavingOverlay";
+
 export default function MistakesScreen() {
   // const { isReady } = useDatabaseReady();
   const router = useRouter();
@@ -79,6 +82,9 @@ export default function MistakesScreen() {
   // const { idToken } = useContext(AuthContext); // removed, now handled in client.js
 
   const isScreenActiveRef = useRef(true);
+  const [isOperating, setIsOperating] = useState(false);
+  const [operationMessage, setOperationMessage] = useState("");
+  
   const showAlert = (title, message, buttons) => {
     if (!isScreenActiveRef.current) return;
     Alert.alert(title, message, buttons);
@@ -88,6 +94,23 @@ export default function MistakesScreen() {
     // eslint-disable-next-line no-console
     console.error(...args);
   };
+  
+  // Prevent back navigation when operating
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (isOperating) {
+        showAlert(
+          "Operation in Progress",
+          operationMessage || "Please wait while the operation completes.",
+          [{ text: "OK" }]
+        );
+        return true;
+      }
+      return false;
+    });
+
+    return () => backHandler.remove();
+  }, [isOperating, operationMessage]);
 
   // Sync single mistakes entry to server
   const syncMistakeEntryToServer = async ({ entry }) => {
@@ -614,6 +637,8 @@ export default function MistakesScreen() {
     }
 
     setIsAddingEntry(true);
+    setIsOperating(true);
+    setOperationMessage("Creating mistake entry...");
 
     try {
       // Create entry locally - error handling is now centralized
@@ -694,6 +719,8 @@ export default function MistakesScreen() {
       showAlert("Error", error.message || "Failed to create mistake entry");
     } finally {
       setIsAddingEntry(false);
+      setIsOperating(false);
+      setOperationMessage("");
     }
   };
 
@@ -815,6 +842,13 @@ export default function MistakesScreen() {
   return (
     <View style={styles.container}>
       <StatusBar style="dark" />
+      
+      {/* Operation Overlay */}
+      <SavingOverlay 
+        visible={isOperating} 
+        message={operationMessage || "Processing..."}
+        submessage="Please don't navigate away"
+      />
 
       <View style={styles.header}>
         <Text style={styles.title}>Mistakes</Text>

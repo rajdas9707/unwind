@@ -9,6 +9,7 @@ import {
   Modal,
   Alert,
   ActivityIndicator,
+  BackHandler,
 } from "react-native";
 import Animated, {
   useSharedValue,
@@ -53,6 +54,8 @@ import {
 
 // Removed database health utilities
 
+import SavingOverlay from "../../components/SavingOverlay";
+
 export default function OverthinkingScreen() {
   // const { isReady } = useDatabaseReady();
   const router = useRouter();
@@ -78,6 +81,9 @@ export default function OverthinkingScreen() {
   // const { idToken } = useContext(AuthContext); // removed, now handled in client.js
 
   const isScreenActiveRef = useRef(true);
+  const [isOperating, setIsOperating] = useState(false);
+  const [operationMessage, setOperationMessage] = useState("");
+  
   const showAlert = (title, message, buttons) => {
     if (!isScreenActiveRef.current) return;
     Alert.alert(title, message, buttons);
@@ -87,6 +93,23 @@ export default function OverthinkingScreen() {
     // eslint-disable-next-line no-console
     console.error(...args);
   };
+  
+  // Prevent back navigation when operating
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (isOperating) {
+        showAlert(
+          "Operation in Progress",
+          operationMessage || "Please wait while the operation completes.",
+          [{ text: "OK" }]
+        );
+        return true;
+      }
+      return false;
+    });
+
+    return () => backHandler.remove();
+  }, [isOperating, operationMessage]);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -611,8 +634,10 @@ export default function OverthinkingScreen() {
     }
 
     setIsAddingEntry(true);
+    setIsOperating(true);
+    setOperationMessage("Creating overthinking entry...");
 
-    try {
+    try{
       // Create entry locally - error handling is now centralized
       const entry = await createOverthinkingEntryLocal({
         title: newTitle.trim(),
@@ -697,6 +722,8 @@ export default function OverthinkingScreen() {
       );
     } finally {
       setIsAddingEntry(false);
+      setIsOperating(false);
+      setOperationMessage("");
     }
   };
 
@@ -856,6 +883,13 @@ export default function OverthinkingScreen() {
   return (
     <View style={styles.container}>
       <StatusBar style="dark" />
+      
+      {/* Operation Overlay */}
+      <SavingOverlay 
+        visible={isOperating} 
+        message={operationMessage || "Processing..."}
+        submessage="Please don't navigate away"
+      />
 
       <View style={styles.header}>
         <Text style={styles.title}>Overthinking</Text>

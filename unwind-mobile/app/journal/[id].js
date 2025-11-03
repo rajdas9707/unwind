@@ -10,6 +10,7 @@ import {
   Alert,
   ActivityIndicator,
   Share,
+  BackHandler,
 } from "react-native";
 // Removed animation imports
 import { StatusBar } from "expo-status-bar";
@@ -25,11 +26,14 @@ import {
   canSyncToday
 } from "../../storage/journal/storage";
 
+import SavingOverlay from "../../components/SavingOverlay";
+
 // Import API client functions for network operations
 import {
   createJournalEntry,
   deleteJournalEntry,
   getJournalEntry,
+  updateJournalEntry,
 } from "../../api/journal";
 
 // Import database operations
@@ -50,9 +54,10 @@ export default function JournalDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [loadingServerData, setLoadingServerData] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [editTitle, setEditTitle] = useState("");
   const [editContent, setEditContent] = useState("");
   const [isSyncing, setIsSyncing] = useState(false);
+  const [editInfo, setEditInfo] = useState(null); // Track edit limit info
+  const [isSaving, setIsSaving] = useState(false); // Track save operation
   
   // Removed animation logic
 
@@ -144,6 +149,23 @@ export default function JournalDetailScreen() {
     return true;
   };
 
+  // Prevent back navigation when saving
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (isSaving) {
+        Alert.alert(
+          "Saving in Progress",
+          "Please wait while your changes are being saved.",
+          [{ text: "OK" }]
+        );
+        return true; // Prevent default back action
+      }
+      return false; // Allow default back action
+    });
+
+    return () => backHandler.remove();
+  }, [isSaving]);
+
   // Load entry data
   useEffect(() => {
     if ( id) {
@@ -169,7 +191,6 @@ export default function JournalDetailScreen() {
       const entryData = localData.local;
       setCombinedData(localData);
       setEntry(entryData);
-      setEditTitle(entryData.title || "");
       setEditContent(entryData.content || "");
       setLoading(false); // Stop main loading
       
@@ -184,6 +205,18 @@ export default function JournalDetailScreen() {
               ...serverData,
             }
           }));
+          
+          // Calculate edit info from server data
+          if (serverData.editHistory) {
+            const today = new Date().toISOString().split('T')[0];
+            const editsToday = serverData.editHistory.filter(
+              edit => edit.editDate === today
+            ).length;
+            setEditInfo({
+              editsToday,
+              remainingEdits: Math.max(0, 3 - editsToday)
+            });
+          }
         }
       }
     } catch (error) {
@@ -194,56 +227,110 @@ export default function JournalDetailScreen() {
   };
 
   const handleEdit = () => {
+    // Check if this is today's journal entry
+    const today = new Date().toISOString().split('T')[0];
+    const entryDate = new Date(entry.created_at).toISOString().split('T')[0];
+    
+    if (entryDate !== today) {
+      Alert.alert(
+        "Cannot Edit Past Entries",
+        "You can only edit today's journal entry. Past entries cannot be modified.",
+        [{ text: "OK" }]
+      );
+      return;
+    }
+    
     setIsEditing(true);
   };
 
   const handleCancelEdit = () => {
-    setEditTitle(entry?.title || "");
     setEditContent(entry?.content || "");
     setIsEditing(false);
   };
 
   const handleSaveEdit = async () => {
+    if (isSaving) return; // Prevent multiple saves
+    
     try {
       if (!editContent.trim()) {
         Alert.alert("Error", "Journal content cannot be empty");
         return;
       }
 
+      setIsSaving(true); // Start saving state - locks the screen
+
+      console.log("Step 1: Saving to local database...");
+      // Update locally first (title remains unchanged as auto-generated date)
       const updatedEntry = await updateJournalEntryLocal({
         id: entry.id,
-        title: editTitle.trim(),
+        title: entry.title, // Keep the original auto-generated title
         content: editContent.trim()
       });
+      console.log("Step 1 complete: Local save successful");
 
       setEntry(updatedEntry);
-      setIsEditing(false);
       
-      Alert.alert("Success", "Entry updated successfully!");
-      
-      // Try to sync if online
-      if (isOnline) {
+      // Try to sync to server if entry is already synced and online
+      if (entry.synced && entry.server_id && isOnline) {
         try {
           setIsSyncing(true);
-          const synced=await syncJournalEntryToServer({ entry: updatedEntry });
-                  if(!synced){
-                     Alert.alert("Sync Failed", "Entry saved locally but couldn't be synced. You can try again later.");
-                     return
-                   } 
-          await loadEntry(); // Refresh to show synced status
-        } catch (syncError) {
-          console.warn("Failed to sync updated entry:", syncError);
+          
+          console.log("Step 2: Syncing to server...");
+          // Call server API to update (only content, title stays the same)
+          const serverResponse = await updateJournalEntry({
+            id: entry.server_id,
+            content: editContent.trim(),
+            title: entry.title // Keep the original auto-generated title
+          });
+          console.log("Step 2 complete: Server sync successful");
+          
+          // Update edit info from server response
+          if (serverResponse.editInfo) {
+            setEditInfo(serverResponse.editInfo);
+          }
+          
+          console.log("Step 3: Reloading entry data...");
+          await loadEntry(); // Refresh to show updated status
+          console.log("Step 3 complete: Entry reloaded");
+          
           Alert.alert(
-            "Sync Failed", 
-            "Entry updated locally but couldn't be synced. You can try syncing manually later."
+            "Success", 
+            `Entry updated successfully! ${serverResponse.editInfo ? `\n${serverResponse.editInfo.remainingEdits} edits remaining today.` : ''}`
           );
+        } catch (syncError) {
+          console.error("Failed to sync updated entry:", syncError);
+          
+          // Handle edit limit error
+          if (syncError.response?.status === 400 && syncError.response?.data?.code === 'MAX_EDITS_PER_DAY') {
+            Alert.alert(
+              "Edit Limit Reached",
+              syncError.response.data.message || "You can only edit a journal entry 3 times per day."
+            );
+          } else if (syncError.response?.status === 403 && syncError.response?.data?.code === 'EDIT_PAST_JOURNAL_NOT_ALLOWED') {
+            Alert.alert(
+              "Cannot Edit Past Entries",
+              syncError.response.data.message || "You can only edit today's journal entry."
+            );
+          } else {
+            Alert.alert(
+              "Sync Failed", 
+              "Entry updated locally but couldn't be synced to the server. You can try again later."
+            );
+          }
         } finally {
           setIsSyncing(false);
         }
+      } else {
+        Alert.alert("Success", "Entry updated successfully!");
       }
+      
+      // Only exit edit mode after everything is complete
+      setIsEditing(false);
     } catch (error) {
       console.error("Error updating journal entry:", error);
       Alert.alert("Error", error.message || "Failed to update entry");
+    } finally {
+      setIsSaving(false); // Always clear saving state
     }
   };
 
@@ -258,13 +345,37 @@ export default function JournalDetailScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              await deleteJournalEntryLocal({ entry });
+              // If entry is synced, delete from server FIRST
+              if (entry.synced && entry.server_id) {
+                try {
+                  console.log("Deleting from server first...", entry.server_id);
+                  await deleteJournalEntry({ id: entry.server_id });
+                  console.log("Server deletion successful");
+                } catch (serverError) {
+                  console.error("Failed to delete from server:", serverError);
+                  
+                  // If server deletion fails, don't proceed with local deletion
+                  Alert.alert(
+                    "Delete Failed",
+                    isOnline 
+                      ? "Failed to delete entry from server. Please try again."
+                      : "Cannot delete synced entries while offline. Please connect to the internet and try again."
+                  );
+                  return; // Exit early - don't delete locally
+                }
+              }
+              
+              // Only delete locally if server deletion succeeded (or entry wasn't synced)
+              console.log("Deleting from local database...");
+              await deleteJournalEntryById(entry.id);
+              console.log("Local deletion successful");
+              
               Alert.alert("Success", "Entry deleted successfully!", [
                 { text: "OK", onPress: () => router.back() }
               ]);
             } catch (error) {
               console.error("Error deleting entry:", error);
-              Alert.alert("Error", "Failed to delete entry");
+              Alert.alert("Error", error.message || "Failed to delete entry");
             }
           },
         },
@@ -371,42 +482,74 @@ export default function JournalDetailScreen() {
   return (
     <View style={styles.container}>
       <StatusBar style="dark" />
+      
+      {/* Saving Overlay - Locks the screen during save */}
+      <SavingOverlay 
+        visible={isSaving} 
+        message="Saving changes..."
+        submessage="Please don't navigate away"
+      />
 
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity 
-          style={styles.headerButton} 
-          onPress={() => router.back()}
+          style={[styles.headerButton, isSaving && styles.disabledButton]} 
+          onPress={() => {
+            if (isSaving) {
+              Alert.alert(
+                "Saving in Progress",
+                "Please wait while your changes are being saved.",
+                [{ text: "OK" }]
+              );
+            } else {
+              router.back();
+            }
+          }}
+          disabled={isSaving}
         >
-          <Ionicons name="arrow-back" size={24} color="#111827" />
+          <Ionicons name="arrow-back" size={24} color={isSaving ? "#D1D5DB" : "#111827"} />
         </TouchableOpacity>
         
-        <Text style={styles.headerTitle}>
-          {isEditing ? "Edit Entry" : "Journal Entry"}
-        </Text>
+        <View style={styles.headerTitleContainer}>
+          <Text style={styles.headerTitle}>
+            {isEditing ? "Edit Entry" : "Journal Entry"}
+          </Text>
+          {entry?.synced && editInfo && editInfo.remainingEdits !== null && (
+            <Text style={styles.editLimitText}>
+              {editInfo.remainingEdits} {editInfo.remainingEdits === 1 ? 'edit' : 'edits'} left today
+            </Text>
+          )}
+        </View>
         
         <View style={styles.headerActions}>
           {!isEditing && (
             <>
               <TouchableOpacity 
-                style={styles.headerButton} 
+                style={[styles.headerButton, isSaving && styles.disabledButton]} 
                 onPress={handleShare}
+                disabled={isSaving}
               >
-                <Ionicons name="share-outline" size={20} color="#6B7280" />
+                <Ionicons name="share-outline" size={20} color={isSaving ? "#D1D5DB" : "#6B7280"} />
               </TouchableOpacity>
               
               <TouchableOpacity 
-                style={styles.headerButton} 
+                style={[styles.headerButton, isSaving && styles.disabledButton]} 
                 onPress={handleEdit}
+                disabled={isSaving}
               >
-                <Ionicons name="create-outline" size={20} color="#6B7280" />
+                <Ionicons 
+                  name="create-outline" 
+                  size={20} 
+                  color={isSaving ? "#D1D5DB" : (new Date(entry.created_at).toISOString().split('T')[0] === new Date().toISOString().split('T')[0] ? "#6B7280" : "#D1D5DB")} 
+                />
               </TouchableOpacity>
               
               <TouchableOpacity 
-                style={[styles.headerButton, { marginLeft: 4 }]}
+                style={[styles.headerButton, { marginLeft: 4 }, isSaving && styles.disabledButton]}
                 onPress={handleDelete}
+                disabled={isSaving}
               >
-                <Ionicons name="trash-outline" size={20} color="#EF4444" />
+                <Ionicons name="trash-outline" size={20} color={isSaving ? "#D1D5DB" : "#EF4444"} />
               </TouchableOpacity>
             </>
           )}
@@ -414,17 +557,26 @@ export default function JournalDetailScreen() {
           {isEditing && (
             <>
               <TouchableOpacity 
-                style={styles.headerButton} 
+                style={[styles.headerButton, isSaving && styles.disabledButton]} 
                 onPress={handleCancelEdit}
+                disabled={isSaving}
               >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
+                <Text style={[styles.cancelButtonText, isSaving && styles.disabledText]}>Cancel</Text>
               </TouchableOpacity>
               
               <TouchableOpacity 
-                style={styles.saveButton} 
+                style={[styles.saveButton, isSaving && styles.savingButton]} 
                 onPress={handleSaveEdit}
+                disabled={isSaving}
               >
-                <Text style={styles.saveButtonText}>Save</Text>
+                {isSaving ? (
+                  <>
+                    <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 6 }} />
+                    <Text style={styles.saveButtonText}>Saving...</Text>
+                  </>
+                ) : (
+                  <Text style={styles.saveButtonText}>Save</Text>
+                )}
               </TouchableOpacity>
             </>
           )}
@@ -447,15 +599,6 @@ export default function JournalDetailScreen() {
             <View style={styles.flexibleContentArea}>
               {isEditing ? (
                 <View style={styles.editContainer}>
-                  <TextInput
-                    style={styles.titleInput}
-                    placeholder="Title (optional)"
-                    placeholderTextColor="#9CA3AF"
-                    value={editTitle}
-                    onChangeText={setEditTitle}
-                    maxLength={200}
-                  />
-                  
                   <TextInput
                     style={styles.contentInput}
                     placeholder="What's on your mind?"
@@ -639,28 +782,17 @@ export default function JournalDetailScreen() {
           {/* Entry Content */}
           <View style={styles.entryContent}>
             {isEditing ? (
-              <>
-                <TextInput
-                  style={styles.titleInput}
-                  placeholder="Title (optional)"
-                  placeholderTextColor="#9CA3AF"
-                  value={editTitle}
-                  onChangeText={setEditTitle}
-                  maxLength={200}
-                />
-                
-                <TextInput
-                  style={styles.contentInput}
-                  placeholder="What's on your mind?"
-                  placeholderTextColor="#9CA3AF"
-                  multiline
-                  numberOfLines={20}
-                  value={editContent}
-                  onChangeText={setEditContent}
-                  textAlignVertical="top"
-                  autoFocus
-                />
-              </>
+              <TextInput
+                style={styles.contentInput}
+                placeholder="What's on your mind?"
+                placeholderTextColor="#9CA3AF"
+                multiline
+                numberOfLines={20}
+                value={editContent}
+                onChangeText={setEditContent}
+                textAlignVertical="top"
+                autoFocus
+              />
             ) : (
               <>
                 {entry.title && (
@@ -775,10 +907,20 @@ const styles = StyleSheet.create({
     padding: 8,
     borderRadius: 8,
   },
+  headerTitleContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   headerTitle: {
     fontSize: 18,
     fontWeight: "600",
     color: "#111827",
+  },
+  editLimitText: {
+    fontSize: 11,
+    color: "#6B7280",
+    marginTop: 2,
   },
   headerActions: {
     flexDirection: "row",
@@ -795,11 +937,23 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     backgroundColor: "#3B82F6",
     borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  savingButton: {
+    backgroundColor: "#9CA3AF",
+    opacity: 0.8,
   },
   saveButtonText: {
     color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "600",
+  },
+  disabledButton: {
+    opacity: 0.5,
+  },
+  disabledText: {
+    opacity: 0.5,
   },
   scrollView: {
     flex: 1,
