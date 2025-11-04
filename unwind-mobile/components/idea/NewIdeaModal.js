@@ -28,132 +28,19 @@ export default function NewIdeaModal({
 }) {
   const [ideaName, setIdeaName] = useState(initialIdea?.name || "");
   const [newIdea, setNewIdea] = useState(initialIdea?.idea || "");
-  const [urls, setUrls] = useState(initialIdea?.urls || []);
-  const [newUrl, setNewUrl] = useState("");
   const [selectedTag, setSelectedTag] = useState(
     initialIdea?.tag || "miscellaneous"
   );
-  const [files, setFiles] = useState(
-    initialIdea?.files?.map((uri) => ({ uri })) || []
-  );
-  const [isListening, setIsListening] = useState(false);
 
   useEffect(() => {
     if (visible) {
       setIdeaName(initialIdea?.name || "");
       setNewIdea(initialIdea?.idea || "");
-      setUrls(initialIdea?.urls || []);
-      setNewUrl("");
       setSelectedTag(initialIdea?.tag || "miscellaneous");
-      setFiles(initialIdea?.files?.map((uri) => ({ uri })) || []);
     }
   }, [visible]);
 
-  const startListening = async () => {
-    // TODO: Implement speech recognition
-    // const available = await SpeechRecognizer.isAvailableAsync();
-    // if (!available) {
-    //   alert(
-    //     "Speech recognition not available on this device. please contact developer"
-    //   );
-    //   return;
-    // }
-
-    setIsListening(true);
-    // await SpeechRecognizer.startAsync({
-    //   onResult: (event) => {
-    //     setNewIdea(event.transcription.text);
-    //   },
-    //   onDone: () => {
-    //     setIsListening(false);
-    //   },
-    // });
-  };
-
-  const stopListening = async () => {
-    // TODO: Implement speech recognition
-    // await SpeechRecognizer.stopAsync();
-    setIsListening(false);
-  };
-
   const tags = ["miscellaneous", "Work", "Personal", "Startup"];
-
-  const pickFiles = async () => {
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: ["application/pdf", "image/*"],
-        multiple: true,
-        copyToCacheDirectory: true,
-      });
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        const validFiles = result.assets.filter((file) => {
-          if (file.size && file.size > MAX_FILE_SIZE) {
-            Alert.alert(
-              "File Too Large",
-              `${file.name || "A file"} exceeds 10 MB and was skipped.`
-            );
-            return false;
-          }
-          return true;
-        });
-
-        if (validFiles.length > 0) {
-          setFiles((prev) => [...prev, ...validFiles]);
-          console.log("Files picked:", validFiles);
-        }
-      }
-    } catch (error) {
-      console.log("Error picking files/newideaMODAL:", error);
-    }
-  };
-
-  const removeFile = (index) =>
-    setFiles((prev) => prev.filter((_, i) => i !== index));
-
-  const takePhoto = async () => {
-    try {
-      const { status: cameraStatus } =
-        await ImagePicker.requestCameraPermissionsAsync();
-      if (cameraStatus !== "granted") {
-        Alert.alert("Permission required", "Camera permission is required.");
-        return;
-      }
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        quality: 0.7,
-      });
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        const validPhotos = result.assets.filter((photo) => {
-          if (photo.size && photo.size > MAX_FILE_SIZE) {
-            Alert.alert(
-              "Photo Too Large",
-              `A photo exceeds 10 MB and was skipped.`
-            );
-            return false;
-          }
-          return true;
-        });
-
-        if (validPhotos.length > 0) {
-          setFiles((prev) => [...prev, ...validPhotos]);
-          console.log("Photos taken:", validPhotos);
-        }
-      }
-    } catch (error) {
-      console.log("Error taking photos in IdeaModal:", error);
-    }
-  };
-
-  const addUrl = () => {
-    if (!newUrl.trim()) return;
-    setUrls((prev) => [...prev, newUrl.trim()]);
-    setNewUrl("");
-  };
-
-  const removeUrl = (index) => {
-    setUrls((prev) => prev.filter((_, i) => i !== index));
-  };
 
   const handleSave = async () => {
     if (!ideaName.trim()) {
@@ -172,55 +59,38 @@ export default function NewIdeaModal({
         id = await insertIdea({
           name: ideaName.trim(),
           idea: newIdea.trim(),
-          urls,
+          urls: [],
           files: [],
           tag: selectedTag,
+          researchTopics: [],
         });
+        console.log("Created new idea with ID:", id);
+      } else {
+        // Update existing idea
+        await updateIdea({
+          id,
+          name: ideaName.trim(),
+          idea: newIdea.trim(),
+          urls: initialIdea?.urls || [],
+          files: initialIdea?.files || [],
+          tag: selectedTag,
+          researchTopics: initialIdea?.researchTopics || [],
+        });
+        console.log("Updated idea with ID:", id);
       }
-
-      // Separate new files from existing files
-      const existingUris = (initialIdea?.files || []).filter(Boolean);
-      const newFiles = files.filter(file => {
-        const uri = file.uri || file.fileCopyUri || file.localUri;
-        return uri && !existingUris.includes(uri);
-      });
-
-      // Only save new files
-      const savedUris = newFiles.length > 0 ? await saveFiles({
-        files: newFiles,
-        fileLabel: "idea",
-        ideaId: id,
-      }) : [];
-
-      // Combine existing files with newly saved files
-      const finalFiles = [...existingUris, ...savedUris];
-
-      await updateIdea({
-        id,
-        name: ideaName.trim(),
-        idea: newIdea.trim(),
-        urls,
-        files: finalFiles,
-        tag: selectedTag,
-      });
 
       onSave &&
         onSave({
           id,
           name: ideaName.trim(),
           idea: newIdea.trim(),
-          urls,
-          files: finalFiles,
           tag: selectedTag,
         });
 
       // Reset state
       setIdeaName("");
       setNewIdea("");
-      setNewUrl("");
-      setUrls([]);
       setSelectedTag("miscellaneous");
-      setFiles([]);
       onClose && onClose();
     } catch (error) {
       console.log("Error saving idea in IdeaModal:", error);
@@ -232,7 +102,12 @@ export default function NewIdeaModal({
     <Modal animationType="slide" transparent visible={visible}>
       <View style={styles.modalContainer}>
         <View style={styles.modalContent}>
-          <Text style={styles.modalHeader}>New Idea</Text>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>{ideaId ? "Edit Idea" : "New Idea"}</Text>
+            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+              <Ionicons name="close" size={24} color="#6B7280" />
+            </TouchableOpacity>
+          </View>
           
           <ScrollView 
             style={styles.scrollView}
@@ -249,130 +124,25 @@ export default function NewIdeaModal({
               value={ideaName}
               onChangeText={setIdeaName}
               maxLength={100}
+              autoFocus
             />
           </View>
 
-          {/* Idea Description with Mic */}
+          {/* Idea Description */}
           <View style={styles.inputSection}>
-            <Text style={styles.inputLabel}>Idea Description</Text>
-            <View style={styles.textAreaContainer}>
-              <TextInput
-                style={styles.textArea}
-                placeholder="Describe your idea in detail..."
-                value={newIdea}
-                onChangeText={setNewIdea}
-                multiline
-                numberOfLines={4}
-                textAlignVertical="top"
-              />
-              <TouchableOpacity
-                style={styles.micButton}
-                onPress={isListening ? stopListening : startListening}
-                activeOpacity={0.7}
-              >
-                <Ionicons
-                  name={isListening ? "mic" : "mic-outline"}
-                  size={24}
-                  color={isListening ? "#EF4444" : "#6366F1"}
-                />
-              </TouchableOpacity>
-            </View>
+            <Text style={styles.inputLabel}>Description *</Text>
+            <TextInput
+              style={styles.textArea}
+              placeholder="Describe your idea in detail..."
+              value={newIdea}
+              onChangeText={setNewIdea}
+              multiline
+              numberOfLines={6}
+              textAlignVertical="top"
+            />
           </View>
 
-          {/* URL Section */}
-          <View style={styles.inputSection}>
-            <Text style={styles.inputLabel}>Links (Optional)</Text>
-            <View style={styles.urlContainer}>
-              <TextInput
-                style={styles.urlInput}
-                placeholder="Paste URL here..."
-                value={newUrl}
-                onChangeText={setNewUrl}
-              />
-              <TouchableOpacity 
-                style={styles.addButton}
-                onPress={addUrl}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="add" size={20} color="#6366F1" />
-              </TouchableOpacity>
-            </View>
-            
-            {urls.length > 0 && (
-              <View style={styles.urlList}>
-                {urls.map((url, index) => (
-                  <View key={`${url}-${index}`} style={styles.urlItem}>
-                    <Ionicons name="link" size={16} color="#6366F1" style={styles.urlIcon} />
-                    <Text numberOfLines={1} style={styles.urlText}>
-                      {url}
-                    </Text>
-                    <TouchableOpacity 
-                      onPress={() => removeUrl(index)}
-                      style={styles.removeButton}
-                    >
-                      <Ionicons name="close-circle" size={20} color="#EF4444" />
-                    </TouchableOpacity>
-                  </View>
-                ))}
-              </View>
-            )}
-          </View>
-
-          {/* Files Section */}
-          <View style={styles.inputSection}>
-            <Text style={styles.inputLabel}>Files & Photos (Optional)</Text>
-            <View style={styles.photoRow}>
-              <TouchableOpacity style={styles.photoButton} onPress={pickFiles}>
-                <Ionicons name="images-outline" size={24} color="#6366F1" />
-                <Text style={styles.photoText}>Upload Files</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.photoButton} onPress={takePhoto}>
-                <Ionicons name="camera-outline" size={24} color="#6366F1" />
-                <Text style={styles.photoText}>Take Photo</Text>
-              </TouchableOpacity>
-            </View>
-
-            {files.length > 0 && (
-              <View style={styles.filesList}>
-                {files.map((file, index) => {
-                  const uri = file.uri || file.fileCopyUri || file.localUri;
-                  const fileName = file.name || uri.split('/').pop() || `File ${index + 1}`;
-                  const isPdf = typeof uri === "string" && uri.toLowerCase().endsWith(".pdf");
-                  const isImage = !isPdf && (uri.includes("image") || uri.match(/\.(jpg|jpeg|png|gif|bmp|webp)$/i));
-                  
-                  return (
-                    <View key={`file-${index}`} style={styles.fileItem}>
-                      <View style={styles.fileIconContainer}>
-                        {isPdf ? (
-                          <Ionicons name="document-text-outline" size={24} color="#6366F1" />
-                        ) : isImage ? (
-                          <Image source={{ uri }} style={styles.fileThumbnail} />
-                        ) : (
-                          <Ionicons name="document-outline" size={24} color="#6366F1" />
-                        )}
-                      </View>
-                      <View style={styles.fileInfo}>
-                        <Text numberOfLines={1} style={styles.fileName}>
-                          {fileName}
-                        </Text>
-                        <Text style={styles.fileType}>
-                          {isPdf ? 'PDF' : isImage ? 'Image' : 'File'}
-                        </Text>
-                      </View>
-                      <TouchableOpacity 
-                        onPress={() => removeFile(index)}
-                        style={styles.removeButton}
-                      >
-                        <Ionicons name="close-circle" size={20} color="#EF4444" />
-                      </TouchableOpacity>
-                    </View>
-                  );
-                })}
-              </View>
-            )}
-          </View>
-
-          {/* Tags */}
+          {/* Category Tags */}
           <View style={styles.inputSection}>
             <Text style={styles.inputLabel}>Category</Text>
             <View style={styles.tagsRow}>
@@ -398,11 +168,11 @@ export default function NewIdeaModal({
 
           {/* Action Buttons */}
           <View style={styles.actionButtons}>
-            <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-              <Text style={styles.saveButtonText}>Save Idea</Text>
-            </TouchableOpacity>
             <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
               <Text style={styles.cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
+              <Text style={styles.saveButtonText}>{ideaId ? "Save" : "Create Idea"}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -425,15 +195,22 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   modalHeader: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#111827",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 24,
     paddingTop: 24,
     paddingBottom: 16,
-    textAlign: "center",
     borderBottomWidth: 1,
     borderBottomColor: "#F1F5F9",
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#111827",
+  },
+  closeButton: {
+    padding: 4,
   },
   scrollView: {
     flex: 1,
@@ -460,32 +237,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: "#F9FAFB",
   },
-  textAreaContainer: {
-    position: "relative",
-  },
   textArea: {
     borderWidth: 1,
     borderColor: "#D1D5DB",
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    paddingRight: 50,
     fontSize: 16,
     backgroundColor: "#F9FAFB",
-    minHeight: 100,
-  },
-  micButton: {
-    position: "absolute",
-    right: 12,
-    top: 12,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#F3F4F6",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
+    minHeight: 120,
   },
   urlContainer: {
     flexDirection: "row",
@@ -619,18 +379,34 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   actionButtons: {
+    flexDirection: "row",
+    gap: 12,
     paddingHorizontal: 24,
     paddingVertical: 20,
     borderTopWidth: 1,
     borderTopColor: "#F1F5F9",
     backgroundColor: "#F8FAFC",
   },
+  cancelButton: {
+    flex: 1,
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: "center",
+    backgroundColor: "#F3F4F6",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  cancelButtonText: {
+    color: "#6B7280",
+    fontSize: 16,
+    fontWeight: "600",
+  },
   saveButton: {
+    flex: 1,
     backgroundColor: "#6366F1",
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: "center",
-    marginBottom: 12,
     shadowColor: "#6366F1",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
@@ -641,14 +417,5 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "600",
     fontSize: 16,
-  },
-  cancelButton: {
-    paddingVertical: 12,
-    alignItems: "center",
-  },
-  cancelButtonText: {
-    color: "#6B7280",
-    fontSize: 16,
-    fontWeight: "500",
   },
 });

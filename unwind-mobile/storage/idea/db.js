@@ -30,18 +30,22 @@ export const insertIdea = async ({
   urls = [],
   files = [],
   tag = "miscellaneous",
+  researchTopics = [],
+  learnings = [],
 }) => {
   try {
     const db = await openDB();
     const urlsJson = JSON.stringify(urls);
     const filesJson = JSON.stringify(files);
+    const topicsJson = JSON.stringify(researchTopics);
+    const learningsJson = JSON.stringify(learnings);
     
     const currentTimestamp = new Date().toISOString();
     console.log("Creating idea with timestamp:", currentTimestamp);
     
     const result = await db.runAsync(
-      "INSERT INTO ideas (name, idea, urls, files, tag, time) VALUES (?, ?, ?, ?, ?, ?)",
-      [name, idea, urlsJson, filesJson, tag, currentTimestamp]
+      "INSERT INTO ideas (name, idea, urls, files, tag, time, researchTopics, learnings) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      [name, idea, urlsJson, filesJson, tag, currentTimestamp, topicsJson, learningsJson]
     );
     
     console.log("Idea created with ID:", result.lastInsertRowId);
@@ -59,7 +63,7 @@ export const insertIdea = async ({
   }
 };
 
-export const updateIdea = async ({ id, name, idea, urls, files, tag }) => {
+export const updateIdea = async ({ id, name, idea, urls, files, tag, researchTopics, learnings }) => {
   try {
     const db = await openDB();
     const existing = await db.getFirstAsync(
@@ -74,10 +78,12 @@ export const updateIdea = async ({ id, name, idea, urls, files, tag }) => {
     const nextFiles =
       files !== undefined ? JSON.stringify(files) : existing.files;
     const nextTag = tag || existing.tag;
+    const nextTopics = researchTopics !== undefined ? JSON.stringify(researchTopics) : existing.researchTopics;
+    const nextLearnings = learnings !== undefined ? JSON.stringify(learnings) : existing.learnings;
 
     await db.runAsync(
-      "UPDATE ideas SET name = ?, idea = ?, urls = ?, files = ?, tag = ? WHERE id = ?",
-      [nextName, nextIdea, nextUrls, nextFiles, nextTag, id]
+      "UPDATE ideas SET name = ?, idea = ?, urls = ?, files = ?, tag = ?, researchTopics = ?, learnings = ? WHERE id = ?",
+      [nextName, nextIdea, nextUrls, nextFiles, nextTag, nextTopics, nextLearnings, id]
     );
     return id;
   } catch (error) {
@@ -103,6 +109,8 @@ export const getIdeas = async () => {
       ...r,
       urls: r.urls ? JSON.parse(r.urls) : [],
       files: r.files ? JSON.parse(r.files) : [],
+      researchTopics: r.researchTopics ? JSON.parse(r.researchTopics) : [],
+      learnings: r.learnings ? JSON.parse(r.learnings) : [],
     }));
   } catch (error) {
     console.log("error from getIdeas of storage/idea/db.js", error);
@@ -120,6 +128,8 @@ export const getIdeaById = async (id) => {
       ...row,
       urls: row.urls ? JSON.parse(row.urls) : [],
       files: row.files ? JSON.parse(row.files) : [],
+      researchTopics: row.researchTopics ? JSON.parse(row.researchTopics) : [],
+      learnings: row.learnings ? JSON.parse(row.learnings) : [],
     };
   } catch (error) {
     console.log("error from getIdeaById of storage/idea/db.js", error);

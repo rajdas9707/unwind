@@ -11,14 +11,20 @@ import {
   ScrollView,
   StyleSheet,
   Platform,
+  Modal,
+  TextInput,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { getIdeaById, updateIdea, deleteIdea } from "../../storage/idea/db";
-import { deleteFile as deleteStoredFile } from "../../storage/idea/storage";
+import { deleteFile as deleteStoredFile, saveFiles } from "../../storage/idea/storage";
+import * as ImagePicker from "expo-image-picker";
+import * as DocumentPicker from "expo-document-picker";
 import { Ionicons } from "@expo/vector-icons";
 import NewIdeaModal from "../../components/idea/NewIdeaModal";
 import FileViewer from "../../components/shared/FileViewer";
+
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 
 export default function IdeaDetail() {
   const { id } = useLocalSearchParams();
@@ -26,6 +32,16 @@ export default function IdeaDetail() {
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [viewerVisible, setViewerVisible] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
+  
+  // Modal states
+  const [topicModalVisible, setTopicModalVisible] = useState(false);
+  const [linkModalVisible, setLinkModalVisible] = useState(false);
+  const [learningModalVisible, setLearningModalVisible] = useState(false);
+  const [editingLearningIndex, setEditingLearningIndex] = useState(null);
+  const [newTopic, setNewTopic] = useState("");
+  const [newLink, setNewLink] = useState("");
+  const [newLearning, setNewLearning] = useState("");
+  
   const router = useRouter();
 
   const load = async () => {
@@ -102,6 +118,228 @@ export default function IdeaDetail() {
   const handleFilePress = (index) => {
     setViewerIndex(index);
     setViewerVisible(true);
+  };
+
+  // Add Research Topic
+  const handleAddTopic = async () => {
+    if (!newTopic.trim()) return;
+    
+    try {
+      const topics = idea.researchTopics || [];
+      const updatedTopics = [...topics, newTopic.trim()];
+      
+      await updateIdea({
+        ...idea,
+        researchTopics: updatedTopics,
+      });
+      
+      setIdea({ ...idea, researchTopics: updatedTopics });
+      setNewTopic("");
+      setTopicModalVisible(false);
+    } catch (error) {
+      console.log("Error adding topic:", error);
+      Alert.alert("Error", "Failed to add topic");
+    }
+  };
+
+  // Remove Research Topic
+  const handleRemoveTopic = async (index) => {
+    try {
+      const topics = idea.researchTopics || [];
+      const updatedTopics = topics.filter((_, i) => i !== index);
+      
+      await updateIdea({
+        ...idea,
+        researchTopics: updatedTopics,
+      });
+      
+      setIdea({ ...idea, researchTopics: updatedTopics });
+    } catch (error) {
+      console.log("Error removing topic:", error);
+      Alert.alert("Error", "Failed to remove topic");
+    }
+  };
+
+  // Add Link
+  const handleAddLink = async () => {
+    if (!newLink.trim()) return;
+    
+    try {
+      const urls = idea.urls || [];
+      const updatedUrls = [...urls, newLink.trim()];
+      
+      await updateIdea({
+        ...idea,
+        urls: updatedUrls,
+      });
+      
+      setIdea({ ...idea, urls: updatedUrls });
+      setNewLink("");
+      setLinkModalVisible(false);
+    } catch (error) {
+      console.log("Error adding link:", error);
+      Alert.alert("Error", "Failed to add link");
+    }
+  };
+
+  // Remove Link
+  const handleRemoveLink = async (index) => {
+    try {
+      const urls = idea.urls || [];
+      const updatedUrls = urls.filter((_, i) => i !== index);
+      
+      await updateIdea({
+        ...idea,
+        urls: updatedUrls,
+      });
+      
+      setIdea({ ...idea, urls: updatedUrls });
+    } catch (error) {
+      console.log("Error removing link:", error);
+      Alert.alert("Error", "Failed to remove link");
+    }
+  };
+
+  // Add Files
+  const handlePickFiles = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ["application/pdf", "image/*"],
+        multiple: true,
+        copyToCacheDirectory: true,
+      });
+      
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const validFiles = result.assets.filter((file) => {
+          if (file.size && file.size > MAX_FILE_SIZE) {
+            Alert.alert(
+              "File Too Large",
+              `${file.name || "A file"} exceeds 10 MB and was skipped.`
+            );
+            return false;
+          }
+          return true;
+        });
+
+        if (validFiles.length > 0) {
+          const savedUris = await saveFiles({
+            files: validFiles,
+            fileLabel: "idea",
+            ideaId: idea.id,
+          });
+          
+          const updatedFiles = [...(idea.files || []), ...savedUris];
+          
+          await updateIdea({
+            ...idea,
+            files: updatedFiles,
+          });
+          
+          setIdea({ ...idea, files: updatedFiles });
+        }
+      }
+    } catch (error) {
+      console.log("Error picking files:", error);
+      Alert.alert("Error", "Failed to add files");
+    }
+  };
+
+  // Take Photo
+  const handleTakePhoto = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission required", "Camera permission is required.");
+        return;
+      }
+      
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.7,
+      });
+      
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const savedUris = await saveFiles({
+          files: result.assets,
+          fileLabel: "idea",
+          ideaId: idea.id,
+        });
+        
+        const updatedFiles = [...(idea.files || []), ...savedUris];
+        
+        await updateIdea({
+          ...idea,
+          files: updatedFiles,
+        });
+        
+        setIdea({ ...idea, files: updatedFiles });
+      }
+    } catch (error) {
+      console.log("Error taking photo:", error);
+      Alert.alert("Error", "Failed to add photo");
+    }
+  };
+
+  // Add or Edit Learning
+  const handleAddLearning = async () => {
+    if (!newLearning.trim()) return;
+    
+    try {
+      const learnings = idea.learnings || [];
+      let updatedLearnings;
+      
+      if (editingLearningIndex !== null) {
+        // Edit existing learning
+        updatedLearnings = learnings.map((learning, index) => 
+          index === editingLearningIndex 
+            ? { ...learning, text: newLearning.trim(), editedDate: new Date().toISOString() }
+            : learning
+        );
+      } else {
+        // Add new learning
+        updatedLearnings = [...learnings, { text: newLearning.trim(), date: new Date().toISOString() }];
+      }
+      
+      await updateIdea({
+        ...idea,
+        learnings: updatedLearnings,
+      });
+      
+      setIdea({ ...idea, learnings: updatedLearnings });
+      setNewLearning("");
+      setEditingLearningIndex(null);
+      setLearningModalVisible(false);
+    } catch (error) {
+      console.log("Error saving learning:", error);
+      Alert.alert("Error", "Failed to save learning");
+    }
+  };
+
+  // Open Edit Learning Modal
+  const handleEditLearning = (index) => {
+    const learning = idea.learnings[index];
+    setNewLearning(learning.text);
+    setEditingLearningIndex(index);
+    setLearningModalVisible(true);
+  };
+
+  // Remove Learning
+  const handleRemoveLearning = async (index) => {
+    try {
+      const learnings = idea.learnings || [];
+      const updatedLearnings = learnings.filter((_, i) => i !== index);
+      
+      await updateIdea({
+        ...idea,
+        learnings: updatedLearnings,
+      });
+      
+      setIdea({ ...idea, learnings: updatedLearnings });
+    } catch (error) {
+      console.log("Error removing learning:", error);
+      Alert.alert("Error", "Failed to remove learning");
+    }
   };
 
   if (!idea) return null;
@@ -191,13 +429,57 @@ export default function IdeaDetail() {
             </View>
           )}
 
-          {/* URLs Section */}
-          {idea.urls?.length > 0 && (
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Ionicons name="link" size={20} color="#10B981" />
-                <Text style={styles.sectionTitle}>Links ({idea.urls.length})</Text>
+          {/* Research Topics Section */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeaderWithAction}>
+              <View style={styles.sectionHeaderLeft}>
+                <Ionicons name="bulb-outline" size={20} color="#F59E0B" />
+                <Text style={styles.sectionTitle}>Research Topics</Text>
               </View>
+              <TouchableOpacity 
+                style={styles.addButton}
+                onPress={() => setTopicModalVisible(true)}
+              >
+                <Ionicons name="add" size={20} color="#F59E0B" />
+              </TouchableOpacity>
+            </View>
+            {idea.researchTopics && idea.researchTopics.length > 0 ? (
+              <View style={styles.topicsList}>
+                {idea.researchTopics.map((topic, index) => (
+                  <View key={`topic-${index}`} style={styles.topicItem}>
+                    <View style={styles.topicDot} />
+                    <Text style={styles.topicText}>{topic}</Text>
+                    <TouchableOpacity
+                      onPress={() => handleRemoveTopic(index)}
+                      style={styles.removeButton}
+                    >
+                      <Ionicons name="close-circle" size={18} color="#EF4444" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <View style={styles.emptySection}>
+                <Text style={styles.emptyText}>No research topics yet</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Links Section */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeaderWithAction}>
+              <View style={styles.sectionHeaderLeft}>
+                <Ionicons name="link" size={20} color="#10B981" />
+                <Text style={styles.sectionTitle}>Links</Text>
+              </View>
+              <TouchableOpacity 
+                style={styles.addButton}
+                onPress={() => setLinkModalVisible(true)}
+              >
+                <Ionicons name="add" size={20} color="#10B981" />
+              </TouchableOpacity>
+            </View>
+            {idea.urls && idea.urls.length > 0 ? (
               <View style={styles.urlsList}>
                 {idea.urls.map((url, index) => {
                   const handleUrlPress = async () => {
@@ -251,21 +533,49 @@ export default function IdeaDetail() {
                       <Text style={styles.urlText} numberOfLines={1}>
                         {url}
                       </Text>
-                      <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
+                      <TouchableOpacity
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          handleRemoveLink(index);
+                        }}
+                        style={styles.removeButton}
+                      >
+                        <Ionicons name="close-circle" size={18} color="#EF4444" />
+                      </TouchableOpacity>
                     </TouchableOpacity>
                   );
                 })}
               </View>
-            </View>
-          )}
+            ) : (
+              <View style={styles.emptySection}>
+                <Text style={styles.emptyText}>No links yet</Text>
+              </View>
+            )}
+          </View>
 
           {/* Files Section */}
-          {idea.files?.length > 0 && (
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
+          <View style={styles.section}>
+            <View style={styles.sectionHeaderWithAction}>
+              <View style={styles.sectionHeaderLeft}>
                 <Ionicons name="folder" size={20} color="#8B5CF6" />
-                <Text style={styles.sectionTitle}>Files ({idea.files.length})</Text>
+                <Text style={styles.sectionTitle}>Files</Text>
               </View>
+              <View style={styles.fileActions}>
+                <TouchableOpacity 
+                  style={styles.addButton}
+                  onPress={handleTakePhoto}
+                >
+                  <Ionicons name="camera" size={20} color="#8B5CF6" />
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.addButton}
+                  onPress={handlePickFiles}
+                >
+                  <Ionicons name="add" size={20} color="#8B5CF6" />
+                </TouchableOpacity>
+              </View>
+            </View>
+            {idea.files && idea.files.length > 0 ? (
               <View style={styles.filesList}>
                 {idea.files.map((file, index) => {
                   const uri = file;
@@ -307,9 +617,192 @@ export default function IdeaDetail() {
                   );
                 })}
               </View>
+            ) : (
+              <View style={styles.emptySection}>
+                <Text style={styles.emptyText}>No files yet</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Learnings Section */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeaderWithAction}>
+              <View style={styles.sectionHeaderLeft}>
+                <Ionicons name="school-outline" size={20} color="#3B82F6" />
+                <Text style={styles.sectionTitle}>Learnings</Text>
+              </View>
+              <TouchableOpacity 
+                style={styles.addButton}
+                onPress={() => setLearningModalVisible(true)}
+              >
+                <Ionicons name="add" size={20} color="#3B82F6" />
+              </TouchableOpacity>
             </View>
-          )}
+            {idea.learnings && idea.learnings.length > 0 ? (
+              <View style={styles.learningsList}>
+                {idea.learnings.map((learning, index) => (
+                  <View key={`learning-${index}`} style={styles.learningItem}>
+                    <TouchableOpacity 
+                      style={styles.learningContent}
+                      onPress={() => handleEditLearning(index)}
+                    >
+                      <Text style={styles.learningText}>{learning.text}</Text>
+                      <Text style={styles.learningDate}>
+                        {learning.editedDate ? 'Edited ' : ''}
+                        {new Date(learning.editedDate || learning.date).toLocaleDateString('en-US', { 
+                          month: 'short', 
+                          day: 'numeric', 
+                          year: 'numeric' 
+                        })}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => handleRemoveLearning(index)}
+                      style={styles.removeButton}
+                    >
+                      <Ionicons name="close-circle" size={18} color="#EF4444" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <View style={styles.emptySection}>
+                <Text style={styles.emptyText}>No learnings yet</Text>
+              </View>
+            )}
+          </View>
         </ScrollView>
+
+        {/* Add Topic Modal */}
+        <Modal
+          animationType="fade"
+          transparent
+          visible={topicModalVisible}
+          onRequestClose={() => setTopicModalVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContainer}>
+              <Text style={styles.modalTitle}>Add Research Topic</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Enter research topic..."
+                value={newTopic}
+                onChangeText={setNewTopic}
+                autoFocus
+                multiline
+              />
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={styles.modalCancelButton}
+                  onPress={() => {
+                    setNewTopic("");
+                    setTopicModalVisible(false);
+                  }}
+                >
+                  <Text style={styles.modalCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalSaveButton, { backgroundColor: "#F59E0B" }]}
+                  onPress={handleAddTopic}
+                  disabled={!newTopic.trim()}
+                >
+                  <Text style={styles.modalSaveText}>Add</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Add Link Modal */}
+        <Modal
+          animationType="fade"
+          transparent
+          visible={linkModalVisible}
+          onRequestClose={() => setLinkModalVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContainer}>
+              <Text style={styles.modalTitle}>Add Link</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Enter URL..."
+                value={newLink}
+                onChangeText={setNewLink}
+                autoFocus
+                keyboardType="url"
+                autoCapitalize="none"
+              />
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={styles.modalCancelButton}
+                  onPress={() => {
+                    setNewLink("");
+                    setLinkModalVisible(false);
+                  }}
+                >
+                  <Text style={styles.modalCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalSaveButton, { backgroundColor: "#10B981" }]}
+                  onPress={handleAddLink}
+                  disabled={!newLink.trim()}
+                >
+                  <Text style={styles.modalSaveText}>Add</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Add Learning Modal */}
+        <Modal
+          animationType="fade"
+          transparent
+          visible={learningModalVisible}
+          onRequestClose={() => {
+            setLearningModalVisible(false);
+            setEditingLearningIndex(null);
+            setNewLearning("");
+          }}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContainer}>
+              <Text style={styles.modalTitle}>
+                {editingLearningIndex !== null ? 'Edit Learning' : 'Add Learning'}
+              </Text>
+              <TextInput
+                style={[styles.modalInput, { minHeight: 100 }]}
+                placeholder="What did you learn?"
+                value={newLearning}
+                onChangeText={setNewLearning}
+                autoFocus
+                multiline
+                textAlignVertical="top"
+              />
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={styles.modalCancelButton}
+                  onPress={() => {
+                    setNewLearning("");
+                    setEditingLearningIndex(null);
+                    setLearningModalVisible(false);
+                  }}
+                >
+                  <Text style={styles.modalCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalSaveButton, { backgroundColor: "#3B82F6" }]}
+                  onPress={handleAddLearning}
+                  disabled={!newLearning.trim()}
+                >
+                  <Text style={styles.modalSaveText}>
+                    {editingLearningIndex !== null ? 'Save' : 'Add'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
 
         {/* Edit Modal */}
         <NewIdeaModal
@@ -581,5 +1074,169 @@ const styles = StyleSheet.create({
   },
   removeButton: {
     padding: 4,
+  },
+  sectionHeaderWithAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  sectionHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  addButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  fileActions: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  emptySection: {
+    backgroundColor: "rgba(255, 255, 255, 0.5)",
+    borderRadius: 12,
+    padding: 24,
+    alignItems: "center",
+  },
+  emptyText: {
+    fontSize: 14,
+    color: "#9CA3AF",
+    fontStyle: "italic",
+  },
+  topicsList: {
+    gap: 8,
+  },
+  topicItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "rgba(245, 158, 11, 0.1)",
+    shadowColor: "#F59E0B",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  topicDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#F59E0B",
+    marginRight: 12,
+  },
+  topicText: {
+    flex: 1,
+    fontSize: 14,
+    color: "#111827",
+    fontWeight: "500",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContainer: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 24,
+    width: "85%",
+    maxWidth: 400,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#111827",
+    marginBottom: 16,
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    backgroundColor: "#F9FAFB",
+    marginBottom: 16,
+    minHeight: 48,
+  },
+  modalButtons: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  modalCancelButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: "center",
+    backgroundColor: "#F3F4F6",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  modalCancelText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#6B7280",
+  },
+  modalSaveButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+  modalSaveText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
+  learningsList: {
+    gap: 10,
+  },
+  learningItem: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "rgba(59, 130, 246, 0.1)",
+    shadowColor: "#3B82F6",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  learningContent: {
+    flex: 1,
+    marginRight: 8,
+  },
+  learningText: {
+    fontSize: 14,
+    color: "#111827",
+    lineHeight: 20,
+    marginBottom: 6,
+  },
+  learningDate: {
+    fontSize: 11,
+    color: "#9CA3AF",
+    fontStyle: "italic",
   },
 });

@@ -1,4 +1,5 @@
 import { initBuyItemsTable } from "./buyItems/db";
+import { initCustomListsTable } from "./customLists/db";
 import { initDocumentsTable } from "./document/db";
 import { initIdeasTable } from "./idea/db";
 import { initJournalsTable } from "./journal/db";
@@ -12,6 +13,7 @@ export const initTable = async () => {
   try {
     // Initialize all tables
     await initBuyItemsTable();
+    await initCustomListsTable();
     await initDocumentsTable();
     await initIdeasTable();
     await initJournalsTable();

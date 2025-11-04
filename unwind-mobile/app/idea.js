@@ -14,39 +14,40 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import NewIdeaModal from "../components/idea/NewIdeaModal";
 import { getIdeas } from "../storage/idea/db";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
+import { useCallback } from "react";
 
 const initialIdeas = [];
 
 // Helper function to format date
 const formatDate = (dateString) => {
   if (!dateString) return "Unknown";
-  
+
   try {
     const date = new Date(dateString);
     if (isNaN(date.getTime())) return "Invalid date";
-    
+
     const now = new Date();
     const diffInMs = now.getTime() - date.getTime();
-    
+
     console.log("Date formatting debug:", {
       dateString,
       date: date.toISOString(),
       now: now.toISOString(),
       diffInMs,
-      diffInMinutes: Math.floor(diffInMs / (1000 * 60))
+      diffInMinutes: Math.floor(diffInMs / (1000 * 60)),
     });
-    
+
     const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
     const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
     const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
-    
+
     if (diffInMs < 0) return "Just now"; // Future date
     if (diffInMinutes < 1) return "Just now";
     if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
     if (diffInHours < 24) return `${diffInHours}h ago`;
     if (diffInDays < 7) return `${diffInDays}d ago`;
-    
+
     return date.toLocaleDateString();
   } catch (error) {
     console.log("Error formatting date:", error);
@@ -68,9 +69,12 @@ export default function IdeaScreen() {
     }
   };
 
-  useEffect(() => {
-    loadIdeas();
-  }, []);
+  // Refresh ideas when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      loadIdeas();
+    }, [])
+  );
 
   const addIdea = () => {
     setModalVisible(false);
@@ -80,7 +84,9 @@ export default function IdeaScreen() {
   const renderItem = ({ item }) => (
     <TouchableOpacity
       style={styles.ideaCard}
-      onPress={() => router.push({ pathname: "/idea/[id]", params: { id: item.id } })}
+      onPress={() =>
+        router.push({ pathname: "/idea/[id]", params: { id: item.id } })
+      }
       activeOpacity={0.8}
     >
       <View style={styles.ideaHeader}>
@@ -94,9 +100,7 @@ export default function IdeaScreen() {
           <View style={styles.ideaMeta}>
             <View style={styles.metaItem}>
               <Ionicons name="pricetag-outline" size={12} color="#6366F1" />
-              <Text style={styles.metaText}>
-                {item.tag || "miscellaneous"}
-              </Text>
+              <Text style={styles.metaText}>{item.tag || "miscellaneous"}</Text>
             </View>
             <View style={styles.metaItem}>
               <Ionicons name="document-outline" size={12} color="#10B981" />
@@ -114,9 +118,7 @@ export default function IdeaScreen() {
         </View>
       </View>
       <View style={styles.ideaFooter}>
-        <Text style={styles.timeText}>
-          {formatDate(item.time)}
-        </Text>
+        <Text style={styles.timeText}>{formatDate(item.time)}</Text>
         <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
       </View>
     </TouchableOpacity>
@@ -124,12 +126,12 @@ export default function IdeaScreen() {
 
   return (
     <LinearGradient
-      colors={['#F8FAFC', '#F1F5F9', '#EEF2FF']}
+      colors={["#F8FAFC", "#F1F5F9", "#EEF2FF"]}
       style={styles.gradientContainer}
     >
       <SafeAreaView style={styles.container}>
         <StatusBar style="dark" />
-        
+
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerContent}>
@@ -137,16 +139,16 @@ export default function IdeaScreen() {
               <Ionicons name="bulb" size={28} color="#F59E0B" />
             </View>
             <View style={styles.titleText}>
-              <Text style={styles.title}>IdeaStream</Text>
+              <Text style={styles.title}>IdeaStream </Text>
               <Text style={styles.subtitle}>
-                {ideas.length} {ideas.length === 1 ? 'idea' : 'ideas'} captured
+                {ideas.length} {ideas.length === 1 ? "idea" : "ideas"} captured
               </Text>
             </View>
           </View>
         </View>
 
         {/* Ideas List */}
-        <ScrollView 
+        <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
@@ -167,7 +169,7 @@ export default function IdeaScreen() {
           activeOpacity={0.8}
         >
           <LinearGradient
-            colors={['#8B5CF6', '#6366F1']}
+            colors={["#8B5CF6", "#6366F1"]}
             style={styles.fabGradient}
           >
             <Ionicons name="add" size={28} color="#fff" />

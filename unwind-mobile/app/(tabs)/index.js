@@ -38,33 +38,31 @@ const { width } = Dimensions.get("window");
 
 export default function HomeScreen() {
   const { user } = useContext(AuthContext);
- const capitalize = (s) => s?.charAt(0).toUpperCase() + s?.slice(1);
+  const capitalize = (s) => s?.charAt(0).toUpperCase() + s?.slice(1);
   const [userInfo, setUserInfo] = useState({});
   const [taskCount, setTaskCount] = useState(0);
 
-// Function to get dynamic greeting based on time
-const getGreeting = () => {
-  const hour = new Date().getHours();
-  if (hour < 12) return "Good morning";
-  if (hour < 17) return "Good afternoon";
-  return "Good evening";
-};
-
+  // Function to get dynamic greeting based on time
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good morning";
+    if (hour < 17) return "Good afternoon";
+    return "Good evening";
+  };
 
   useEffect(() => {
-
     const userInfo = async () => {
       try {
-        const userInfoString = JSON.parse(await AsyncStorage.getItem("userInfo"));
+        const userInfoString = JSON.parse(
+          await AsyncStorage.getItem("userInfo")
+        );
         setUserInfo(userInfoString);
       } catch (error) {
         console.error("Error fetching user info:", error);
       }
-
-    }
+    };
     userInfo();
   }, []);
-
 
   // Water reminder states
   const [waterReminders, setWaterReminders] = useState([]);
@@ -196,6 +194,14 @@ const getGreeting = () => {
       icon: "repeat",
       color: "#22C55E",
       click: () => router.push("/habits-reminder"),
+    },
+    {
+      id: 9,
+      title: "Custom Lists",
+      subtitle: "Organize anything",
+      icon: "list-circle",
+      color: "#6BCB77",
+      click: () => router.push("/lists"),
     },
   ];
 
@@ -443,8 +449,13 @@ const getGreeting = () => {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <Text style={styles.greeting}>{`${getGreeting()} ${capitalize(userInfo?.name)} 👋`}</Text>
-          <Text style={styles.subtitle}> Hope you’re having a productive day! ✨</Text>
+          <Text style={styles.greeting}>{`${getGreeting()} ${capitalize(
+            userInfo?.name
+          )} 👋`}</Text>
+          <Text style={styles.subtitle}>
+            {" "}
+            Hope you’re having a productive day! ✨
+          </Text>
         </View>
 
         <View style={styles.quoteCard}>
@@ -454,7 +465,7 @@ const getGreeting = () => {
           <Text style={styles.quote}>
             {
               motivationalQuotes[
-              Math.floor(Math.random() * motivationalQuotes.length)
+                Math.floor(Math.random() * motivationalQuotes.length)
               ]
             }
           </Text>
@@ -526,30 +537,39 @@ const getGreeting = () => {
           </View>
         </View>
 
-
-
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Today's Progress</Text>
-          <View style={styles.progressCard}>
-            <View style={styles.progressItem}>
-              <Ionicons name="book" size={20} color="#3B82F6" />
-              <Text style={styles.progressLabel}>Journal Entries</Text>
-              <Text style={styles.progressValue}>2</Text>
+          <View style={styles.progressCardContainer}>
+            <View style={styles.progressCard}>
+              <View style={styles.progressItem}>
+                <Ionicons name="book" size={20} color="#3B82F6" />
+                <Text style={styles.progressLabel}>Journal Entries</Text>
+                <Text style={styles.progressValue}>2</Text>
+              </View>
+              <View style={styles.progressItem}>
+                <Ionicons name="bulb" size={20} color="#8B5CF6" />
+                <Text style={styles.progressLabel}>Thoughts Released</Text>
+                <Text style={styles.progressValue}>1</Text>
+              </View>
+              <View style={styles.progressItem}>
+                <Ionicons name="checkbox" size={20} color="#10B981" />
+                <Text style={styles.progressLabel}>Tasks Completed</Text>
+                <Text style={styles.progressValue}>{taskCount}</Text>
+              </View>
+              <View style={styles.progressItem}>
+                <Ionicons name="alert-circle" size={20} color="#F59E0B" />
+                <Text style={styles.progressLabel}>Mistakes Avoided</Text>
+                <Text style={styles.progressValue}>3</Text>
+              </View>
             </View>
-            <View style={styles.progressItem}>
-              <Ionicons name="bulb" size={20} color="#8B5CF6" />
-              <Text style={styles.progressLabel}>Thoughts Released</Text>
-              <Text style={styles.progressValue}>1</Text>
-            </View>
-            <View style={styles.progressItem}>
-              <Ionicons name="checkbox" size={20} color="#10B981" />
-              <Text style={styles.progressLabel}>Tasks Completed</Text>
-              <Text style={styles.progressValue}>{taskCount}</Text>
-            </View>
-            <View style={styles.progressItem}>
-              <Ionicons name="alert-circle" size={20} color="#F59E0B" />
-              <Text style={styles.progressLabel}>Mistakes Avoided</Text>
-              <Text style={styles.progressValue}>3</Text>
+            <View style={styles.comingSoonOverlay}>
+              <View style={styles.comingSoonContainer}>
+                <Ionicons name="time-outline" size={48} color="#8B5CF6" />
+                <Text style={styles.comingSoonTitle}>Coming Soon</Text>
+                <Text style={styles.comingSoonText}>
+                  Track your daily progress
+                </Text>
+              </View>
             </View>
           </View>
         </View>
@@ -972,6 +992,11 @@ const styles = StyleSheet.create({
     color: "#6B7280",
     lineHeight: 20,
   },
+  progressCardContainer: {
+    position: "relative",
+    overflow: "hidden",
+    borderRadius: 12,
+  },
   progressCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 12,
@@ -981,6 +1006,34 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
+  },
+  comingSoonOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 12,
+    backgroundColor: "rgba(255, 255, 255, 0.60)",
+    overflow: "hidden",
+  },
+  comingSoonContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  comingSoonTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#111827",
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  comingSoonText: {
+    fontSize: 14,
+    color: "#6B7280",
+    textAlign: "center",
   },
   progressItem: {
     flexDirection: "row",

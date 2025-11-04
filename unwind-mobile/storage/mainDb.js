@@ -6,6 +6,9 @@ import * as v4 from "./migrations/v4";
 import * as v5 from "./migrations/v5";
 import * as v6 from "./migrations/v6";
 import * as v7 from "./migrations/v7";
+import * as v8 from "./migrations/v8";
+import * as v9 from "./migrations/v9";
+import * as v10 from "./migrations/v10";
 
 // Singleton database connection
 let dbInstance = null;
@@ -102,7 +105,7 @@ async function runMigrations(db) {
     let currentVersion = result.user_version || 0;
 
     // List of all migrations in order
-  const migrations = [v1, v2, v3, v4, v5, v6, v7];
+  const migrations = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10];
 
     console.log("Migrations", migrations);
 

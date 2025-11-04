@@ -440,8 +440,6 @@ export default function MistakesScreen() {
       return () => {
         isMounted = false;
         isScreenActiveRef.current = false;
-        console.log("Screen is losing focus, resetting selectedDate to null.");
-        setSelectedDate(null);
       };
     }, [selectedDate])
   );

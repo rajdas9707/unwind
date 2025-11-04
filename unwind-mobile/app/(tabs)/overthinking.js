@@ -438,8 +438,6 @@ export default function OverthinkingScreen() {
       // Cleanup function
       return () => {
         isMounted = false;
-        console.log("Screen is losing focus, resetting selectedDate to null.");
-        setSelectedDate(null);
       };
     }, [selectedDate])
   );
