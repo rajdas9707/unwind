@@ -74,10 +74,24 @@ export default function ReminderScreen() {
           "CREATE TABLE IF NOT EXISTS reminders (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, description TEXT, datetime TEXT, repeat_every_days INTEGER, repeat_until TEXT, series_id TEXT, notification_id TEXT);"
         );
         // Optional migrations for older installs
-        try { await db.execAsync("ALTER TABLE reminders ADD COLUMN repeat_every_days INTEGER"); } catch (e) {}
-        try { await db.execAsync("ALTER TABLE reminders ADD COLUMN repeat_until TEXT"); } catch (e) {}
-        try { await db.execAsync("ALTER TABLE reminders ADD COLUMN series_id TEXT"); } catch (e) {}
-        try { await db.execAsync("ALTER TABLE reminders ADD COLUMN notification_id TEXT"); } catch (e) {}
+        try {
+          await db.execAsync(
+            "ALTER TABLE reminders ADD COLUMN repeat_every_days INTEGER"
+          );
+        } catch (e) {}
+        try {
+          await db.execAsync(
+            "ALTER TABLE reminders ADD COLUMN repeat_until TEXT"
+          );
+        } catch (e) {}
+        try {
+          await db.execAsync("ALTER TABLE reminders ADD COLUMN series_id TEXT");
+        } catch (e) {}
+        try {
+          await db.execAsync(
+            "ALTER TABLE reminders ADD COLUMN notification_id TEXT"
+          );
+        } catch (e) {}
         await fetchReminders();
       } catch (error) {
         console.error("Database initialization error:", error);
@@ -119,41 +133,51 @@ export default function ReminderScreen() {
 
   const upcoming = useMemo(() => {
     const now = new Date();
-    const singles = reminders.filter(r => !r.series_id && new Date(r.datetime) > now);
-    const series = reminders.filter(r => r.series_id);
+    const singles = reminders.filter(
+      (r) => !r.series_id && new Date(r.datetime) > now
+    );
+    const series = reminders.filter((r) => r.series_id);
     const bySeries = new Map();
-    series.forEach(r => {
+    series.forEach((r) => {
       if (!bySeries.has(r.series_id)) bySeries.set(r.series_id, []);
       bySeries.get(r.series_id).push(r);
     });
     const picks = [];
-    bySeries.forEach(list => {
-      list.sort((a,b) => new Date(a.datetime) - new Date(b.datetime));
-      const chosen = list.find(r => new Date(r.datetime) > now);
+    bySeries.forEach((list) => {
+      list.sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
+      const chosen = list.find((r) => new Date(r.datetime) > now);
       if (chosen) picks.push({ ...chosen, __isSeries: true });
     });
-    const result = [...picks, ...singles.map(r => ({...r, __isSeries: false}))];
-    return result.sort((a,b) => new Date(a.datetime) - new Date(b.datetime));
+    const result = [
+      ...picks,
+      ...singles.map((r) => ({ ...r, __isSeries: false })),
+    ];
+    return result.sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
   }, [reminders]);
 
   const missed = useMemo(() => {
     const now = new Date();
-    const singles = reminders.filter(r => !r.series_id && new Date(r.datetime) <= now);
-    const series = reminders.filter(r => r.series_id);
+    const singles = reminders.filter(
+      (r) => !r.series_id && new Date(r.datetime) <= now
+    );
+    const series = reminders.filter((r) => r.series_id);
     const bySeries = new Map();
-    series.forEach(r => {
+    series.forEach((r) => {
       if (!bySeries.has(r.series_id)) bySeries.set(r.series_id, []);
       bySeries.get(r.series_id).push(r);
     });
     const picks = [];
-    bySeries.forEach(list => {
-      list.sort((a,b) => new Date(a.datetime) - new Date(b.datetime));
-      const past = list.filter(r => new Date(r.datetime) <= now);
+    bySeries.forEach((list) => {
+      list.sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
+      const past = list.filter((r) => new Date(r.datetime) <= now);
       const chosen = past[past.length - 1];
       if (chosen) picks.push({ ...chosen, __isSeries: true });
     });
-    const result = [...picks, ...singles.map(r => ({...r, __isSeries: false}))];
-    return result.sort((a,b) => new Date(a.datetime) - new Date(b.datetime));
+    const result = [
+      ...picks,
+      ...singles.map((r) => ({ ...r, __isSeries: false })),
+    ];
+    return result.sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
   }, [reminders]);
 
   const visibleReminders = useMemo(() => {
@@ -228,7 +252,8 @@ export default function ReminderScreen() {
 
   // Add or update reminder
   // Simple series id generator
-  const genSeriesId = () => `s_${Date.now()}_${Math.floor(Math.random()*1e6)}`;
+  const genSeriesId = () =>
+    `s_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
 
   const addReminder = async () => {
     if (!taskName.trim()) {
@@ -264,11 +289,17 @@ export default function ReminderScreen() {
         return;
       }
       if (until < reminderDate) {
-        Alert.alert("Invalid Range", "Repeat until date must be after the reminder date.");
+        Alert.alert(
+          "Invalid Range",
+          "Repeat until date must be after the reminder date."
+        );
         return;
       }
       if (!repeatEveryDays || repeatEveryDays < 1) {
-        Alert.alert("Invalid Frequency", "Repeat frequency must be at least 1 day.");
+        Alert.alert(
+          "Invalid Frequency",
+          "Repeat frequency must be at least 1 day."
+        );
         return;
       }
       repeatUntilDate = until;
@@ -279,11 +310,18 @@ export default function ReminderScreen() {
 
       if (isEditing && editingId) {
         // Update existing reminder in place; preserve series metadata and repeat fields
-        const existing = await db.getFirstAsync("SELECT series_id, notification_id FROM reminders WHERE id = ?", [editingId]);
+        const existing = await db.getFirstAsync(
+          "SELECT series_id, notification_id FROM reminders WHERE id = ?",
+          [editingId]
+        );
 
         // Cancel previously scheduled notification if stored
         if (existing?.notification_id) {
-          try { await Notifications.cancelScheduledNotificationAsync(existing.notification_id); } catch {}
+          try {
+            await Notifications.cancelScheduledNotificationAsync(
+              existing.notification_id
+            );
+          } catch {}
         }
 
         await db.runAsync(
@@ -320,7 +358,9 @@ export default function ReminderScreen() {
             taskDesc,
             reminderDate.toISOString(),
             repeatEnabled ? repeatEveryDays : null,
-            repeatEnabled && repeatUntilDate ? repeatUntilDate.toISOString() : null,
+            repeatEnabled && repeatUntilDate
+              ? repeatUntilDate.toISOString()
+              : null,
             seriesId,
           ]
         );
@@ -351,7 +391,14 @@ export default function ReminderScreen() {
             const iso = next.toISOString();
             const ins = await db.runAsync(
               "INSERT INTO reminders (name, description, datetime, repeat_every_days, repeat_until, series_id, notification_id) VALUES (?, ?, ?, ?, ?, ?, NULL)",
-              [taskName, taskDesc, iso, repeatEveryDays, repeatUntilDate.toISOString(), seriesId]
+              [
+                taskName,
+                taskDesc,
+                iso,
+                repeatEveryDays,
+                repeatUntilDate.toISOString(),
+                seriesId,
+              ]
             );
 
             if (next > new Date()) {
@@ -389,7 +436,10 @@ export default function ReminderScreen() {
     try {
       console.log("Edit button pressed for:", reminder.id);
       const db = await getDatabase();
-      const row = await db.getFirstAsync("SELECT * FROM reminders WHERE id = ?", [reminder.id]);
+      const row = await db.getFirstAsync(
+        "SELECT * FROM reminders WHERE id = ?",
+        [reminder.id]
+      );
       const r = row || reminder;
       const reminderDate = new Date(r.datetime);
       setTaskName(r.name || "");
@@ -403,7 +453,9 @@ export default function ReminderScreen() {
       const repUntil = r.repeat_until || null;
       setRepeatEnabled(!!(r.series_id || (repDays && repUntil)));
       setRepeatEveryDays(repDays || 1);
-      setRepeatUntil(repUntil ? new Date(repUntil).toISOString().split("T")[0] : "");
+      setRepeatUntil(
+        repUntil ? new Date(repUntil).toISOString().split("T")[0] : ""
+      );
 
       setIsEditing(true);
       setEditingId(r.id);
@@ -431,23 +483,40 @@ export default function ReminderScreen() {
       if (selectedKey === "backlogs") {
         // Missed tab: delete only this single occurrence
         if (item.notification_id) {
-          try { await Notifications.cancelScheduledNotificationAsync(item.notification_id); } catch {}
+          try {
+            await Notifications.cancelScheduledNotificationAsync(
+              item.notification_id
+            );
+          } catch {}
         }
         await db.runAsync("DELETE FROM reminders WHERE id = ?", [item.id]);
       } else {
         // Upcoming tab: keep prior behavior — delete series if applicable
         if (item.series_id) {
           // Delete whole series: cancel notifications then delete
-          const rows = await db.getAllAsync("SELECT id, notification_id FROM reminders WHERE series_id = ?", [item.series_id]);
+          const rows = await db.getAllAsync(
+            "SELECT id, notification_id FROM reminders WHERE series_id = ?",
+            [item.series_id]
+          );
           for (const row of rows) {
             if (row.notification_id) {
-              try { await Notifications.cancelScheduledNotificationAsync(row.notification_id); } catch {}
+              try {
+                await Notifications.cancelScheduledNotificationAsync(
+                  row.notification_id
+                );
+              } catch {}
             }
           }
-          await db.runAsync("DELETE FROM reminders WHERE series_id = ?", [item.series_id]);
+          await db.runAsync("DELETE FROM reminders WHERE series_id = ?", [
+            item.series_id,
+          ]);
         } else {
           if (item.notification_id) {
-            try { await Notifications.cancelScheduledNotificationAsync(item.notification_id); } catch {}
+            try {
+              await Notifications.cancelScheduledNotificationAsync(
+                item.notification_id
+              );
+            } catch {}
           }
           await db.runAsync("DELETE FROM reminders WHERE id = ?", [item.id]);
         }
@@ -535,7 +604,10 @@ export default function ReminderScreen() {
               style={styles.emptyStateCard}
             >
               <Ionicons name="calendar-outline" size={64} color="#667eea" />
-              <Text style={styles.emptyStateText}>No {selectedKey === "backlogs" ? "Missed" : "Upcoming"} Reminders</Text>
+              <Text style={styles.emptyStateText}>
+                No {selectedKey === "backlogs" ? "Missed" : "Upcoming"}{" "}
+                Reminders
+              </Text>
               <Text style={styles.emptyStateSubtext}>
                 Tap the + button to add reminders and stay organized.
               </Text>
@@ -544,7 +616,9 @@ export default function ReminderScreen() {
         ) : (
           <FlatList
             data={visibleReminders}
-            keyExtractor={(item) => item.series_id ? `series_${item.series_id}` : `single_${item.id}`}
+            keyExtractor={(item) =>
+              item.series_id ? `series_${item.series_id}` : `single_${item.id}`
+            }
             contentContainerStyle={{
               paddingHorizontal: 20,
               paddingBottom: 100,
@@ -566,7 +640,9 @@ export default function ReminderScreen() {
                   >
                     <View style={styles.cardContent}>
                       <View style={styles.cardHeader}>
-                        <View style={{flexDirection:'row', alignItems:'center'}}>
+                        <View
+                          style={{ flexDirection: "row", alignItems: "center" }}
+                        >
                           <Text
                             style={[
                               styles.title,
@@ -668,10 +744,16 @@ export default function ReminderScreen() {
                             isItemToday && styles.todayActionBtn,
                           ]}
                           onPress={() => editReminder(item)}
-                          accessibilityLabel={selectedKey === "backlogs" ? "Reschedule missed reminder" : "Edit reminder"}
+                          accessibilityLabel={
+                            selectedKey === "backlogs"
+                              ? "Reschedule missed reminder"
+                              : "Edit reminder"
+                          }
                         >
                           <Ionicons
-                            name={selectedKey === "backlogs" ? "refresh" : "pencil"}
+                            name={
+                              selectedKey === "backlogs" ? "refresh" : "pencil"
+                            }
                             size={20}
                             color={isItemToday ? "white" : "#667eea"}
                           />
@@ -882,10 +964,31 @@ export default function ReminderScreen() {
               <Text style={styles.simpleSectionTitle}>Repeat (Optional)</Text>
 
               {/* Enable Repeat Toggle */}
-              <View style={[styles.simpleInputGroup, {flexDirection:'row', alignItems:'center', justifyContent:'space-between'}]}>
+              <View
+                style={[
+                  styles.simpleInputGroup,
+                  {
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                  },
+                ]}
+              >
                 <Text style={styles.simpleInputLabel}>Enable Repeat</Text>
-                <TouchableOpacity onPress={() => setRepeatEnabled(!repeatEnabled)} style={{paddingVertical:8,paddingHorizontal:12,borderRadius:8,backgroundColor: repeatEnabled ? '#e6f0ff' : '#f8f9fa', borderWidth:1, borderColor:'#ddd'}}>
-                  <Text style={{color: repeatEnabled ? '#1d4ed8' : '#666'}}>{repeatEnabled ? 'On' : 'Off'}</Text>
+                <TouchableOpacity
+                  onPress={() => setRepeatEnabled(!repeatEnabled)}
+                  style={{
+                    paddingVertical: 8,
+                    paddingHorizontal: 12,
+                    borderRadius: 8,
+                    backgroundColor: repeatEnabled ? "#e6f0ff" : "#f8f9fa",
+                    borderWidth: 1,
+                    borderColor: "#ddd",
+                  }}
+                >
+                  <Text style={{ color: repeatEnabled ? "#1d4ed8" : "#666" }}>
+                    {repeatEnabled ? "On" : "Off"}
+                  </Text>
                 </TouchableOpacity>
               </View>
 
@@ -893,7 +996,9 @@ export default function ReminderScreen() {
                 <>
                   {/* Frequency in days */}
                   <View style={styles.simpleInputGroup}>
-                    <Text style={styles.simpleInputLabel}>Repeat Every (days)</Text>
+                    <Text style={styles.simpleInputLabel}>
+                      Repeat Every (days)
+                    </Text>
                     <TextInput
                       style={styles.simpleInput}
                       keyboardType="number-pad"
@@ -915,8 +1020,12 @@ export default function ReminderScreen() {
                       <Ionicons name="calendar" size={20} color="#667eea" />
                       <Text style={styles.simpleDateText}>
                         {repeatUntil
-                          ? new Date(repeatUntil).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-                          : 'Choose an end date'}
+                          ? new Date(repeatUntil).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                            })
+                          : "Choose an end date"}
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -949,7 +1058,12 @@ export default function ReminderScreen() {
         <DateTimePicker
           value={(() => {
             const date = new Date();
-            date.setHours(parseInt(hour, 10) || 0, parseInt(minute, 10) || 0, 0, 0);
+            date.setHours(
+              parseInt(hour, 10) || 0,
+              parseInt(minute, 10) || 0,
+              0,
+              0
+            );
             return date;
           })()}
           mode="time"
@@ -961,17 +1075,19 @@ export default function ReminderScreen() {
       {showUntilPicker && (
         <DateTimePicker
           value={(() => {
-            const d = repeatUntil ? new Date(repeatUntil) : new Date(selectedDate);
-            d.setHours(0,0,0,0);
+            const d = repeatUntil
+              ? new Date(repeatUntil)
+              : new Date(selectedDate);
+            d.setHours(0, 0, 0, 0);
             return d;
           })()}
           mode="date"
           display="default"
           onChange={(event, selected) => {
-            if (event.type === 'set' && selected) {
+            if (event.type === "set" && selected) {
               const yyyy = selected.getFullYear();
-              const mm = (selected.getMonth() + 1).toString().padStart(2, '0');
-              const dd = selected.getDate().toString().padStart(2, '0');
+              const mm = (selected.getMonth() + 1).toString().padStart(2, "0");
+              const dd = selected.getDate().toString().padStart(2, "0");
               setRepeatUntil(`${yyyy}-${mm}-${dd}`);
             }
             setShowUntilPicker(false);

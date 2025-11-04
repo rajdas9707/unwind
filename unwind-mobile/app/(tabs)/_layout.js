@@ -1,17 +1,14 @@
 import React, { useContext, useEffect, useState } from "react";
-import { View, ActivityIndicator, Text } from "react-native";
+import { View, ActivityIndicator, Text, Alert } from "react-native";
 import { Redirect, Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { initTable } from "../../storage/initTable";
 import { AuthContext } from "../../context/AuthProvider";
+import { OperationProvider, useOperation } from "../../context/OperationContext";
 
-export default function TabLayout() {
-  const {user } = useContext(AuthContext);
+function TabsContent() {
+  const { isOperating, operationMessage } = useOperation();
 
-
-console.log("Rendering TabLayout, user:", user);
-
-if (!user) return <Redirect href="/auth" />;
   return (
     <Tabs
       screenOptions={{
@@ -30,6 +27,18 @@ if (!user) return <Redirect href="/auth" />;
           fontSize: 12,
           fontWeight: "600",
           marginTop: 4,
+        },
+      }}
+      screenListeners={{
+        tabPress: (e) => {
+          if (isOperating) {
+            e.preventDefault();
+            Alert.alert(
+              "Operation in Progress",
+              operationMessage || "Please wait while the operation completes.",
+              [{ text: "OK" }]
+            );
+          }
         },
       }}
     >
@@ -79,5 +88,19 @@ if (!user) return <Redirect href="/auth" />;
         }}
       />
     </Tabs>
+  );
+}
+
+export default function TabLayout() {
+  const { user } = useContext(AuthContext);
+
+  console.log("Rendering TabLayout, user:", user);
+
+  if (!user) return <Redirect href="/auth" />;
+
+  return (
+    <OperationProvider>
+      <TabsContent />
+    </OperationProvider>
   );
 }

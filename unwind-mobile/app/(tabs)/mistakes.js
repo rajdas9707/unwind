@@ -57,6 +57,7 @@ import {
 // Removed database health utilities
 
 import SavingOverlay from "../../components/SavingOverlay";
+import { useOperation } from "../../context/OperationContext";
 
 export default function MistakesScreen() {
   // const { isReady } = useDatabaseReady();
@@ -82,8 +83,7 @@ export default function MistakesScreen() {
   // const { idToken } = useContext(AuthContext); // removed, now handled in client.js
 
   const isScreenActiveRef = useRef(true);
-  const [isOperating, setIsOperating] = useState(false);
-  const [operationMessage, setOperationMessage] = useState("");
+  const { isOperating, operationMessage, startOperation, endOperation } = useOperation();
   
   const showAlert = (title, message, buttons) => {
     if (!isScreenActiveRef.current) return;
@@ -473,7 +473,7 @@ export default function MistakesScreen() {
     try {
       // Check if online
       if (!isOnline) {
-        showAlert(
+        Alert.alert(
           "No Internet Connection",
           "Please check your connection and try again.",
           [{ text: "OK" }]
@@ -485,6 +485,7 @@ export default function MistakesScreen() {
 
       // Start syncing
       setIsSyncingAll(true);
+      startOperation("Syncing all entries to cloud...");
 
       try {
         const result = await syncAllMistakesEntries();
@@ -536,10 +537,12 @@ export default function MistakesScreen() {
         );
       } finally {
         setIsSyncingAll(false);
+        endOperation();
       }
     } catch (e) {
       logError("Error in syncPendingEntries:", e);
       setIsSyncingAll(false);
+      endOperation();
     }
   };
 
@@ -573,6 +576,7 @@ export default function MistakesScreen() {
 
       // Set loading state for this entry
       setSyncingEntries((prev) => new Set(prev).add(entry.id));
+      startOperation("Syncing to cloud...");
 
       // Use the new sync function
       await syncMistakeEntryToServer({ entry });
@@ -621,6 +625,7 @@ export default function MistakesScreen() {
         newSet.delete(entry.id);
         return newSet;
       });
+      endOperation();
     }
   };
 
@@ -637,8 +642,7 @@ export default function MistakesScreen() {
     }
 
     setIsAddingEntry(true);
-    setIsOperating(true);
-    setOperationMessage("Creating mistake entry...");
+    startOperation("Creating mistake entry...");
 
     try {
       // Create entry locally - error handling is now centralized
@@ -719,8 +723,7 @@ export default function MistakesScreen() {
       showAlert("Error", error.message || "Failed to create mistake entry");
     } finally {
       setIsAddingEntry(false);
-      setIsOperating(false);
-      setOperationMessage("");
+      endOperation();
     }
   };
 

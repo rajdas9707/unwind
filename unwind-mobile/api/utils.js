@@ -2,7 +2,7 @@ import axios from "axios";
 import { auth } from "../firebaseConfig";
 
 // const API_BASE_URL = "http://192.168.29.225:5000";
-const API_BASE_URL = "https://tower-journal-corner-renew.trycloudflare.com";
+const API_BASE_URL = "https://eagles-habitat-properly-mines.trycloudflare.com";
 
 // Helper function to get fresh Firebase ID token
 export const getFreshToken = async () => {

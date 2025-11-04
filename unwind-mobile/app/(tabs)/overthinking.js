@@ -41,6 +41,7 @@ import {
   createOverthinkingEntry,
   deleteOverthinkingEntry,
   listOverthinkingEntries,
+  dumpOverthinkingEntry,
 } from "../../api/overthinking";
 
 // Import database operations
@@ -55,6 +56,7 @@ import {
 // Removed database health utilities
 
 import SavingOverlay from "../../components/SavingOverlay";
+import { useOperation } from "../../context/OperationContext";
 
 export default function OverthinkingScreen() {
   // const { isReady } = useDatabaseReady();
@@ -81,8 +83,7 @@ export default function OverthinkingScreen() {
   // const { idToken } = useContext(AuthContext); // removed, now handled in client.js
 
   const isScreenActiveRef = useRef(true);
-  const [isOperating, setIsOperating] = useState(false);
-  const [operationMessage, setOperationMessage] = useState("");
+  const { isOperating, operationMessage, startOperation, endOperation } = useOperation();
   
   const showAlert = (title, message, buttons) => {
     if (!isScreenActiveRef.current) return;
@@ -471,7 +472,7 @@ export default function OverthinkingScreen() {
       // Check if online
       if (!isOnline) {
         showAlert(
-          "No Internet Connection",
+          "No Network Connection",
           "Please check your connection and try again.",
           [{ text: "OK" }]
         );
@@ -482,8 +483,9 @@ export default function OverthinkingScreen() {
 
       // Start syncing
       setIsSyncingAll(true);
+      startOperation("Syncing all entries to cloud...");
 
-      try {
+      try{
         const result = await syncAllOverthinkingEntries();
 
         if (result.syncedCount > 0 || result.failedCount > 0) {
@@ -533,10 +535,12 @@ export default function OverthinkingScreen() {
         );
       } finally {
         setIsSyncingAll(false);
+        endOperation();
       }
     } catch (e) {
       logError("Error in syncPendingEntries:", e);
       setIsSyncingAll(false);
+      endOperation();
     }
   };
 
@@ -570,6 +574,7 @@ export default function OverthinkingScreen() {
 
       // Set loading state for this entry
       setSyncingEntries((prev) => new Set(prev).add(entry.id));
+      startOperation("Syncing to cloud...");
 
       // Use the new sync function
       await syncOverthinkingEntryToServer({ entry });
@@ -618,6 +623,7 @@ export default function OverthinkingScreen() {
         newSet.delete(entry.id);
         return newSet;
       });
+      endOperation();
     }
   };
 
@@ -634,8 +640,7 @@ export default function OverthinkingScreen() {
     }
 
     setIsAddingEntry(true);
-    setIsOperating(true);
-    setOperationMessage("Creating overthinking entry...");
+    startOperation("Creating overthinking entry...");
 
     try{
       // Create entry locally - error handling is now centralized
@@ -722,8 +727,7 @@ export default function OverthinkingScreen() {
       );
     } finally {
       setIsAddingEntry(false);
-      setIsOperating(false);
-      setOperationMessage("");
+      endOperation();
     }
   };
 
@@ -801,12 +805,30 @@ export default function OverthinkingScreen() {
           onPress: async () => {
             // Set loading state for this specific entry
             setIsDumpingThought((prev) => new Set(prev).add(entry.id));
+            startOperation("Releasing thought...");
 
             try {
+              // Update locally first
               await toggleOverthinkingDumpedLocal({
                 id: entry.id,
-                dumped: !entry.dumped,
+                dumped: true, // Always set to true (releasing)
               });
+              
+              // If entry is synced, also update on server
+              if (entry.synced && entry.server_id && isOnline) {
+                try {
+                  console.log("Updating dump status on server...", entry.server_id);
+                  await dumpOverthinkingEntry({ id: entry.server_id });
+                  console.log("Server dump status updated successfully");
+                } catch (serverError) {
+                  console.error("Failed to update dump status on server:", serverError);
+                  showAlert(
+                    "Partially Synced",
+                    "Thought released locally but couldn't be synced to server. It will sync later."
+                  );
+                }
+              }
+              
               // Refresh the list
               setLoading(true);
               try {
@@ -843,6 +865,7 @@ export default function OverthinkingScreen() {
                 newSet.delete(entry.id);
                 return newSet;
               });
+              endOperation();
             }
           },
         },

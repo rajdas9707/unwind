@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  TextInput,
   Alert,
   ActivityIndicator,
   Share,
@@ -18,7 +17,6 @@ import { useNetworkStatus } from "../../utils/networkUtils";
 // Import storage layer
 import {
   fetchOverthinkingEntryById,
-  updateOverthinkingEntryLocal,
   canSyncOverthinkingToday,
 } from "../../storage/overthinking/storage";
 
@@ -59,10 +57,6 @@ export default function OverthinkingDetailScreen() {
   const [combinedData, setCombinedData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadingServerData, setLoadingServerData] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editTitle, setEditTitle] = useState("");
-  const [editThought, setEditThought] = useState("");
-  const [editSolution, setEditSolution] = useState("");
   const [isSyncing, setIsSyncing] = useState(false);
 
   // Sync single overthinking entry to server
@@ -201,9 +195,6 @@ export default function OverthinkingDetailScreen() {
       // Set local data immediately
       setCombinedData(initialCombinedData);
       setEntry(localEntry);
-      setEditTitle(localEntry.title || "");
-      setEditThought(localEntry.thought || "");
-      setEditSolution(localEntry.solution || "");
       setLoading(false); // Show UI with local data
       
       // If entry is synced, fetch server data in background
@@ -246,61 +237,6 @@ export default function OverthinkingDetailScreen() {
     }
   };
 
-  const handleEdit = () => {
-    setIsEditing(true);
-  };
-
-  const handleCancelEdit = () => {
-    setEditTitle(entry?.title || "");
-    setEditThought(entry?.thought || "");
-    setEditSolution(entry?.solution || "");
-    setIsEditing(false);
-  };
-
-  const handleSaveEdit = async () => {
-    try {
-      if (!editThought.trim()) {
-        Alert.alert("Error", "Thought content cannot be empty");
-        return;
-      }
-
-      const updatedEntry = await updateOverthinkingEntryLocal({
-        id: entry.id,
-        title: editTitle.trim(),
-        thought: editThought.trim(),
-        solution: editSolution.trim()
-      });
-
-      setEntry(updatedEntry);
-      setIsEditing(false);
-      
-      Alert.alert("Success", "Entry updated successfully!");
-      
-      // Try to sync if online
-      if (isOnline) {
-        try {
-          setIsSyncing(true);
-          const synced = await syncOverthinkingEntryToServer({ entry: updatedEntry });
-          if (!synced) {
-            Alert.alert("Sync Failed", "Entry saved locally but couldn't be synced. You can try again later.");
-            return;
-          } 
-          await loadEntry(); // Refresh to show synced status
-        } catch (syncError) {
-          console.warn("Failed to sync updated entry:", syncError);
-          Alert.alert(
-            "Sync Failed", 
-            "Entry updated locally but couldn't be synced. You can try syncing manually later."
-          );
-        } finally {
-          setIsSyncing(false);
-        }
-      }
-    } catch (error) {
-      console.error("Error updating overthinking entry:", error);
-      Alert.alert("Error", error.message || "Failed to update entry");
-    }
-  };
 
   const handleDelete = () => {
     Alert.alert(
@@ -434,52 +370,23 @@ export default function OverthinkingDetailScreen() {
         </TouchableOpacity>
         
         <Text style={styles.headerTitle}>
-          {isEditing ? "Edit Entry" : "Overthinking Entry"}
+          Overthinking Entry
         </Text>
         
         <View style={styles.headerActions}>
-          {!isEditing && (
-            <>
-              <TouchableOpacity 
-                style={styles.headerButton} 
-                onPress={handleShare}
-              >
-                <Ionicons name="share-outline" size={20} color="#6B7280" />
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={styles.headerButton} 
-                onPress={handleEdit}
-              >
-                <Ionicons name="create-outline" size={20} color="#6B7280" />
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[styles.headerButton, { marginLeft: 4 }]}
-                onPress={handleDelete}
-              >
-                <Ionicons name="trash-outline" size={20} color="#EF4444" />
-              </TouchableOpacity>
-            </>
-          )}
+          <TouchableOpacity 
+            style={styles.headerButton} 
+            onPress={handleShare}
+          >
+            <Ionicons name="share-outline" size={20} color="#6B7280" />
+          </TouchableOpacity>
           
-          {isEditing && (
-            <>
-              <TouchableOpacity 
-                style={styles.headerButton} 
-                onPress={handleCancelEdit}
-              >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={styles.saveButton} 
-                onPress={handleSaveEdit}
-              >
-                <Text style={styles.saveButtonText}>Save</Text>
-              </TouchableOpacity>
-            </>
-          )}
+          <TouchableOpacity 
+            style={[styles.headerButton, { marginLeft: 4 }]}
+            onPress={handleDelete}
+          >
+            <Ionicons name="trash-outline" size={20} color="#EF4444" />
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -497,54 +404,18 @@ export default function OverthinkingDetailScreen() {
             </View>
             
             <View style={styles.flexibleContentArea}>
-              {isEditing ? (
-                <View style={styles.editContainer}>
-                  <TextInput
-                    style={styles.titleInput}
-                    placeholder="Title (optional)"
-                    placeholderTextColor="#9CA3AF"
-                    value={editTitle}
-                    onChangeText={setEditTitle}
-                    maxLength={200}
-                  />
-                  
-                  <TextInput
-                    style={styles.contentInput}
-                    placeholder="What are you overthinking about?"
-                    placeholderTextColor="#9CA3AF"
-                    multiline
-                    numberOfLines={8}
-                    value={editThought}
-                    onChangeText={setEditThought}
-                    textAlignVertical="top"
-                    autoFocus
-                  />
-                  
-                  <TextInput
-                    style={styles.solutionInput}
-                    placeholder="Potential solution (optional)"
-                    placeholderTextColor="#9CA3AF"
-                    multiline
-                    numberOfLines={4}
-                    value={editSolution}
-                    onChangeText={setEditSolution}
-                    textAlignVertical="top"
-                  />
-                </View>
-              ) : (
-                <View style={styles.contentDisplay}>
-                  {combinedData.local.title && (
-                    <Text style={styles.displayTitle}>{combinedData.local.title}</Text>
-                  )}
-                  <Text style={styles.displayContent}>{combinedData.local.thought}</Text>
-                  {combinedData.local.solution && (
-                    <View style={styles.solutionDisplay}>
-                      <Text style={styles.solutionLabel}>Your Solution:</Text>
-                      <Text style={styles.solutionText}>{combinedData.local.solution}</Text>
-                    </View>
-                  )}
-                </View>
-              )}
+              <View style={styles.contentDisplay}>
+                {combinedData.local.title && (
+                  <Text style={styles.displayTitle}>{combinedData.local.title}</Text>
+                )}
+                <Text style={styles.displayContent}>{combinedData.local.thought}</Text>
+                {combinedData.local.solution && (
+                  <View style={styles.solutionDisplay}>
+                    <Text style={styles.solutionLabel}>Your Solution:</Text>
+                    <Text style={styles.solutionText}>{combinedData.local.solution}</Text>
+                  </View>
+                )}
+              </View>
             </View>
           </View>
           
@@ -711,53 +582,15 @@ export default function OverthinkingDetailScreen() {
 
           {/* Entry Content */}
           <View style={styles.entryContent}>
-            {isEditing ? (
-              <>
-                <TextInput
-                  style={styles.titleInput}
-                  placeholder="Title (optional)"
-                  placeholderTextColor="#9CA3AF"
-                  value={editTitle}
-                  onChangeText={setEditTitle}
-                  maxLength={200}
-                />
-                
-                <TextInput
-                  style={styles.contentInput}
-                  placeholder="What are you overthinking about?"
-                  placeholderTextColor="#9CA3AF"
-                  multiline
-                  numberOfLines={12}
-                  value={editThought}
-                  onChangeText={setEditThought}
-                  textAlignVertical="top"
-                  autoFocus
-                />
-
-                <TextInput
-                  style={styles.solutionInput}
-                  placeholder="Potential solution (optional)"
-                  placeholderTextColor="#9CA3AF"
-                  multiline
-                  numberOfLines={6}
-                  value={editSolution}
-                  onChangeText={setEditSolution}
-                  textAlignVertical="top"
-                />
-              </>
-            ) : (
-              <>
-                {entry.title && (
-                  <Text style={styles.entryTitle}>{entry.title}</Text>
-                )}
-                <Text style={styles.entryText}>{entry.thought}</Text>
-                {entry.solution && (
-                  <View style={styles.solutionDisplay}>
-                    <Text style={styles.solutionLabel}>Your Solution:</Text>
-                    <Text style={styles.solutionText}>{entry.solution}</Text>
-                  </View>
-                )}
-              </>
+            {entry.title && (
+              <Text style={styles.entryTitle}>{entry.title}</Text>
+            )}
+            <Text style={styles.entryText}>{entry.thought}</Text>
+            {entry.solution && (
+              <View style={styles.solutionDisplay}>
+                <Text style={styles.solutionLabel}>Your Solution:</Text>
+                <Text style={styles.solutionText}>{entry.solution}</Text>
+              </View>
             )}
           </View>
 
@@ -842,23 +675,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
-  cancelButtonText: {
-    color: "#6B7280",
-    fontSize: 16,
-    fontWeight: "500",
-  },
-  saveButton: {
-    marginLeft: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: "#8B5CF6",
-    borderRadius: 8,
-  },
-  saveButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
-  },
   scrollView: {
     flex: 1,
   },
@@ -902,31 +718,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     padding: 16,
     minHeight: 300,
-  },
-  titleInput: {
-    fontSize: 22,
-    fontWeight: "600",
-    color: "#111827",
-    marginBottom: 16,
-    padding: 0,
-    textAlignVertical: "top",
-  },
-  contentInput: {
-    fontSize: 16,
-    color: "#374151",
-    lineHeight: 24,
-    padding: 0,
-    textAlignVertical: "top",
-    minHeight: 200,
-    marginBottom: 16,
-  },
-  solutionInput: {
-    fontSize: 16,
-    color: "#374151",
-    lineHeight: 24,
-    padding: 0,
-    textAlignVertical: "top",
-    minHeight: 100,
   },
   entryTitle: {
     fontSize: 22,

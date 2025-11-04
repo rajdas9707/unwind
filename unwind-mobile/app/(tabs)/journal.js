@@ -53,6 +53,7 @@ import {
 // Removed database health/test utilities to avoid errors
 
 import SavingOverlay from "../../components/SavingOverlay";
+import { useOperation } from "../../context/OperationContext";
 
 export default function JournalScreen() {
   // const { isReady } = useDatabaseReady();
@@ -81,8 +82,7 @@ export default function JournalScreen() {
   // const { idToken } = useContext(AuthContext); // removed, now handled in client.js
 
   const isScreenActiveRef = useRef(true);
-  const [isOperating, setIsOperating] = useState(false); // Track any operation in progress
-  const [operationMessage, setOperationMessage] = useState("");
+  const { isOperating, operationMessage, startOperation, endOperation } = useOperation();
   
   const showAlert = (title, message, buttons) => {
     if (!isScreenActiveRef.current) return;
@@ -293,6 +293,7 @@ export default function JournalScreen() {
 
       // Start syncing
       setIsSyncingAll(true);
+      startOperation("Syncing all entries to cloud...");
 
       try {
         const result = await syncAllJournalEntries();
@@ -339,10 +340,12 @@ export default function JournalScreen() {
         );
       } finally {
         setIsSyncingAll(false);
+        endOperation();
       }
     } catch (e) {
       console.error("Error in syncPendingEntries:", e);
       setIsSyncingAll(false);
+      endOperation();
     }
   };
 
@@ -546,6 +549,7 @@ export default function JournalScreen() {
 
     // Set loading state for this entry
     setSyncingEntries((prev) => new Set(prev).add(entry.id));
+    startOperation("Syncing to cloud...");
 
     try {
       // Use the new sync function - error handling is now centralized
@@ -605,6 +609,7 @@ export default function JournalScreen() {
         newSet.delete(entry.id);
         return newSet;
       });
+      endOperation();
     }
   };
 
@@ -645,8 +650,7 @@ export default function JournalScreen() {
     }
 
     setIsAddingEntry(true);
-    setIsOperating(true);
-    setOperationMessage("Creating your journal entry...");
+    startOperation("Creating your journal entry...");
 
     try {
       // Auto-generate title as today's date (formatted nicely)
@@ -743,8 +747,7 @@ export default function JournalScreen() {
       showAlert("Error", error.message || "Failed to create journal entry");
     } finally {
       setIsAddingEntry(false);
-      setIsOperating(false);
-      setOperationMessage("");
+      endOperation();
     }
   };
 

@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  TextInput,
   Alert,
   ActivityIndicator,
   Share,
@@ -18,7 +17,6 @@ import { useNetworkStatus } from "../../utils/networkUtils";
 // Import storage layer
 import {
   fetchMistakesEntryById,
-  updateMistakeEntryLocal,
   canSyncMistakesToday,
   getMistakeCategories,
   getCategoryColor,
@@ -62,10 +60,6 @@ export default function MistakesDetailScreen() {
   const [combinedData, setCombinedData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadingServerData, setLoadingServerData] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editDescription, setEditDescription] = useState("");
-  const [editLearning, setEditLearning] = useState("");
-  const [editCategory, setEditCategory] = useState("Other");
   const [isSyncing, setIsSyncing] = useState(false);
 
   // Sync single mistake entry to server
@@ -198,9 +192,6 @@ export default function MistakesDetailScreen() {
       const entryData = localData.local;
       setCombinedData(localData);
       setEntry(entryData);
-      setEditDescription(entryData.description || entryData.mistake || "");
-      setEditLearning(entryData.learning || "");
-      setEditCategory(entryData.category || "Other");
       setLoading(false); // Stop main loading
       
       // If entry is synced, fetch server data separately in the background
@@ -221,61 +212,6 @@ export default function MistakesDetailScreen() {
     }
   };
 
-  const handleEdit = () => {
-    setIsEditing(true);
-  };
-
-  const handleCancelEdit = () => {
-    setEditDescription(entry?.description || entry?.mistake || "");
-    setEditLearning(entry?.learning || "");
-    setEditCategory(entry?.category || "Other");
-    setIsEditing(false);
-  };
-
-  const handleSaveEdit = async () => {
-    try {
-      if (!editDescription.trim()) {
-        Alert.alert("Error", "Description cannot be empty");
-        return;
-      }
-
-      const updatedEntry = await updateMistakeEntryLocal({
-        id: entry.id,
-        description: editDescription.trim(),
-        learning: editLearning.trim(),
-        category: editCategory
-      });
-
-      setEntry(updatedEntry);
-      setIsEditing(false);
-      
-      Alert.alert("Success", "Entry updated successfully!");
-      
-      // Try to sync if online
-      if (isOnline) {
-        try {
-          setIsSyncing(true);
-          const synced = await syncMistakeEntryToServer({ entry: updatedEntry });
-          if (!synced) {
-            Alert.alert("Sync Failed", "Entry saved locally but couldn't be synced. You can try again later.");
-            return;
-          } 
-          await loadEntry(); // Refresh to show synced status
-        } catch (syncError) {
-          console.warn("Failed to sync updated entry:", syncError);
-          Alert.alert(
-            "Sync Failed", 
-            "Entry updated locally but couldn't be synced. You can try syncing manually later."
-          );
-        } finally {
-          setIsSyncing(false);
-        }
-      }
-    } catch (error) {
-      console.error("Error updating mistake entry:", error);
-      Alert.alert("Error", error.message || "Failed to update entry");
-    }
-  };
 
   const handleDelete = () => {
     Alert.alert(
@@ -372,32 +308,6 @@ export default function MistakesDetailScreen() {
     });
   };
 
-  const renderCategoryPicker = () => {
-    const categories = getMistakeCategories();
-    
-    return (
-      <View style={styles.categoryPicker}>
-        {categories.map((category) => (
-          <TouchableOpacity
-            key={category}
-            style={[
-              styles.categoryOption,
-              { backgroundColor: getCategoryColor(category) },
-              editCategory === category && styles.selectedCategory,
-            ]}
-            onPress={() => setEditCategory(category)}
-          >
-            <Text style={styles.categoryEmoji}>
-              {getCategoryEmoji(category)}
-            </Text>
-            <Text style={styles.categoryText}>
-              {category.charAt(0).toUpperCase() + category.slice(1)}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-    );
-  };
 
   if (loading) {
     return (
@@ -436,52 +346,23 @@ export default function MistakesDetailScreen() {
         </TouchableOpacity>
         
         <Text style={styles.headerTitle}>
-          {isEditing ? "Edit Entry" : "Mistake Entry"}
+          Mistake Entry
         </Text>
         
         <View style={styles.headerActions}>
-          {!isEditing && (
-            <>
-              <TouchableOpacity 
-                style={styles.headerButton} 
-                onPress={handleShare}
-              >
-                <Ionicons name="share-outline" size={20} color="#6B7280" />
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={styles.headerButton} 
-                onPress={handleEdit}
-              >
-                <Ionicons name="create-outline" size={20} color="#6B7280" />
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[styles.headerButton, { marginLeft: 4 }]}
-                onPress={handleDelete}
-              >
-                <Ionicons name="trash-outline" size={20} color="#EF4444" />
-              </TouchableOpacity>
-            </>
-          )}
+          <TouchableOpacity 
+            style={styles.headerButton} 
+            onPress={handleShare}
+          >
+            <Ionicons name="share-outline" size={20} color="#6B7280" />
+          </TouchableOpacity>
           
-          {isEditing && (
-            <>
-              <TouchableOpacity 
-                style={styles.headerButton} 
-                onPress={handleCancelEdit}
-              >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={styles.saveButton} 
-                onPress={handleSaveEdit}
-              >
-                <Text style={styles.saveButtonText}>Save</Text>
-              </TouchableOpacity>
-            </>
-          )}
+          <TouchableOpacity 
+            style={[styles.headerButton, { marginLeft: 4 }]}
+            onPress={handleDelete}
+          >
+            <Ionicons name="trash-outline" size={20} color="#EF4444" />
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -499,68 +380,36 @@ export default function MistakesDetailScreen() {
             </View>
             
             <View style={styles.flexibleContentArea}>
-              {isEditing ? (
-                <View style={styles.editContainer}>
-                  <View style={styles.inputSection}>
-                    <Text style={styles.inputLabel}>Category</Text>
-                    {renderCategoryPicker()}
+              <View style={styles.contentDisplay}>
+                <View style={styles.categoryRow}>
+                  <View
+                    style={[
+                      styles.categoryBadge,
+                      { backgroundColor: getCategoryColor(combinedData.local.category) },
+                    ]}
+                  >
+                    <Text style={styles.categoryBadgeEmoji}>
+                      {getCategoryEmoji(combinedData.local.category)}
+                    </Text>
+                    <Text style={styles.categoryBadgeText}>
+                      {combinedData.local.category.charAt(0).toUpperCase() +
+                        combinedData.local.category.slice(1)}
+                    </Text>
                   </View>
-                  
-                  <TextInput
-                    style={styles.contentInput}
-                    placeholder="What happened?"
-                    placeholderTextColor="#9CA3AF"
-                    multiline
-                    numberOfLines={6}
-                    value={editDescription}
-                    onChangeText={setEditDescription}
-                    textAlignVertical="top"
-                    autoFocus
-                  />
-                  
-                  <TextInput
-                    style={styles.learningInput}
-                    placeholder="What did you learn? (optional)"
-                    placeholderTextColor="#9CA3AF"
-                    multiline
-                    numberOfLines={4}
-                    value={editLearning}
-                    onChangeText={setEditLearning}
-                    textAlignVertical="top"
-                  />
                 </View>
-              ) : (
-                <View style={styles.contentDisplay}>
-                  <View style={styles.categoryRow}>
-                    <View
-                      style={[
-                        styles.categoryBadge,
-                        { backgroundColor: getCategoryColor(combinedData.local.category) },
-                      ]}
-                    >
-                      <Text style={styles.categoryBadgeEmoji}>
-                        {getCategoryEmoji(combinedData.local.category)}
-                      </Text>
-                      <Text style={styles.categoryBadgeText}>
-                        {combinedData.local.category.charAt(0).toUpperCase() +
-                          combinedData.local.category.slice(1)}
-                      </Text>
-                    </View>
-                  </View>
-                  
+                
+                <View style={styles.contentGroup}>
+                  <Text style={styles.contentLabel}>What happened:</Text>
+                  <Text style={styles.contentText}>{combinedData.local.description || combinedData.local.mistake}</Text>
+                </View>
+                
+                {combinedData.local.learning && (
                   <View style={styles.contentGroup}>
-                    <Text style={styles.contentLabel}>What happened:</Text>
-                    <Text style={styles.contentText}>{combinedData.local.description || combinedData.local.mistake}</Text>
+                    <Text style={styles.contentLabel}>Personal reflection:</Text>
+                    <Text style={styles.contentText}>{combinedData.local.learning}</Text>
                   </View>
-                  
-                  {combinedData.local.learning && (
-                    <View style={styles.contentGroup}>
-                      <Text style={styles.contentLabel}>Personal reflection:</Text>
-                      <Text style={styles.contentText}>{combinedData.local.learning}</Text>
-                    </View>
-                  )}
-                </View>
-              )}
+                )}
+              </View>
             </View>
           </View>
           
@@ -713,46 +562,12 @@ export default function MistakesDetailScreen() {
 
           {/* Entry Content */}
           <View style={styles.entryContent}>
-            {isEditing ? (
-              <>
-                <View style={styles.inputSection}>
-                  <Text style={styles.inputLabel}>Category</Text>
-                  {renderCategoryPicker()}
-                </View>
-                
-                <TextInput
-                  style={styles.contentInput}
-                  placeholder="What happened?"
-                  placeholderTextColor="#9CA3AF"
-                  multiline
-                  numberOfLines={8}
-                  value={editDescription}
-                  onChangeText={setEditDescription}
-                  textAlignVertical="top"
-                  autoFocus
-                />
-
-                <TextInput
-                  style={styles.learningInput}
-                  placeholder="What did you learn? (optional)"
-                  placeholderTextColor="#9CA3AF"
-                  multiline
-                  numberOfLines={6}
-                  value={editLearning}
-                  onChangeText={setEditLearning}
-                  textAlignVertical="top"
-                />
-              </>
-            ) : (
-              <>
-                <Text style={styles.entryText}>{entry.description || entry.mistake}</Text>
-                {entry.learning && (
-                  <View style={styles.learningDisplay}>
-                    <Text style={styles.learningLabel}>Personal Learning:</Text>
-                    <Text style={styles.learningText}>{entry.learning}</Text>
-                  </View>
-                )}
-              </>
+            <Text style={styles.entryText}>{entry.description || entry.mistake}</Text>
+            {entry.learning && (
+              <View style={styles.learningDisplay}>
+                <Text style={styles.learningLabel}>Personal Learning:</Text>
+                <Text style={styles.learningText}>{entry.learning}</Text>
+              </View>
             )}
           </View>
 
@@ -836,23 +651,6 @@ const styles = StyleSheet.create({
   headerActions: {
     flexDirection: "row",
     alignItems: "center",
-  },
-  cancelButtonText: {
-    color: "#6B7280",
-    fontSize: 16,
-    fontWeight: "500",
-  },
-  saveButton: {
-    marginLeft: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: "#F59E0B",
-    borderRadius: 8,
-  },
-  saveButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
   },
   scrollView: {
     flex: 1,
@@ -959,60 +757,6 @@ const styles = StyleSheet.create({
     color: "#92400E",
     lineHeight: 20,
   },
-  
-  // Input styles for editing
-  inputSection: {
-    marginBottom: 20,
-  },
-  inputLabel: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#374151",
-    marginBottom: 8,
-  },
-  categoryPicker: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  categoryOption: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-    marginBottom: 4,
-  },
-  selectedCategory: {
-    borderWidth: 2,
-    borderColor: "#374151",
-  },
-  categoryEmoji: {
-    fontSize: 16,
-    marginRight: 6,
-  },
-  categoryText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#FFFFFF",
-  },
-  contentInput: {
-    fontSize: 16,
-    color: "#374151",
-    lineHeight: 24,
-    padding: 0,
-    textAlignVertical: "top",
-    minHeight: 150,
-    marginBottom: 16,
-  },
-  learningInput: {
-    fontSize: 16,
-    color: "#374151",
-    lineHeight: 24,
-    padding: 0,
-    textAlignVertical: "top",
-    minHeight: 100,
-  },
 
   // Scrollable view styles for flexible sections
   syncedScrollView: {
@@ -1066,9 +810,6 @@ const styles = StyleSheet.create({
   },
   flexibleContentArea: {
     minHeight: 100,
-  },
-  editContainer: {
-    padding: 20,
   },
   contentDisplay: {
     padding: 20,
