@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
-import { Ionicons } from "@expo/vector-icons";
+import { AntDesign, Ionicons } from "@expo/vector-icons";
 import AnimatedCheckbox from "../../components/shared/AnimatedCheckbox";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import TopBarToggle from "../../components/shared/TopBarToggle";
@@ -31,17 +31,17 @@ import { checkNetworkStatus, useNetworkStatus } from "../../utils/networkUtils";
 
 // Helper function for safe date formatting
 const formatDate = (dateString) => {
-  if (!dateString) return 'Date not available';
-  
+  if (!dateString) return "Date not available";
+
   try {
     const date = new Date(dateString);
     if (isNaN(date.getTime())) {
-      return 'Invalid date';
+      return "Invalid date";
     }
     return date.toLocaleDateString();
   } catch (error) {
-    console.error('Date formatting error:', error);
-    return 'Date not available';
+    console.error("Date formatting error:", error);
+    return "Date not available";
   }
 };
 
@@ -61,9 +61,9 @@ const TaskItem = ({
     created_at: item.created_at,
     createdAt: item.createdAt,
     updated_at: item.updated_at,
-    allKeys: Object.keys(item)
+    allKeys: Object.keys(item),
   });
-  
+
   return (
     <View style={[styles.taskItem, { borderLeftColor: categoryColor }]}>
       <AnimatedCheckbox
@@ -87,9 +87,7 @@ const TaskItem = ({
         <Text style={styles.intentionText}>
           Intention: {item.description || "None"}
         </Text>
-        <Text style={styles.createdAtText}>
-          {formatDate(item.created_at)}
-        </Text>
+        <Text style={styles.createdAtText}>{formatDate(item.created_at)}</Text>
       </TouchableOpacity>
       <View style={styles.taskActions}>
         {!item.completed && (
@@ -145,11 +143,15 @@ const CarriedOverTaskRow = ({
           Intention: {item.description || "None"}
         </Text>
         <Text style={styles.createdAtText}>
-          Carried Over: {formatDate(item.carried_over_at)} | Originally: {formatDate(item.original_created_at)}
+          Carried Over: {formatDate(item.carried_over_at)} | Originally:{" "}
+          {formatDate(item.original_created_at)}
         </Text>
       </TouchableOpacity>
       <View style={styles.taskActions}>
-        <TouchableOpacity style={styles.actionButton} onPress={() => deleteTask(item.id ?? item.localId)}>
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => deleteTask(item.id ?? item.localId)}
+        >
           <Ionicons name="trash-outline" size={22} color="#EF4444" />
         </TouchableOpacity>
       </View>
@@ -244,7 +246,9 @@ export default function CategoryTasks() {
         .map((t) => t.id);
 
       if (toMove.length > 0) {
-        console.log(`Moving ${toMove.length} past-dated task(s) to carried over`);
+        console.log(
+          `Moving ${toMove.length} past-dated task(s) to carried over`
+        );
         await Promise.all(toMove.map((id) => moveTaskToCarriedOverLocal(id)));
         // Reload both lists after moving
         const [updatedTasks, updatedBacklogs] = await Promise.all([
@@ -305,18 +309,28 @@ export default function CategoryTasks() {
         await loadTasks();
       } else {
         // Try carried-over list
-        const backlog = backlogs.find((t) => t.id === taskId || t.localId === taskId);
+        const backlog = backlogs.find(
+          (t) => t.id === taskId || t.localId === taskId
+        );
         if (!backlog) {
           console.log("Task not found with ID:", taskId);
           return;
         }
         const newCompleted = !backlog.completed;
-        await toggleCarriedOverCompleteLocal({ id: backlog.id, completed: newCompleted });
+        await toggleCarriedOverCompleteLocal({
+          id: backlog.id,
+          completed: newCompleted,
+        });
         await loadBacklogs();
       }
 
       // Try to sync if online for regular tasks only
-      if (task && isOnline && task.synced && typeof updateTodoAPI === "function") {
+      if (
+        task &&
+        isOnline &&
+        task.synced &&
+        typeof updateTodoAPI === "function"
+      ) {
         try {
           await updateTodoAPI({
             id: task.server_id,
@@ -348,7 +362,7 @@ export default function CategoryTasks() {
 
       console.log("Deleting task:", task);
       console.log("Using task ID for deletion:", task.id);
-      
+
       // Use the actual task.id for database deletion
       await deleteTodoEntryLocal(task.id);
 
@@ -471,9 +485,7 @@ export default function CategoryTasks() {
 
   return (
     <View style={styles.container}>
-      <View
-        style={styles.headerContainer}
-      >
+      <View style={styles.headerContainer}>
         <View style={styles.headerRow}>
           <TouchableOpacity
             onPress={() => {
@@ -487,7 +499,11 @@ export default function CategoryTasks() {
           <View style={styles.headerTitleContainer}>
             <View style={styles.headerTitleRow}>
               <Text style={styles.headerEmoji}>{categoryEmoji}</Text>
-              <Text style={[styles.headerTitleBottom, { color: categoryColor }]}>-Task</Text>
+              <Text
+                style={[styles.headerTitleBottom, { color: categoryColor }]}
+              >
+                -Task
+              </Text>
             </View>
           </View>
           <TopBarToggle
@@ -497,7 +513,9 @@ export default function CategoryTasks() {
             containerStyle={{ width: 200 }}
             onChange={(val) => {
               setTopSelection(val === "backlogs" ? "backlogs" : "today");
-              router.setParams({ mode: val === "backlogs" ? "backlogs" : "today" });
+              router.setParams({
+                mode: val === "backlogs" ? "backlogs" : "today",
+              });
             }}
           />
         </View>
@@ -526,7 +544,7 @@ export default function CategoryTasks() {
         data={(topSelection === "backlogs" ? backlogs : tasks).filter((t) =>
           statusFilter === "pending" ? !t.completed : t.completed
         )}
-        renderItem={({ item, index }) => (
+        renderItem={({ item, index }) =>
           topSelection === "backlogs" ? (
             <CarriedOverTaskRow
               item={item}
@@ -547,7 +565,7 @@ export default function CategoryTasks() {
               openEditModal={openEditModal}
             />
           )
-        )}
+        }
         keyExtractor={(item) => item.id.toString()}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
@@ -557,7 +575,9 @@ export default function CategoryTasks() {
               color="#9CA3AF"
             />
             <Text style={styles.emptyText}>
-              {statusFilter === "pending" ? "No pending tasks" : "No completed tasks"}
+              {statusFilter === "pending"
+                ? "No pending tasks"
+                : "No completed tasks"}
             </Text>
             <Text style={styles.emptySubtext}>
               Add your first task to get started
@@ -582,114 +602,134 @@ export default function CategoryTasks() {
         visible={modalVisible}
         onRequestClose={() => setModalVisible(false)}
       >
-        <BlurView
-          style={styles.modalOverlay}
-          intensity={25}
-          tint="dark"
-        >
+        <BlurView style={styles.modalOverlay} intensity={25} tint="dark">
           <TouchableOpacity
             style={{ flex: 1, justifyContent: "center" }}
             activeOpacity={1}
             onPress={() => setModalVisible(false)}
           >
-          <View
-            style={styles.modalContent}
-            onStartShouldSetResponder={() => true}
-          >
             <View
-              style={[
-                styles.modalGradient,
-                { backgroundColor: `${categoryColor}08` },
-              ]}
+              style={styles.modalContent}
+              onStartShouldSetResponder={() => true}
             >
-              {/* Modal Header with Icon */}
-              <View style={styles.modalHeader}>
-                <View style={[styles.modalIconContainer, { backgroundColor: `${categoryColor}15` }]}>
-                  <Text style={styles.modalEmoji}>
-                    {editingTaskId ? "✏️" : "✨"}
+              <View
+                style={[
+                  styles.modalGradient,
+                  { backgroundColor: `${categoryColor}08` },
+                ]}
+              >
+                {/* Modal Header with Icon */}
+                <View style={styles.modalHeader}>
+                  <View
+                    style={[
+                      styles.modalIconContainer,
+                      { backgroundColor: `${categoryColor}15` },
+                    ]}
+                  >
+                    <Text style={styles.modalEmoji}>
+                      {editingTaskId ? "✏️" : "✨"}
+                    </Text>
+                  </View>
+                  <Text style={styles.modalTitle}>
+                    {editingTaskId ? "Edit Task" : "Create New Task"}
+                  </Text>
+                  <Text
+                    style={[styles.modalSubtitle, { color: categoryColor }]}
+                  >
+                    {editingTaskId
+                      ? "Update your task details"
+                      : "What would you like to accomplish?"}
                   </Text>
                 </View>
-                <Text style={styles.modalTitle}>
-                  {editingTaskId ? "Edit Task" : "Create New Task"}
-                </Text>
-                <Text style={[styles.modalSubtitle, { color: categoryColor }]}>
-                  {editingTaskId ? "Update your task details" : "What would you like to accomplish?"}
-                </Text>
-              </View>
 
-              {/* Task Input */}
-              <View style={styles.inputGroup}>
-                <View style={styles.inputLabelContainer}>
-                  <Ionicons name="clipboard-outline" size={18} color={categoryColor} />
-                  <Text style={styles.inputLabel}>Task Description</Text>
-                </View>
-                <TextInput
-                  style={[styles.modalInput, { borderColor: `${categoryColor}20` }]}
-                  placeholder="What do you want to do? 📝"
-                  placeholderTextColor="#9CA3AF"
-                  value={newTask}
-                  onChangeText={setNewTask}
-                  multiline={true}
-                  numberOfLines={2}
-                />
-              </View>
-
-              {/* Intention Input */}
-              <View style={styles.inputGroup}>
-                <View style={styles.inputLabelContainer}>
-                  <Ionicons name="heart-outline" size={18} color={categoryColor} />
-                  <Text style={styles.inputLabel}>Intention</Text>
-                  <Text style={styles.inputOptional}>Optional</Text>
-                </View>
-                <TextInput
-                  style={[styles.modalInput, { borderColor: `${categoryColor}20` }]}
-                  placeholder="Why is this important? 🎯"
-                  placeholderTextColor="#9CA3AF"
-                  value={intention}
-                  onChangeText={setIntention}
-                  multiline={true}
-                  numberOfLines={2}
-                />
-              </View>
-
-              {/* Action Buttons */}
-              <View style={styles.modalButtons}>
-                <TouchableOpacity
-                  style={styles.modalCancelButton}
-                  onPress={() => setModalVisible(false)}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="close-circle-outline" size={20} color="#6B7280" />
-                  <Text style={styles.modalCancelText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.modalSaveButton,
-                    { backgroundColor: categoryColor },
-                  ]}
-                  onPress={editingTaskId ? saveEditedTask : addNewTask}
-                  activeOpacity={0.8}
-                  disabled={!newTask.trim()}
-                >
-                  <Ionicons 
-                    name={editingTaskId ? "checkmark-circle" : "add-circle"} 
-                    size={20} 
-                    color="#FFFFFF" 
+                {/* Task Input */}
+                <View style={styles.inputGroup}>
+                  <View style={styles.inputLabelContainer}>
+                    <Ionicons
+                      name="clipboard-outline"
+                      size={18}
+                      color={categoryColor}
+                    />
+                    <Text style={styles.inputLabel}>Task Description</Text>
+                  </View>
+                  <TextInput
+                    style={[
+                      styles.modalInput,
+                      { borderColor: `${categoryColor}20` },
+                    ]}
+                    placeholder="What do you want to do? 📝"
+                    placeholderTextColor="#9CA3AF"
+                    value={newTask}
+                    onChangeText={setNewTask}
+                    multiline={true}
+                    numberOfLines={2}
                   />
-                  <Text style={styles.modalSaveText}>
-                    {editingTaskId ? "Save Changes" : "Add Task"}
-                  </Text>
-                </TouchableOpacity>
-              </View>
+                </View>
 
-              {/* Quick Tips */}
-              <View style={styles.modalTips}>
-                <Text style={styles.modalTipText}>
-                  💡 <Text style={styles.modalTipBold}>Pro tip:</Text> Set clear intentions to boost your motivation!
-                </Text>
+                {/* Intention Input */}
+                <View style={styles.inputGroup}>
+                  <View style={styles.inputLabelContainer}>
+                    <AntDesign name="clock-circle" size={18} color="black" />
+                    <Text style={styles.inputLabel}>When to do</Text>
+                    <Text style={styles.inputOptional}>Optional</Text>
+                  </View>
+                  <TextInput
+                    style={[
+                      styles.modalInput,
+                      { borderColor: `${categoryColor}20` },
+                    ]}
+                    placeholder="After office on the way home"
+                    placeholderTextColor="#9CA3AF"
+                    value={intention}
+                    onChangeText={setIntention}
+                    multiline={true}
+                    numberOfLines={2}
+                  />
+                </View>
+
+                {/* Action Buttons */}
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity
+                    style={styles.modalCancelButton}
+                    onPress={() => setModalVisible(false)}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons
+                      name="close-circle-outline"
+                      size={20}
+                      color="#6B7280"
+                    />
+                    <Text style={styles.modalCancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.modalSaveButton,
+                      { backgroundColor: categoryColor },
+                    ]}
+                    onPress={editingTaskId ? saveEditedTask : addNewTask}
+                    activeOpacity={0.8}
+                    disabled={!newTask.trim()}
+                  >
+                    <Ionicons
+                      name={editingTaskId ? "checkmark-circle" : "add-circle"}
+                      size={20}
+                      color="#FFFFFF"
+                    />
+                    <Text style={styles.modalSaveText}>
+                      {editingTaskId ? "Save Changes" : "Add Task"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Quick Tips */}
+                <View style={styles.modalTips}>
+                  <Text style={styles.modalTipText}>
+                    💡 <Text style={styles.modalTipBold}>Pro tip:</Text> Set
+                    clear intentions to boost your motivation!
+                  </Text>
+                </View>
               </View>
             </View>
-          </View>
           </TouchableOpacity>
         </BlurView>
       </Modal>
@@ -705,8 +745,6 @@ const styles = StyleSheet.create({
   headerContainer: {
     padding: 15,
     paddingTop: 60,
-  
- 
   },
   headerRow: {
     flexDirection: "row",
@@ -1024,10 +1062,10 @@ const styles = StyleSheet.create({
   },
   modalInput: {
     backgroundColor: "rgba(249, 250, 251, 0.95)",
-   
+
     borderRadius: 16,
     padding: 16,
-   
+
     fontSize: 16,
     color: "#1F2937",
     borderWidth: 2,
@@ -1051,14 +1089,14 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     borderColor: "rgba(229, 231, 235, 0.5)",
-   
+
     gap: 8,
   },
   modalCancelText: {
     fontSize: 16,
     fontWeight: "600",
     color: "#6B7280",
-    
+
     letterSpacing: 0.2,
   },
   modalSaveButton: {
