@@ -4,6 +4,7 @@ import { initDocumentsTable } from "./document/db";
 import { initIdeasTable } from "./idea/db";
 import { initJournalsTable } from "./journal/db";
 import { initMistakesTable } from "./mistakes/db";
+import { initNotesTable } from "./notes/db";
 import { initOverthinkingsTable } from "./overthinking/db";
 import { initTodosTable } from "./todo/db";
 import { initTopicsTable } from "./topic/db";
@@ -18,6 +19,7 @@ export const initTable = async () => {
     await initIdeasTable();
     await initJournalsTable();
     await initMistakesTable();
+    await initNotesTable();
     await initOverthinkingsTable();
     await initTopicsTable();
     await initwaterRemindersTable();

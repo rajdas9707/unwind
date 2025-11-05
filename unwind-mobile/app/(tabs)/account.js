@@ -972,6 +972,16 @@ export default function AccountScreen() {
         {/* Settings Section */}
         <View className="section" style={styles.section}>
           <Text style={styles.sectionTitle}>Settings</Text>
+          
+          <TouchableOpacity
+            style={styles.settingItem}
+            onPress={() => router.push("/billing")}
+          >
+            <Ionicons name="card" size={20} color="#8B5CF6" />
+            <Text style={styles.settingText}>Billing & Membership</Text>
+            <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
+          </TouchableOpacity>
+
           <TouchableOpacity
             style={styles.settingItem}
             onPress={() => router.push("/settings/notifications")}

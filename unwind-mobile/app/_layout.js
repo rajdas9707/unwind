@@ -3,6 +3,7 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import * as Notifications from "expo-notifications";
 import { AuthProvider } from "../context/AuthProvider";
+import { MembershipProvider } from "../context/MembershipProvider";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 // Configure how notifications should be handled when app is running
@@ -36,21 +37,20 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-   
       <AuthProvider>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="index" />
-          <Stack.Screen name="onboarding" />
-          <Stack.Screen name="auth" />
-          <Stack.Screen name="(tabs)" />
-          {/* <Stack.Screen name="meditation" options={{ title: "Meditation" }} /> */}
-          {/* <Stack.Screen name="tasks/[category]" options={{ title: "Tasks" }} /> */}
-          <Stack.Screen name="pomodoro" options={{ title: "Pomodoro Timer", headerShown: false }} />
-         
-        </Stack>
-        <StatusBar style="auto" />
+        <MembershipProvider>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="index" />
+            <Stack.Screen name="onboarding" />
+            <Stack.Screen name="auth" />
+            <Stack.Screen name="(tabs)" />
+            {/* <Stack.Screen name="meditation" options={{ title: "Meditation" }} /> */}
+            {/* <Stack.Screen name="tasks/[category]" options={{ title: "Tasks" }} /> */}
+            <Stack.Screen name="pomodoro" options={{ title: "Pomodoro Timer", headerShown: false }} />
+          </Stack>
+          <StatusBar style="auto" />
+        </MembershipProvider>
       </AuthProvider>
-     
     </SafeAreaProvider>
   );
 }

@@ -15,7 +15,7 @@ const UserSchema = new mongoose.Schema(
     email: { type: String, required: true },
     name: { type: String },
 
-    // Subscription info
+    // Subscription info (legacy - kept for backward compatibility)
     subscription: {
       isActive: { type: Boolean, default: false },
       trialStart: { type: Date },
@@ -25,6 +25,27 @@ const UserSchema = new mongoose.Schema(
         enum: ["trial", "basic", "premium"],
         default: "trial",
       },
+    },
+
+    // Membership system (new IAP-based system)
+    membership: {
+      tier: {
+        type: String,
+        enum: ["free", "pro", "premium"],
+        default: "free",
+      },
+      expiry: { type: Date },
+      features: [{ type: String }],
+      lastUpdated: { type: Date, default: Date.now },
+      purchaseHistory: [
+        {
+          productId: String,
+          transactionId: String,
+          platform: { type: String, enum: ["ios", "android"] },
+          purchaseDate: Date,
+          expiryDate: Date,
+        },
+      ],
     },
   },
   { timestamps: true } // adds createdAt and updatedAt

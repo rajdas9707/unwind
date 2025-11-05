@@ -137,6 +137,14 @@ export default function HomeScreen() {
     },
     {
       id: 2,
+      title: "Notes",
+      subtitle: "Capture your thoughts",
+      icon: "document-text",
+      color: "#8B5CF6",
+      click: () => router.push("/notes"),
+    },
+    {
+      id: 3,
       title: "My documents",
       subtitle: "Organize your day",
       icon: "checkmark-circle",
@@ -144,7 +152,7 @@ export default function HomeScreen() {
       click: () => router.push("/document"),
     },
     {
-      id: 3,
+      id: 4,
       title: "My ideas",
       subtitle: "Review your progress",
       icon: "trending-up",
@@ -156,7 +164,7 @@ export default function HomeScreen() {
       },
     },
     {
-      id: 4,
+      id: 5,
       title: "Set Reminder",
       subtitle: "Schedule reminders easily",
       icon: "notifications-circle",
@@ -164,7 +172,7 @@ export default function HomeScreen() {
       click: () => router.push("/reminder"),
     },
     {
-      id: 5,
+      id: 6,
       title: "Shopping Lists",
       subtitle: "Organize your purchases",
       icon: "bag",
@@ -172,7 +180,7 @@ export default function HomeScreen() {
       click: () => router.push("/thingsToBuy"),
     },
     {
-      id: 6,
+      id: 7,
       title: "Topics",
       subtitle: "Topics to read",
       icon: "book",
@@ -180,7 +188,7 @@ export default function HomeScreen() {
       click: () => router.push("/topic"),
     },
     {
-      id: 7,
+      id: 8,
       title: "Pomodoro Timer",
       subtitle: "Focus with technique",
       icon: "timer",
@@ -188,7 +196,7 @@ export default function HomeScreen() {
       click: () => router.push("/pomodoro"),
     },
     {
-      id: 8,
+      id: 9,
       title: "Everyday Habits Reminder",
       subtitle: "Build daily routines",
       icon: "repeat",
@@ -196,7 +204,7 @@ export default function HomeScreen() {
       click: () => router.push("/habits-reminder"),
     },
     {
-      id: 9,
+      id: 10,
       title: "Custom Lists",
       subtitle: "Organize anything",
       icon: "list-circle",
