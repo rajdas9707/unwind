@@ -32,6 +32,8 @@ import {
   getCurrentTime,
 } from "../../storage/waterreminder/storage.js";
 import { AuthContext } from "../../context/AuthProvider.js";
+import { getTodayDietProgress } from "../../storage/diet/db.js";
+import { getTodayWorkoutProgress } from "../../storage/workout/db.js";
 // initTable is now called once in tabs layout startup
 
 const { width } = Dimensions.get("window");
@@ -41,6 +43,8 @@ export default function HomeScreen() {
   const capitalize = (s) => s?.charAt(0).toUpperCase() + s?.slice(1);
   const [userInfo, setUserInfo] = useState({});
   const [taskCount, setTaskCount] = useState(0);
+  const [dietProgress, setDietProgress] = useState({ total: 0, completed: 0, percentage: 0 });
+  const [workoutProgress, setWorkoutProgress] = useState({ total: 0, completed: 0, percentage: 0 });
 
   // Function to get dynamic greeting based on time
   const getGreeting = () => {
@@ -63,6 +67,36 @@ export default function HomeScreen() {
     };
     userInfo();
   }, []);
+
+  // Load diet progress when screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      const loadDietProgress = async () => {
+        try {
+          const progress = await getTodayDietProgress();
+          setDietProgress(progress);
+        } catch (error) {
+          console.error("Error loading diet progress:", error);
+        }
+      };
+      loadDietProgress();
+    }, [])
+  );
+
+  // Load workout progress when screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      const loadWorkoutProgress = async () => {
+        try {
+          const progress = await getTodayWorkoutProgress();
+          setWorkoutProgress(progress);
+        } catch (error) {
+          console.error("Error loading workout progress:", error);
+        }
+      };
+      loadWorkoutProgress();
+    }, [])
+  );
 
   // Water reminder states
   const [waterReminders, setWaterReminders] = useState([]);
@@ -492,6 +526,106 @@ export default function HomeScreen() {
             </ScrollView>
           </View>
         )}
+
+        {/* Diet Progress Card */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Diet Progress 🥗</Text>
+          <TouchableOpacity
+            style={styles.dietProgressCard}
+            onPress={() => router.push("/diet")}
+            activeOpacity={0.7}
+          >
+            <LinearGradient
+              colors={["#10B981", "#059669"]}
+              style={styles.dietProgressGradient}
+            >
+              <View style={styles.dietProgressHeader}>
+                <View style={styles.dietProgressIcon}>
+                  <Ionicons name="restaurant" size={24} color="#FFFFFF" />
+                </View>
+                <View style={styles.dietProgressInfo}>
+                  <Text style={styles.dietProgressTitle}>Today's Meals</Text>
+                  <Text style={styles.dietProgressSubtitle}>
+                    {dietProgress.completed} / {dietProgress.total} completed
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={24} color="#FFFFFF" />
+              </View>
+              
+              {dietProgress.total > 0 && (
+                <View style={styles.dietProgressBarContainer}>
+                  <View style={styles.dietProgressBarBg}>
+                    <Animated.View
+                      style={[
+                        styles.dietProgressBarFill,
+                        { width: `${dietProgress.percentage}%` },
+                      ]}
+                    />
+                  </View>
+                  <Text style={styles.dietProgressPercentage}>
+                    {dietProgress.percentage}%
+                  </Text>
+                </View>
+              )}
+              
+              {dietProgress.total === 0 && (
+                <Text style={styles.dietProgressEmptyText}>
+                  No meals planned for today. Tap to add!
+                </Text>
+              )}
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+
+        {/* Workout Progress Card */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Workout Progress 💪</Text>
+          <TouchableOpacity
+            style={styles.workoutProgressCard}
+            onPress={() => router.push("/workout")}
+            activeOpacity={0.7}
+          >
+            <LinearGradient
+              colors={["#FF6B6B", "#EE5A52"]}
+              style={styles.workoutProgressGradient}
+            >
+              <View style={styles.workoutProgressHeader}>
+                <View style={styles.workoutProgressIcon}>
+                  <Ionicons name="barbell" size={24} color="#FFFFFF" />
+                </View>
+                <View style={styles.workoutProgressInfo}>
+                  <Text style={styles.workoutProgressTitle}>Today's Workouts</Text>
+                  <Text style={styles.workoutProgressSubtitle}>
+                    {workoutProgress.completed} / {workoutProgress.total} completed
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={24} color="#FFFFFF" />
+              </View>
+              
+              {workoutProgress.total > 0 && (
+                <View style={styles.workoutProgressBarContainer}>
+                  <View style={styles.workoutProgressBarBg}>
+                    <Animated.View
+                      style={[
+                        styles.workoutProgressBarFill,
+                        { width: `${workoutProgress.percentage}%` },
+                      ]}
+                    />
+                  </View>
+                  <Text style={styles.workoutProgressPercentage}>
+                    {workoutProgress.percentage}%
+                  </Text>
+                </View>
+              )}
+              
+              {workoutProgress.total === 0 && (
+                <Text style={styles.workoutProgressEmptyText}>
+                  No workouts planned for today. Tap to add!
+                </Text>
+              )}
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Mindful Tasks</Text>
@@ -1131,6 +1265,146 @@ const styles = StyleSheet.create({
     color: "rgba(255, 255, 255, 0.9)",
     marginLeft: 4,
     fontWeight: "500",
+  },
+
+  // Diet Progress Card Styles
+  dietProgressCard: {
+    borderRadius: 16,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  dietProgressGradient: {
+    padding: 20,
+  },
+  dietProgressHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  dietProgressIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 16,
+  },
+  dietProgressInfo: {
+    flex: 1,
+  },
+  dietProgressTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#FFFFFF",
+    marginBottom: 4,
+  },
+  dietProgressSubtitle: {
+    fontSize: 14,
+    color: "rgba(255, 255, 255, 0.9)",
+  },
+  dietProgressBarContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  dietProgressBarBg: {
+    flex: 1,
+    height: 8,
+    backgroundColor: "rgba(255, 255, 255, 0.3)",
+    borderRadius: 4,
+    overflow: "hidden",
+  },
+  dietProgressBarFill: {
+    height: "100%",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 4,
+  },
+  dietProgressPercentage: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#FFFFFF",
+    minWidth: 45,
+    textAlign: "right",
+  },
+  dietProgressEmptyText: {
+    fontSize: 14,
+    color: "rgba(255, 255, 255, 0.9)",
+    fontStyle: "italic",
+  },
+
+  // Workout Progress Card Styles
+  workoutProgressCard: {
+    borderRadius: 16,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  workoutProgressGradient: {
+    padding: 20,
+  },
+  workoutProgressHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  workoutProgressIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 16,
+  },
+  workoutProgressInfo: {
+    flex: 1,
+  },
+  workoutProgressTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#FFFFFF",
+    marginBottom: 4,
+  },
+  workoutProgressSubtitle: {
+    fontSize: 14,
+    color: "rgba(255, 255, 255, 0.9)",
+  },
+  workoutProgressBarContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  workoutProgressBarBg: {
+    flex: 1,
+    height: 8,
+    backgroundColor: "rgba(255, 255, 255, 0.3)",
+    borderRadius: 4,
+    overflow: "hidden",
+  },
+  workoutProgressBarFill: {
+    height: "100%",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 4,
+  },
+  workoutProgressPercentage: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#FFFFFF",
+    minWidth: 45,
+    textAlign: "right",
+  },
+  workoutProgressEmptyText: {
+    fontSize: 14,
+    color: "rgba(255, 255, 255, 0.9)",
+    fontStyle: "italic",
   },
 
   // FAB Styles
