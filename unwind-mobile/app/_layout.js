@@ -15,7 +15,7 @@ Notifications.setNotificationHandler({
   }),
 });
 export default function RootLayout() {
-  console.log("RootLayout rendered");
+  // console.log("RootLayout rendered");
 
   useEffect(() => {
     // Request notification permissions on app start
@@ -46,7 +46,10 @@ export default function RootLayout() {
             <Stack.Screen name="(tabs)" />
             {/* <Stack.Screen name="meditation" options={{ title: "Meditation" }} /> */}
             {/* <Stack.Screen name="tasks/[category]" options={{ title: "Tasks" }} /> */}
-            <Stack.Screen name="pomodoro" options={{ title: "Pomodoro Timer", headerShown: false }} />
+            <Stack.Screen
+              name="pomodoro"
+              options={{ title: "Pomodoro Timer", headerShown: false }}
+            />
           </Stack>
           <StatusBar style="auto" />
         </MembershipProvider>

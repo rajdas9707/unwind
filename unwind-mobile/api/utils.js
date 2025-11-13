@@ -29,14 +29,6 @@ export const fetchPlans = async () => {
   return response.data;
 };
 
-export const fetchMembershipStatus = async () => {
-  const token = await getFreshToken();
-  const response = await axios.get(`${API_BASE_URL}/api/membership/status`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  return response.data;
-};
-
 export const verifyPurchase = async (purchaseData) => {
   const token = await getFreshToken();
   const response = await axios.post(

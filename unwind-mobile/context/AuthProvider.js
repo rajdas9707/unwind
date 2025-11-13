@@ -13,13 +13,13 @@ export const AuthProvider = ({ children }) => {
     // ✅ Listen for Firebase Auth state changes (auto-persistent across app restarts)
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        console.log("✅ User logged in:", firebaseUser.email);
+        // console.log("✅ User logged in:", firebaseUser.email);
         setUser({
           uid: firebaseUser.uid,
           email: firebaseUser.email,
         });
       } else {
-        console.log("🚪 No user logged in");
+        // console.log("🚪 No user logged in");
         setUser(null);
       }
       setLoading(false);

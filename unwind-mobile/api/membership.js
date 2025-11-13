@@ -2,6 +2,16 @@ import axios from "axios";
 import { getFreshToken, API_BASE_URL } from "./utils";
 import { Alert } from "react-native";
 
+export const fetchMembershipStatus = async () => {
+  const token = await getFreshToken();
+  const response = await axios.get(`${API_BASE_URL}/api/membership/status`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return response.data;
+};
+
+//*****FUTURE SCOPE */
+
 /**
  * Get membership status for current user
  * @returns {Object} Membership status object with canUseCloudBackup and expiresAt
@@ -26,18 +36,20 @@ export const getMembershipStatus = async () => {
     return response.data;
   } catch (error) {
     console.error("Error fetching membership status:", error);
-    
+
     const status = error.response?.status;
-    
+
     if (status === 401) {
       throw new Error("Authentication required. Please log in again.");
     }
-    
+
     if (status >= 500) {
       throw new Error("Server error. Please try again later.");
     }
-    
-    throw new Error("Failed to fetch membership status. Check your connection.");
+
+    throw new Error(
+      "Failed to fetch membership status. Check your connection."
+    );
   }
 };
 
@@ -157,7 +169,7 @@ export const verifyPayment = async (purchaseToken) => {
 export const canUseCloudBackup = async () => {
   try {
     const membershipStatus = await getMembershipStatus();
-    
+
     // Check if membership is active and not expired
     const isActive = membershipStatus.canUseCloudBackup === true;
     const expiresAt = membershipStatus.expiresAt
@@ -202,7 +214,7 @@ export const getPremiumPlans = async () => {
     return response.data;
   } catch (error) {
     console.error("Error fetching premium plans:", error);
-    
+
     // Return default plans if API fails
     return [
       {
