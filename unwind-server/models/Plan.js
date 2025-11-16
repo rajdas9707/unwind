@@ -7,7 +7,7 @@ const PlanSchema = new mongoose.Schema(
     // Plan identifier
     tier: {
       type: String,
-      enum: ["free", "pro", "premium"],
+      enum: ["free", "trial", "premium"],
       required: true,
       unique: true,
     },
@@ -15,7 +15,7 @@ const PlanSchema = new mongoose.Schema(
     // Display info
     name: { type: String, required: true },
     description: { type: String },
-    
+
     // Pricing (in cents to avoid floating point issues)
     pricing: {
       monthly: {
@@ -44,7 +44,7 @@ const PlanSchema = new mongoose.Schema(
 
     // Status
     isActive: { type: Boolean, default: true },
-    
+
     // Display order
     order: { type: Number, default: 0 },
   },

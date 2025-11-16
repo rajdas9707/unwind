@@ -6,20 +6,20 @@ const router = express.Router();
 // (Removed) Forgot password is handled on Mobile via Firebase client SDK
 
 // Example protected route
-router.get("/profile", verifyToken, async (req, res) => {
-  const { uid } = req.query;
+// router.get("/profile", verifyToken, async (req, res) => {
+//   const { uid } = req.query;
 
-  if (!uid) {
-    return res.status(400).json({ error: "UID is required" });
-  }
+//   if (!uid) {
+//     return res.status(400).json({ error: "UID is required" });
+//   }
 
-  const user = await User.findOne({ firebaseUid: uid });
-  if (!user) {
-    return res.status(404).json({ error: "User not found" });
-  }
+//   const user = await User.findOne({ firebaseUid: uid });
+//   if (!user) {
+//     return res.status(404).json({ error: "User not found" });
+//   }
 
-  return res.status(200).json({ message: "Secure profile data", user: user });
-});
+//   return res.status(200).json({ message: "Secure profile data", user: user });
+// });
 
 router.post("/signup", async (req, res) => {
   console.log("Signup request body:", req.body);
@@ -30,10 +30,10 @@ router.post("/signup", async (req, res) => {
     return res.status(400).json({ error: "UID and email are required" });
   }
   // Here you would typically create the user in your database
-  
+
   const user = await User.findOne({
-  $or: [{ firebaseUid: uid }, { email }],
-});
+    $or: [{ firebaseUid: uid }, { email }],
+  });
 
   if (user) {
     return res.status(401).json({ error: "User already exists" });
@@ -43,13 +43,15 @@ router.post("/signup", async (req, res) => {
       firebaseUid: uid,
       email,
       name,
-      trialStart,
-      trialEnd: trialStart
-        ? new Date(
-            new Date(trialStart).getTime() +
-              trialPeriodDays * 24 * 60 * 60 * 1000
-          )
-        : null,
+      membership: {
+        tier: "trial",
+        expiry: trialStart
+          ? new Date(
+              new Date(trialStart).getTime() +
+                trialPeriodDays * 24 * 60 * 60 * 1000
+            )
+          : null,
+      },
     });
 
     await user.save();
@@ -65,13 +67,9 @@ router.post("/signup", async (req, res) => {
   // For demonstration, we'll just return the received data
 });
 
-
-
-
 // PUT route to update user name
-router.put("/update-name",verifyToken, async (req, res) => {
-  
-  const user=req.user;
+router.put("/update-name", verifyToken, async (req, res) => {
+  const user = req.user;
   console.log("User from token:", user);
   const { newName } = req.body;
   // if (!newName) {

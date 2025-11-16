@@ -25,6 +25,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { signup } from "../api/auth";
 import { AuthContext } from "../context/AuthProvider";
 import CustomAlert from "../components/CustomAlert";
+import { useMembership } from "../context/MembershipProvider";
 
 export default function AuthScreen() {
   const [isLogin, setIsLogin] = useState(true);
@@ -33,49 +34,52 @@ export default function AuthScreen() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [name, setName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const{user}=useContext(AuthContext);
-  
+  const { user } = useContext(AuthContext);
+  const membership = useMembership();
+
+  const STORAGE_KEY = "@unwind_membership";
+
   // Custom alert state
   const [alertConfig, setAlertConfig] = useState({
     visible: false,
-    type: 'info',
-    title: '',
-    message: '',
-    buttonText: 'Got it'
+    type: "info",
+    title: "",
+    message: "",
+    buttonText: "Got it",
   });
-  
+
   // Helper function to show custom alert
-  const showAlert = (type, title, message, buttonText = 'Got it') => {
+  const showAlert = (type, title, message, buttonText = "Got it") => {
     setAlertConfig({
       visible: true,
       type,
       title,
       message,
-      buttonText
+      buttonText,
     });
   };
-  
+
   const closeAlert = () => {
-    setAlertConfig(prev => ({ ...prev, visible: false }));
+    setAlertConfig((prev) => ({ ...prev, visible: false }));
   };
 
   const handleSubmit = async () => {
     if (!email || !password) {
       showAlert(
-        'warning',
-        'Missing Information',
-        'Please fill in all fields to continue your ZenithMind journey',
-        'Got it'
+        "warning",
+        "Missing Information",
+        "Please fill in all fields to continue your ZenithMind journey",
+        "Got it"
       );
       return;
     }
 
     if (!isLogin && password !== confirmPassword) {
       showAlert(
-        'error',
-        'Password Mismatch',
+        "error",
+        "Password Mismatch",
         "Your passwords don't match. Let's make sure they're identical for security!",
-        'Fix it'
+        "Fix it"
       );
       return;
     }
@@ -96,8 +100,8 @@ export default function AuthScreen() {
         // Check if email is verified
         if (!userCredential.user.emailVerified) {
           showAlert(
-            'warning',
-            'Email Verification Required',
+            "warning",
+            "Email Verification Required",
             "Please check your inbox and verify your email to access ZenithMind's full features!",
             "I'll check now"
           );
@@ -113,19 +117,16 @@ export default function AuthScreen() {
             joinDate: new Date(userCredential.user.metadata.creationTime)
               .toISOString()
               .split("T")[0],
-
-            subscription: {
-              isActive: false,
-              plan: "trial",
-            },
-            trialStart: "25-05-2025",
-            trialEnd: "01-06-2025",
+            uid: userCredential?.user.uid,
           })
         );
 
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(membership));
+        console.log("✅ Membership synced:", membership);
+
         showAlert(
-          'success',
-          'Welcome to ZenithMind!',
+          "success",
+          "Welcome to ZenithMind!",
           "You're all set! Let's start your productive and mindful journey.",
           "Let's go!"
         );
@@ -138,7 +139,7 @@ export default function AuthScreen() {
         );
 
         //update user in the backend with name,uid,email
-  
+
         const response = await signup({
           uid: userCredential.user.uid,
           email: userCredential.user.email,
@@ -147,11 +148,8 @@ export default function AuthScreen() {
         });
 
         if (!response || response.status !== 200) {
-        await userCredential?.user.delete();
-        throw new Error("Signup failed at backend");
-
-          
-        
+          await userCredential?.user.delete();
+          throw new Error("Signup failed at backend");
         }
 
         await updateProfile(userCredential.user, {
@@ -166,10 +164,10 @@ export default function AuthScreen() {
         await sendEmailVerification(userCredential.user);
 
         showAlert(
-          'success',
-          'Account Created Successfully!',
-          'Welcome to ZenithMind! Please check your email and click the verification link to activate your account.',
-          'Check email'
+          "success",
+          "Account Created Successfully!",
+          "Welcome to ZenithMind! Please check your email and click the verification link to activate your account.",
+          "Check email"
         );
       }
 
@@ -181,33 +179,32 @@ export default function AuthScreen() {
       }
     } catch (error) {
       // console.error('Auth error:', error);
-      
+
       let errorTitle = "Authentication Issue";
       let errorMessage = "Something went wrong. Please try again.";
-      
-      if (error.code === 'auth/user-not-found') {
+
+      if (error.code === "auth/user-not-found") {
         errorTitle = "Account Not Found";
-        errorMessage = "No account found with this email. Would you like to create one?";
-      } else if (error.code === 'auth/wrong-password') {
+        errorMessage =
+          "No account found with this email. Would you like to create one?";
+      } else if (error.code === "auth/wrong-password") {
         errorTitle = "Incorrect Password";
-        errorMessage = "The password is incorrect. Try again or reset your password.";
-      } else if (error.code === 'auth/email-already-in-use') {
+        errorMessage =
+          "The password is incorrect. Try again or reset your password.";
+      } else if (error.code === "auth/email-already-in-use") {
         errorTitle = "Email Already Registered";
-        errorMessage = "This email is already registered. Try signing in instead!";
-      } else if (error.code === 'auth/weak-password') {
+        errorMessage =
+          "This email is already registered. Try signing in instead!";
+      } else if (error.code === "auth/weak-password") {
         errorTitle = "Weak Password";
-        errorMessage = "Please choose a stronger password with at least 6 characters.";
-      } else if (error.code === 'auth/invalid-email') {
+        errorMessage =
+          "Please choose a stronger password with at least 6 characters.";
+      } else if (error.code === "auth/invalid-email") {
         errorTitle = "Invalid Email";
         errorMessage = "Please enter a valid email address to continue.";
       }
-      
-      showAlert(
-        'error',
-        errorTitle,
-        errorMessage,
-        'Try again'
-      );
+
+      showAlert("error", errorTitle, errorMessage, "Try again");
     } finally {
       setIsLoading(false);
     }
@@ -216,32 +213,27 @@ export default function AuthScreen() {
   const handleForgotPassword = async () => {
     if (!email) {
       showAlert(
-        'warning',
-        'Email Required',
-        'Please enter your email address first to reset your password',
-        'Got it'
+        "warning",
+        "Email Required",
+        "Please enter your email address first to reset your password",
+        "Got it"
       );
       return;
     }
     try {
       await sendPasswordResetEmail(auth, email);
       showAlert(
-        'success',
-        'Reset Link Sent!',
+        "success",
+        "Reset Link Sent!",
         "Check your email for password reset instructions. Don't forget to check your spam folder!",
-        'Perfect!'
+        "Perfect!"
       );
     } catch (error) {
       let errorMessage = "Unable to send reset email. Please try again.";
-      if (error.code === 'auth/user-not-found') {
+      if (error.code === "auth/user-not-found") {
         errorMessage = "No account found with this email address.";
       }
-      showAlert(
-        'error',
-        'Reset Failed',
-        errorMessage,
-        'Try again'
-      );
+      showAlert("error", "Reset Failed", errorMessage, "Try again");
     }
   };
 
@@ -257,9 +249,13 @@ export default function AuthScreen() {
           <Ionicons name="diamond-outline" size={48} color="#6366F1" />
         </View>
         <Text style={styles.title}>ZenithMind</Text>
-        <Text style={styles.tagline}>Your productivity & mindfulness companion</Text>
+        <Text style={styles.tagline}>
+          Your productivity & mindfulness companion
+        </Text>
         <Text style={styles.subtitle}>
-          {isLogin ? "Welcome back to your journey" : "Begin your mindful productivity journey"}
+          {isLogin
+            ? "Welcome back to your journey"
+            : "Begin your mindful productivity journey"}
         </Text>
       </View>
 
@@ -304,7 +300,11 @@ export default function AuthScreen() {
 
         {!isLogin && (
           <View style={styles.inputContainer}>
-            <Ionicons name="shield-checkmark-outline" size={22} color="#8B5CF6" />
+            <Ionicons
+              name="shield-checkmark-outline"
+              size={22}
+              color="#8B5CF6"
+            />
             <TextInput
               style={styles.textInput}
               placeholder="Confirm Password"
@@ -343,7 +343,7 @@ export default function AuthScreen() {
           </Text>
         </TouchableOpacity>
       </View>
-      
+
       <CustomAlert
         visible={alertConfig.visible}
         onClose={closeAlert}
@@ -357,13 +357,13 @@ export default function AuthScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
+  container: {
+    flex: 1,
     backgroundColor: "#0F172A",
   },
-  header: { 
-    alignItems: "center", 
-    paddingTop: 80, 
+  header: {
+    alignItems: "center",
+    paddingTop: 80,
     paddingBottom: 40,
     paddingHorizontal: 20,
   },
@@ -378,10 +378,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(139, 92, 246, 0.2)",
   },
-  title: { 
-    fontSize: 36, 
-    fontWeight: "800", 
-    color: "#FFFFFF", 
+  title: {
+    fontSize: 36,
+    fontWeight: "800",
+    color: "#FFFFFF",
     marginBottom: 8,
     letterSpacing: -0.5,
   },
@@ -393,15 +393,15 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 1,
   },
-  subtitle: { 
-    fontSize: 17, 
+  subtitle: {
+    fontSize: 17,
     color: "#94A3B8",
     textAlign: "center",
     lineHeight: 24,
     fontWeight: "400",
   },
-  form: { 
-    flex: 1, 
+  form: {
+    flex: 1,
     paddingHorizontal: 32,
     paddingTop: 20,
   },
@@ -427,9 +427,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "500",
   },
-  forgotPassword: { 
-    color: "#8B5CF6", 
-    textAlign: "right", 
+  forgotPassword: {
+    color: "#8B5CF6",
+    textAlign: "right",
     marginBottom: 20,
     fontSize: 15,
     fontWeight: "500",
@@ -447,18 +447,18 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 8,
   },
-  submitButtonText: { 
-    color: "#FFFFFF", 
-    fontSize: 17, 
+  submitButtonText: {
+    color: "#FFFFFF",
+    fontSize: 17,
     fontWeight: "700",
     letterSpacing: 0.5,
   },
-  switchButton: { 
+  switchButton: {
     alignItems: "center",
     paddingVertical: 12,
   },
-  switchButtonText: { 
-    color: "#94A3B8", 
+  switchButtonText: {
+    color: "#94A3B8",
     fontSize: 15,
     fontWeight: "500",
   },

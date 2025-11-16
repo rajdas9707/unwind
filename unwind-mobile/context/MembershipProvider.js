@@ -28,7 +28,7 @@ export const MembershipProvider = ({ children }) => {
 
   // Sync membership when user logs in or becomes online
   useEffect(() => {
-    if (user) {
+    if (isOnline && user) {
       syncMembership();
     }
   }, [user]);
@@ -43,6 +43,8 @@ export const MembershipProvider = ({ children }) => {
           ...data,
           isVerified: false, // Mark as unverified cache
         });
+
+        console.log("Loaded cached membership:", data);
       }
     } catch (error) {
       console.error("Error loading cached membership:", error);
@@ -72,8 +74,10 @@ export const MembershipProvider = ({ children }) => {
         }
       }
 
+      console.log("Syncing membership with server...");
       // Fetch from server
       const response = await fetchMembershipStatus();
+      console.log("Membership sync response:", response);
       if (response.status == 200) {
         const newMembership = {
           tier: response.membership.tier,
@@ -161,11 +165,27 @@ export const MembershipProvider = ({ children }) => {
   );
 };
 
-// Custom hook for easy access
+// Custom hook for easy access - with safe fallback
 export const useMembership = () => {
   const context = useContext(MembershipContext);
+
+  // Return safe defaults if context is not available
   if (!context) {
-    throw new Error("useMembership must be used within MembershipProvider");
+    console.warn(
+      "useMembership called outside MembershipProvider - returning defaults"
+    );
+    return {
+      membership: {
+        tier: "free",
+        expiry: null,
+        features: [],
+        lastUpdated: new Date().toISOString(),
+        isVerified: false,
+      },
+      syncMembership: () => Promise.resolve(),
+      updateMembership: () => {},
+      clearMembership: () => {},
+    };
   }
   return context;
 };

@@ -15,28 +15,16 @@ const UserSchema = new mongoose.Schema(
     email: { type: String, required: true },
     name: { type: String },
 
-    // Subscription info (legacy - kept for backward compatibility)
-    subscription: {
-      isActive: { type: Boolean, default: false },
-      trialStart: { type: Date },
-      trialEnd: { type: Date },
-      plan: {
-        type: String,
-        enum: ["trial", "basic", "premium"],
-        default: "trial",
-      },
-    },
-
     // Membership system (new IAP-based system)
     membership: {
       tier: {
         type: String,
-        enum: ["free", "pro", "premium"],
+        enum: ["free", "trial", "premium"],
         default: "free",
       },
       expiry: { type: Date },
       features: [{ type: String }],
-      lastUpdated: { type: Date, default: Date.now },
+      lastUpdated: { type: Date },
       purchaseHistory: [
         {
           productId: String,

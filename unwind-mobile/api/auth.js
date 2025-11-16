@@ -5,55 +5,61 @@ import { Alert } from "react-native";
 // Get user profile information
 export const getProfile = async ({ uid }) => {
   const token = await getFreshToken();
-  
+
   const headers = {
     "Content-Type": "application/json",
   };
-  
+
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
-  
+
   const response = await axios.get(`${API_BASE_URL}/api/auth/profile/${uid}`, {
     headers,
     timeout: 10000,
   });
-  
-  
-  
+
   return response.data;
 };
 
 // Sign up a new user
 export const signup = async ({ uid, email, name, trialStart }) => {
- 
-  console.log("Signing up user with UID:", uid, "Email:", email, "Name:", name, "Trial Start:", trialStart);
-  
+  console.log(
+    "Signing up user with UID:",
+    uid,
+    "Email:",
+    email,
+    "Name:",
+    name,
+    "Trial Start:",
+    trialStart
+  );
+
   const headers = {
     "Content-Type": "application/json",
   };
-  
 
   try {
-      const response = await axios.post(`${API_BASE_URL}/api/auth/signup`, {
-    uid,
-    email,
-    name,
-    trialStart,
-  }, {
-    headers,
-    timeout: 10000,
-  });
-  
+    const response = await axios.post(
+      `${API_BASE_URL}/api/auth/signup`,
+      {
+        uid,
+        email,
+        name,
+        trialStart,
+      },
+      {
+        headers,
+        timeout: 10000,
+      }
+    );
 
-  return response.status 
-  }
-  
-   catch (error) {
+    return response;
+  } catch (error) {
     // Get status safely
     const status = error.response?.status;
 
-    if (status === 401 ) {
+    if (status === 401) {
       Alert.alert(
         "⚠️ Account Already Exists",
         "🙂 This email is already registered.\n\nPlease log in or use another email to create a new account.",
@@ -79,35 +85,34 @@ export const signup = async ({ uid, email, name, trialStart }) => {
 
     console.error("Signup error:", error);
   }
-
 };
 
 // Delete user account
 export const deleteUserAccount = async () => {
   const token = await getFreshToken();
-  
+
   const headers = {
     "Content-Type": "application/json",
   };
-  
+
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
-  
-  const response = await axios.delete(`${API_BASE_URL}/api/auth/delete-account`, {
-    headers,
-    timeout: 10000,
-  });
-  
+
+  const response = await axios.delete(
+    `${API_BASE_URL}/api/auth/delete-account`,
+    {
+      headers,
+      timeout: 10000,
+    }
+  );
+
   if (response.status !== 200) {
     throw new Error(`Unexpected response status: ${response.status}`);
   }
-  
+
   return response.data;
 };
-
-
-
 
 // Update user name
 export const updateUserName = async ({ uid, name }) => {

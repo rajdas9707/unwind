@@ -43,8 +43,16 @@ export default function HomeScreen() {
   const capitalize = (s) => s?.charAt(0).toUpperCase() + s?.slice(1);
   const [userInfo, setUserInfo] = useState({});
   const [taskCount, setTaskCount] = useState(0);
-  const [dietProgress, setDietProgress] = useState({ total: 0, completed: 0, percentage: 0 });
-  const [workoutProgress, setWorkoutProgress] = useState({ total: 0, completed: 0, percentage: 0 });
+  const [dietProgress, setDietProgress] = useState({
+    total: 0,
+    completed: 0,
+    percentage: 0,
+  });
+  const [workoutProgress, setWorkoutProgress] = useState({
+    total: 0,
+    completed: 0,
+    percentage: 0,
+  });
 
   // Function to get dynamic greeting based on time
   const getGreeting = () => {
@@ -551,7 +559,7 @@ export default function HomeScreen() {
                 </View>
                 <Ionicons name="chevron-forward" size={24} color="#FFFFFF" />
               </View>
-              
+
               {dietProgress.total > 0 && (
                 <View style={styles.dietProgressBarContainer}>
                   <View style={styles.dietProgressBarBg}>
@@ -567,7 +575,7 @@ export default function HomeScreen() {
                   </Text>
                 </View>
               )}
-              
+
               {dietProgress.total === 0 && (
                 <Text style={styles.dietProgressEmptyText}>
                   No meals planned for today. Tap to add!
@@ -594,14 +602,17 @@ export default function HomeScreen() {
                   <Ionicons name="barbell" size={24} color="#FFFFFF" />
                 </View>
                 <View style={styles.workoutProgressInfo}>
-                  <Text style={styles.workoutProgressTitle}>Today's Workouts</Text>
+                  <Text style={styles.workoutProgressTitle}>
+                    Today's Workouts
+                  </Text>
                   <Text style={styles.workoutProgressSubtitle}>
-                    {workoutProgress.completed} / {workoutProgress.total} completed
+                    {workoutProgress.completed} / {workoutProgress.total}{" "}
+                    completed
                   </Text>
                 </View>
                 <Ionicons name="chevron-forward" size={24} color="#FFFFFF" />
               </View>
-              
+
               {workoutProgress.total > 0 && (
                 <View style={styles.workoutProgressBarContainer}>
                   <View style={styles.workoutProgressBarBg}>
@@ -617,7 +628,7 @@ export default function HomeScreen() {
                   </Text>
                 </View>
               )}
-              
+
               {workoutProgress.total === 0 && (
                 <Text style={styles.workoutProgressEmptyText}>
                   No workouts planned for today. Tap to add!

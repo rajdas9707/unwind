@@ -90,10 +90,10 @@ const MembershipModal = ({ visible, onClose }) => {
       // **DEV MODE: Use mock token**
       if (IS_DEV_MODE) {
         console.log("🧪 DEV MODE: Simulating IAP purchase with mock token");
-        
+
         // Generate mock token
         const mockToken = `MOCK_TOKEN_DEV_${Date.now()}_${plan.tier}_${period}`;
-        
+
         verificationData = {
           platform: Platform.OS,
           productId: productId,
@@ -110,26 +110,33 @@ const MembershipModal = ({ visible, onClose }) => {
         // **PRODUCTION: Real IAP flow**
         // Get product details
         const { results } = await InAppPurchases.getProductsAsync([productId]);
-        
+
         if (!results || results.length === 0) {
           Alert.alert("Error", "Product not found");
           return;
         }
 
         // Make purchase
-        const purchaseResult = await InAppPurchases.purchaseItemAsync(productId);
+        const purchaseResult = await InAppPurchases.purchaseItemAsync(
+          productId
+        );
 
         if (purchaseResult.responseCode === InAppPurchases.IAPResponseCode.OK) {
           // Get purchase info
           const purchase = purchaseResult.results[0];
-          
+
           verificationData = {
             platform: Platform.OS,
             productId: productId,
-            purchaseToken: Platform.OS === "android" ? purchase.purchaseToken : null,
-            transactionReceipt: Platform.OS === "ios" ? purchase.transactionReceipt : null,
+            purchaseToken:
+              Platform.OS === "android" ? purchase.purchaseToken : null,
+            transactionReceipt:
+              Platform.OS === "ios" ? purchase.transactionReceipt : null,
           };
-        } else if (purchaseResult.responseCode === InAppPurchases.IAPResponseCode.USER_CANCELED) {
+        } else if (
+          purchaseResult.responseCode ===
+          InAppPurchases.IAPResponseCode.USER_CANCELED
+        ) {
           // User cancelled - no alert needed
           return;
         } else {
@@ -145,18 +152,19 @@ const MembershipModal = ({ visible, onClose }) => {
         // Update membership
         await updateMembership(verifyResponse.membership);
         await syncMembership(true);
-        
-        const successMessage = verifyResponse.mock 
+
+        const successMessage = verifyResponse.mock
           ? `[DEV] Mock purchase successful! Welcome to ${plan.name}!`
           : `Welcome to ${plan.name}! Your membership is now active.`;
-        
-        Alert.alert(
-          "Success!",
-          successMessage,
-          [{ text: "OK", onPress: onClose }]
-        );
+
+        Alert.alert("Success!", successMessage, [
+          { text: "OK", onPress: onClose },
+        ]);
       } else {
-        Alert.alert("Error", "Failed to verify purchase. Please contact support.");
+        Alert.alert(
+          "Error",
+          "Failed to verify purchase. Please contact support."
+        );
       }
     } catch (error) {
       console.error("Purchase error:", error);
@@ -170,19 +178,21 @@ const MembershipModal = ({ visible, onClose }) => {
   const handleRestorePurchases = async () => {
     try {
       setPurchasing(true);
-      
+
       const { results } = await InAppPurchases.getPurchaseHistoryAsync();
-      
+
       if (results && results.length > 0) {
         // Get most recent purchase
         const latestPurchase = results[0];
-        
+
         // Verify with backend
         const verificationData = {
           platform: Platform.OS,
           productId: latestPurchase.productId,
-          purchaseToken: Platform.OS === "android" ? latestPurchase.purchaseToken : null,
-          transactionReceipt: Platform.OS === "ios" ? latestPurchase.transactionReceipt : null,
+          purchaseToken:
+            Platform.OS === "android" ? latestPurchase.purchaseToken : null,
+          transactionReceipt:
+            Platform.OS === "ios" ? latestPurchase.transactionReceipt : null,
         };
 
         const verifyResponse = await verifyPurchase(verificationData);
@@ -192,7 +202,10 @@ const MembershipModal = ({ visible, onClose }) => {
           await syncMembership(true);
           Alert.alert("Success", "Purchases restored successfully!");
         } else {
-          Alert.alert("No Active Purchases", "No active purchases found to restore.");
+          Alert.alert(
+            "No Active Purchases",
+            "No active purchases found to restore."
+          );
         }
       } else {
         Alert.alert("No Purchases", "No purchase history found.");
@@ -237,7 +250,10 @@ const MembershipModal = ({ visible, onClose }) => {
             <Text style={styles.loadingText}>Loading plans...</Text>
           </View>
         ) : (
-          <ScrollView style={styles.plansContainer} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            style={styles.plansContainer}
+            showsVerticalScrollIndicator={false}
+          >
             {plans.map((plan, index) => (
               <PlanCard
                 key={plan.tier}
@@ -294,18 +310,34 @@ const PlanCard = ({ plan, isCurrentPlan, onPurchase, disabled }) => {
         <View style={styles.pricingContainer}>
           <View style={styles.periodToggle}>
             <TouchableOpacity
-              style={[styles.periodButton, selectedPeriod === "monthly" && styles.periodButtonActive]}
+              style={[
+                styles.periodButton,
+                selectedPeriod === "monthly" && styles.periodButtonActive,
+              ]}
               onPress={() => setSelectedPeriod("monthly")}
             >
-              <Text style={[styles.periodButtonText, selectedPeriod === "monthly" && styles.periodButtonTextActive]}>
+              <Text
+                style={[
+                  styles.periodButtonText,
+                  selectedPeriod === "monthly" && styles.periodButtonTextActive,
+                ]}
+              >
                 Monthly
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.periodButton, selectedPeriod === "yearly" && styles.periodButtonActive]}
+              style={[
+                styles.periodButton,
+                selectedPeriod === "yearly" && styles.periodButtonActive,
+              ]}
               onPress={() => setSelectedPeriod("yearly")}
             >
-              <Text style={[styles.periodButtonText, selectedPeriod === "yearly" && styles.periodButtonTextActive]}>
+              <Text
+                style={[
+                  styles.periodButtonText,
+                  selectedPeriod === "yearly" && styles.periodButtonTextActive,
+                ]}
+              >
                 Yearly (Save 20%)
               </Text>
             </TouchableOpacity>
@@ -313,7 +345,9 @@ const PlanCard = ({ plan, isCurrentPlan, onPurchase, disabled }) => {
 
           <Text style={styles.price}>
             ${(plan.pricing[selectedPeriod].usd / 100).toFixed(2)}
-            <Text style={styles.pricePeriod}>/{selectedPeriod === "monthly" ? "mo" : "yr"}</Text>
+            <Text style={styles.pricePeriod}>
+              /{selectedPeriod === "monthly" ? "mo" : "yr"}
+            </Text>
           </Text>
         </View>
       )}
@@ -339,7 +373,10 @@ const PlanCard = ({ plan, isCurrentPlan, onPurchase, disabled }) => {
         </View>
       ) : (
         <TouchableOpacity
-          style={[styles.purchaseButton, disabled && styles.purchaseButtonDisabled]}
+          style={[
+            styles.purchaseButton,
+            disabled && styles.purchaseButtonDisabled,
+          ]}
           onPress={() => onPurchase(plan, selectedPeriod)}
           disabled={disabled}
         >

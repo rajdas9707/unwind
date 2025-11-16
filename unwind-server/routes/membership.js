@@ -39,15 +39,13 @@ router.get("/status", verifyToken, async (req, res) => {
     }
 
     // Check if membership has expired
-    let membership = user.membership || {
-      tier: "free",
-      lastUpdated: new Date(),
-    };
+    let membership = user?.membership;
 
     if (membership.expiry && new Date(membership.expiry) < new Date()) {
       // Membership expired - reset to free
       membership.tier = "free";
       membership.expiry = null;
+      membership.lastUpdated = new Date();
       user.membership = membership;
       await user.save();
     }

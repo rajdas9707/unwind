@@ -333,7 +333,7 @@ export default function AccountScreen() {
       } catch {}
       setClearDataModalVisible(false);
       setClearDataPassword("");
-      
+
       // Reset local state
       setStats({
         journalEntries: 0,
@@ -343,21 +343,17 @@ export default function AccountScreen() {
       });
       setScores([]);
       setCards([]);
-      
+
       // Show success alert and navigate to home tab to force refresh
-      Alert.alert(
-        "Deleted", 
-        "All server and local data have been deleted.",
-        [
-          {
-            text: "OK",
-            onPress: () => {
-              // Navigate to home tab to force UI refresh across all tabs
-              router.replace('/(tabs)');
-            }
-          }
-        ]
-      );
+      Alert.alert("Deleted", "All server and local data have been deleted.", [
+        {
+          text: "OK",
+          onPress: () => {
+            // Navigate to home tab to force UI refresh across all tabs
+            router.replace("/(tabs)");
+          },
+        },
+      ]);
     } catch (error) {
       if (
         error?.code === "auth/invalid-credential" ||
@@ -523,19 +519,19 @@ export default function AccountScreen() {
       await FileSystem.deleteAsync(`${FileSystem.documentDirectory}files/`, {
         idempotent: true,
       });
-      
+
       // Clear AsyncStorage (all local data)
       // Keep only essential auth-related data, clear everything else
-      const keysToKeep = ['userInfo']; // Keep user info for the session
+      const keysToKeep = ["userInfo"]; // Keep user info for the session
       const allKeys = await AsyncStorage.getAllKeys();
-      const keysToRemove = allKeys.filter(key => !keysToKeep.includes(key));
-      
+      const keysToRemove = allKeys.filter((key) => !keysToKeep.includes(key));
+
       if (keysToRemove.length > 0) {
         await AsyncStorage.multiRemove(keysToRemove);
-        console.log('Cleared AsyncStorage keys:', keysToRemove);
+        console.log("Cleared AsyncStorage keys:", keysToRemove);
       }
     } catch (e) {
-      console.error('Error wiping app sandbox:', e);
+      console.error("Error wiping app sandbox:", e);
       throw e;
     }
   };
@@ -971,11 +967,19 @@ export default function AccountScreen() {
 
         {/* Settings Section */}
         <View className="section" style={styles.section}>
-          <Text style={styles.sectionTitle}>Settings</Text>
-          
+          <Text style={styles.sectionTitle}>Settings </Text>
+
           <TouchableOpacity
             style={styles.settingItem}
-            onPress={() => router.push("/billing")}
+            onPress={() => {
+              try {
+                console.log("Navigating to billing settings");
+                router.push("/settings/billing");
+              } catch (error) {
+                console.error("Navigation error:", error);
+                Alert.alert("Error", "Failed to navigate to billing settings.");
+              }
+            }}
           >
             <Ionicons name="card" size={20} color="#8B5CF6" />
             <Text style={styles.settingText}>Billing & Membership</Text>

@@ -12,32 +12,63 @@ import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
-import { useMembership } from "../context/MembershipProvider";
-import MembershipModal from "../components/MembershipModal";
+import { useMembership } from "../../context/MembershipProvider";
+// import MembershipModal from "../../components/MembershipModal";
 
 export default function BillingScreen() {
-  const { membership, syncMembership } = useMembership();
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
-  const [syncing, setSyncing] = useState(false);
+  const { membership = {}, syncMembership } = useMembership();
+  // const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  // const [syncing, setSyncing] = useState(false);
 
-  useEffect(() => {
-    // Sync membership on mount
-    syncMembership();
-  }, []);
-
-  const handleRefresh = async () => {
-    setSyncing(true);
-    try {
-      await syncMembership(true);
-      Alert.alert("Success", "Membership status refreshed!");
-    } catch (error) {
-      Alert.alert("Error", "Failed to refresh membership");
-    } finally {
-      setSyncing(false);
-    }
+  // Helper function to format feature names
+  const formatFeatureName = (featureId) => {
+    const names = {
+      basic_journal: "Basic Journal",
+      mood_tracking: "Mood Tracking",
+      basic_reminders: "Basic Reminders",
+      unlimited_reminders: "Unlimited Reminders",
+      advanced_analytics: "Advanced Analytics",
+      meditation_library: "Meditation Library",
+      ai_insights: "AI Insights",
+      priority_support: "Priority Support",
+      offline_mode: "Offline Mode",
+      custom_themes: "Custom Themes",
+      export_data: "Export Data",
+    };
+    return names[featureId] || featureId.replace(/_/g, " ");
   };
 
-  const getTierColor = (tier) => {
+  // Ensure membership has default values
+  const membershipData = {
+    tier: membership.tier || "free",
+    expiry: membership.expiry || null,
+    features: membership.features || [],
+    lastUpdated: membership.lastUpdated || new Date().toISOString(),
+    ...membership,
+  };
+
+  // useEffect(() => {
+  //   // Sync membership on mount
+  //   if (syncMembership) {
+  //     syncMembership().catch((err) =>
+  //       console.log("Membership sync failed:", err)
+  //     );
+  //   }
+  // }, [syncMembership]);
+
+  // const handleRefresh = async () => {
+  //   setSyncing(true);
+  //   try {
+  //     await syncMembership(true);
+  //     Alert.alert("Success", "Membership status refreshed!");
+  //   } catch (error) {
+  //     Alert.alert("Error", "Failed to refresh membership");
+  //   } finally {
+  //     setSyncing(false);
+  //   }
+  // };
+
+  const getTierColor = (tier = "free") => {
     switch (tier) {
       case "premium":
         return { start: "#8B5CF6", end: "#6366F1" };
@@ -48,7 +79,7 @@ export default function BillingScreen() {
     }
   };
 
-  const getTierIcon = (tier) => {
+  const getTierIcon = (tier = "free") => {
     switch (tier) {
       case "premium":
         return "diamond";
@@ -70,20 +101,20 @@ export default function BillingScreen() {
   };
 
   const getDaysRemaining = () => {
-    if (!membership.expiry) return null;
+    if (!membershipData.expiry) return null;
     const now = new Date();
-    const expiry = new Date(membership.expiry);
+    const expiry = new Date(membershipData.expiry);
     const diff = expiry - now;
     const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
     return days > 0 ? days : 0;
   };
 
   const isExpired = () => {
-    if (!membership.expiry) return false;
-    return new Date(membership.expiry) < new Date();
+    if (!membershipData.expiry) return false;
+    return new Date(membershipData.expiry) < new Date();
   };
 
-  const tierColors = getTierColor(membership.tier);
+  const tierColors = getTierColor(membershipData.tier);
   const daysRemaining = getDaysRemaining();
 
   return (
@@ -92,20 +123,26 @@ export default function BillingScreen() {
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backButton}
+        >
           <Ionicons name="arrow-back" size={24} color="#111827" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Billing & Membership</Text>
-        <TouchableOpacity onPress={handleRefresh} disabled={syncing}>
+        {/* <TouchableOpacity onPress={handleRefresh} disabled={syncing}>
           {syncing ? (
             <ActivityIndicator size="small" color="#111827" />
           ) : (
             <Ionicons name="refresh" size={24} color="#111827" />
           )}
-        </TouchableOpacity>
+        </TouchableOpacity> */}
       </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Current Plan Card */}
         <LinearGradient
           colors={[tierColors.start, tierColors.end]}
@@ -116,23 +153,25 @@ export default function BillingScreen() {
           <View style={styles.planHeader}>
             <View style={styles.planIconContainer}>
               <Ionicons
-                name={getTierIcon(membership.tier)}
+                name={getTierIcon(membershipData.tier)}
                 size={32}
                 color="#FFFFFF"
               />
             </View>
             <View style={styles.planInfo}>
-              <Text style={styles.planTier}>{membership.tier.toUpperCase()}</Text>
+              <Text style={styles.planTier}>
+                {membershipData?.tier?.toUpperCase()}
+              </Text>
               <Text style={styles.planSubtitle}>Current Plan</Text>
             </View>
           </View>
 
-          {membership.tier !== "free" && membership.expiry && (
+          {membershipData.tier !== "free" && membershipData?.expiry && (
             <View style={styles.planDetails}>
               <View style={styles.planDetailRow}>
                 <Ionicons name="calendar" size={16} color="#FFFFFF" />
                 <Text style={styles.planDetailText}>
-                  Expires: {formatDate(membership.expiry)}
+                  Expires: {formatDate(membershipData?.expiry)}
                 </Text>
               </View>
               {daysRemaining !== null && (
@@ -148,26 +187,34 @@ export default function BillingScreen() {
             </View>
           )}
 
-          {membership.tier === "free" && (
+          {/* {membershipData.tier === "free" && (
             <TouchableOpacity
               style={styles.upgradeButton}
               onPress={() => setShowUpgradeModal(true)}
             >
-              <Ionicons name="arrow-up-circle" size={20} color={tierColors.start} />
+              <Ionicons
+                name="arrow-up-circle"
+                size={20}
+                color={tierColors.start}
+              />
               <Text style={styles.upgradeButtonText}>Upgrade Now</Text>
             </TouchableOpacity>
-          )}
+          )} */}
         </LinearGradient>
 
         {/* Features Section */}
-        <View style={styles.section}>
+        {/* <View style={styles.section}>
           <Text style={styles.sectionTitle}>Your Features</Text>
           <View style={styles.featuresContainer}>
-            {membership.features && membership.features.length > 0 ? (
-              membership.features.map((feature, index) => (
+            {membershipData.features && membershipData.features.length > 0 ? (
+              membershipData.features.map((feature, index) => (
                 <View key={index} style={styles.featureItem}>
                   <View style={styles.featureIconContainer}>
-                    <Ionicons name="checkmark-circle" size={20} color="#10B981" />
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={20}
+                      color="#10B981"
+                    />
                   </View>
                   <Text style={styles.featureText}>
                     {formatFeatureName(feature)}
@@ -180,21 +227,22 @@ export default function BillingScreen() {
               </Text>
             )}
           </View>
-        </View>
+        </View> */}
 
         {/* Upgrade Section */}
-        {membership.tier !== "premium" && (
+        {/* {membershipData.tier !== "premium" && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Upgrade Your Plan</Text>
             <View style={styles.upgradeCard}>
               <Ionicons name="rocket" size={40} color="#8B5CF6" />
               <Text style={styles.upgradeCardTitle}>
-                Unlock {membership.tier === "free" ? "Pro & Premium" : "Premium"}{" "}
+                Unlock{" "}
+                {membershipData.tier === "free" ? "Pro & Premium" : "Premium"}{" "}
                 Features
               </Text>
               <Text style={styles.upgradeCardDescription}>
-                Get access to advanced analytics, unlimited features, and priority
-                support
+                Get access to advanced analytics, unlimited features, and
+                priority support
               </Text>
               <TouchableOpacity
                 style={styles.upgradeCardButton}
@@ -205,7 +253,7 @@ export default function BillingScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        )}
+        )} */}
 
         {/* Membership Info */}
         <View style={styles.section}>
@@ -232,7 +280,9 @@ export default function BillingScreen() {
 
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Plan Type</Text>
-              <Text style={styles.infoValue}>{membership.tier.toUpperCase()}</Text>
+              <Text style={styles.infoValue}>
+                {membershipData?.tier?.toUpperCase()}
+              </Text>
             </View>
 
             {membership.expiry && (
@@ -290,30 +340,12 @@ export default function BillingScreen() {
       </ScrollView>
 
       {/* Membership Modal */}
-      <MembershipModal
+      {/* <MembershipModal
         visible={showUpgradeModal}
         onClose={() => setShowUpgradeModal(false)}
-      />
+      /> */}
     </View>
   );
-}
-
-// Helper function to format feature names
-function formatFeatureName(featureId) {
-  const names = {
-    basic_journal: "Basic Journal",
-    mood_tracking: "Mood Tracking",
-    basic_reminders: "Basic Reminders",
-    unlimited_reminders: "Unlimited Reminders",
-    advanced_analytics: "Advanced Analytics",
-    meditation_library: "Meditation Library",
-    ai_insights: "AI Insights",
-    priority_support: "Priority Support",
-    offline_mode: "Offline Mode",
-    custom_themes: "Custom Themes",
-    export_data: "Export Data",
-  };
-  return names[featureId] || featureId.replace(/_/g, " ");
 }
 
 const styles = StyleSheet.create({

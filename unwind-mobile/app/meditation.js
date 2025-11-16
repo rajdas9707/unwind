@@ -33,14 +33,10 @@ export default function MeditationScreen() {
   const audioParams = (() => {
     let focused, fallback;
     try {
-      focused = Asset.fromModule(
-        require("../assets/focus-sound.mp3")
-      ).uri;
+      focused = Asset.fromModule(require("../assets/focus-sound.mp3")).uri;
     } catch {}
     try {
-      fallback = Asset.fromModule(
-        require("../assets/relax-sound.mp3")
-      ).uri;
+      fallback = Asset.fromModule(require("../assets/relax-sound.mp3")).uri;
     } catch {}
     const qp = new URLSearchParams({
       w: String(width),
@@ -64,7 +60,7 @@ export default function MeditationScreen() {
   const toggleTheme = () => {
     const newTheme = !isDarkMode;
     setIsDarkMode(newTheme);
-    
+
     // Send theme change to WebView
     const script = `
       (function() {
@@ -85,7 +81,7 @@ export default function MeditationScreen() {
         }
       })();
     `;
-    
+
     // Execute the script in the WebView
     if (webViewRef.current) {
       webViewRef.current.injectJavaScript(script);
@@ -97,40 +93,56 @@ export default function MeditationScreen() {
       <StatusBar style={isDarkMode ? "light" : "dark"} />
 
       <View style={[styles.header, isDarkMode && styles.headerDark]}>
-        <TouchableOpacity 
-          onPress={() => router.back()} 
+        <TouchableOpacity
+          onPress={() => {
+            // Try to go back, if not possible, go to home
+            if (router.canGoBack && router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace("/(tabs)");
+            }
+          }}
           style={[styles.backBtn, isDarkMode && styles.backBtnDark]}
         >
-          <Ionicons 
-            name="chevron-back" 
-            size={24} 
-            color={isDarkMode ? "#E5E7EB" : "#111827"} 
+          <Ionicons
+            name="chevron-back"
+            size={24}
+            color={isDarkMode ? "#E5E7EB" : "#111827"}
           />
         </TouchableOpacity>
-        
+
         <View style={styles.titleContainer}>
           <View style={[styles.badge, isDarkMode && styles.badgeDark]}>
-            <Ionicons 
-              name="leaf" 
-              size={16} 
-              color={isDarkMode ? "#A7F3D0" : "#065F46"} 
+            <Ionicons
+              name="leaf"
+              size={16}
+              color={isDarkMode ? "#A7F3D0" : "#065F46"}
             />
           </View>
-          <Text style={[styles.headerTitle, isDarkMode && styles.headerTitleDark]}>
+          <Text
+            style={[styles.headerTitle, isDarkMode && styles.headerTitleDark]}
+          >
             Meditation
           </Text>
         </View>
-        
-        <TouchableOpacity 
-          onPress={toggleTheme} 
+
+        <TouchableOpacity
+          onPress={toggleTheme}
           style={[styles.themeToggle, isDarkMode && styles.themeToggleDark]}
         >
-          <View style={[styles.toggleTrack, isDarkMode && styles.toggleTrackActive]}>
-            <View style={[styles.toggleThumb, isDarkMode && styles.toggleThumbActive]}>
-              <Ionicons 
-                name={isDarkMode ? "moon" : "sunny"} 
-                size={16} 
-                color={isDarkMode ? "#1F2937" : "#F59E0B"} 
+          <View
+            style={[styles.toggleTrack, isDarkMode && styles.toggleTrackActive]}
+          >
+            <View
+              style={[
+                styles.toggleThumb,
+                isDarkMode && styles.toggleThumbActive,
+              ]}
+            >
+              <Ionicons
+                name={isDarkMode ? "moon" : "sunny"}
+                size={16}
+                color={isDarkMode ? "#1F2937" : "#F59E0B"}
               />
             </View>
           </View>
@@ -145,7 +157,9 @@ export default function MeditationScreen() {
         renderLoading={() => (
           <View style={[styles.loading, isDarkMode && styles.loadingDark]}>
             <ActivityIndicator size="large" color="#10B981" />
-            <Text style={[styles.loadingText, isDarkMode && styles.loadingTextDark]}>
+            <Text
+              style={[styles.loadingText, isDarkMode && styles.loadingTextDark]}
+            >
               Loading session...
             </Text>
           </View>
@@ -170,23 +184,27 @@ export default function MeditationScreen() {
               // Remove any existing theme classes
               body.classList.remove('theme-light', 'theme-dark');
               
-              ${isDarkMode ? `
+              ${
+                isDarkMode
+                  ? `
                 body.classList.add('theme-dark');
-              ` : `
+              `
+                  : `
                 body.classList.add('theme-light');
-              `}
+              `
+              }
             }
           }catch(e){}
         })();`}
         onMessage={(event) => {
           try {
             const data = JSON.parse(event.nativeEvent.data);
-            if (data.type === 'themeChange') {
+            if (data.type === "themeChange") {
               setIsDarkMode(data.isDark);
             }
           } catch (e) {
             // Handle simple string messages
-            if (event.nativeEvent.data === 'toggleTheme') {
+            if (event.nativeEvent.data === "toggleTheme") {
               setIsDarkMode(!isDarkMode);
             }
           }
@@ -197,12 +215,12 @@ export default function MeditationScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: "#FFFFFF" 
+  container: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
   },
   containerDark: {
-    backgroundColor: "#0B1020"
+    backgroundColor: "#0B1020",
   },
   header: {
     flexDirection: "row",
@@ -226,9 +244,9 @@ const styles = StyleSheet.create({
     shadowColor: "#000",
     shadowOpacity: 0.2,
   },
-  backBtn: { 
-    padding: 12, 
-    borderRadius: 12, 
+  backBtn: {
+    padding: 12,
+    borderRadius: 12,
     backgroundColor: "#F3F4F6",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
@@ -257,9 +275,9 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(16,185,129,0.16)",
     borderColor: "#115E59",
   },
-  headerTitle: { 
-    fontSize: 20, 
-    fontWeight: "800", 
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: "800",
     color: "#111827",
     letterSpacing: 0.5,
   },
@@ -306,17 +324,17 @@ const styles = StyleSheet.create({
     transform: [{ translateX: 24 }],
   },
   webview: { flex: 1 },
-  loading: { 
-    flex: 1, 
-    alignItems: "center", 
+  loading: {
+    flex: 1,
+    alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#FFFFFF",
   },
   loadingDark: {
     backgroundColor: "#0B1020",
   },
-  loadingText: { 
-    marginTop: 12, 
+  loadingText: {
+    marginTop: 12,
     color: "#6B7280",
     fontSize: 16,
     fontWeight: "500",
