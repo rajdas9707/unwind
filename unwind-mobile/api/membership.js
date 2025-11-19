@@ -3,10 +3,18 @@ import { getFreshToken, API_BASE_URL } from "./utils";
 import { Alert } from "react-native";
 
 export const fetchMembershipStatus = async () => {
+  console.log("fetchmembership in api/membership")
   const token = await getFreshToken();
-  const response = await axios.get(`${API_BASE_URL}/api/membership/status`, {
+  if (!token) {
+    Alert.alert("Authentication Error", "Please log in again.");
+    return;
+  }
+  console.log('token',token)
+  console.log("token from fetchmembership in api/membership:",`${API_BASE_URL}/api/membership/status`)
+  const response = await axios.get('http://localhost:5000/api/membership/status', {
     headers: { Authorization: `Bearer ${token}` },
   });
+  console.log("response from fetchmembership in api/membership")
   return response;
 };
 

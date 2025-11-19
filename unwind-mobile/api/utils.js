@@ -1,8 +1,12 @@
 import axios from "axios";
 import { auth } from "../firebaseConfig";
 
-// const API_BASE_URL = "http://192.168.29.225:5000";
-const API_BASE_URL = "https://cuisine-wine-hong-primary.trycloudflare.com";
+
+//FOR SAME NETWORK
+const API_BASE_URL = "http://192.168.29.225:5000";
+
+//incase of TUNNELING
+// const API_BASE_URL = "https://cuisine-wine-hong-primary.trycloudflare.com";
 
 // Helper function to get fresh Firebase ID token
 export const getFreshToken = async () => {

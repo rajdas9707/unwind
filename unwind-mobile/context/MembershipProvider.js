@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { View, ActivityIndicator } from "react-native";
+import { View, ActivityIndicator, Alert } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AuthContext } from "./AuthProvider";
 import { fetchMembershipStatus } from "../api/utils";
@@ -23,6 +23,7 @@ export const MembershipProvider = ({ children }) => {
 
   // Load membership from cache on mount
   useEffect(() => {
+    console.log("MembershipProvider mounted: loading cached membership");
     loadCachedMembership();
   }, []);
 
@@ -39,6 +40,7 @@ export const MembershipProvider = ({ children }) => {
       const cached = await AsyncStorage.getItem(STORAGE_KEY);
       if (cached) {
         const data = JSON.parse(cached);
+        console.log("Cached membership from loadCachedMembership:", data);
         setMembership({
           ...data,
           isVerified: false, // Mark as unverified cache
@@ -60,6 +62,7 @@ export const MembershipProvider = ({ children }) => {
       if (!isOnline) {
         console.log("Offline - using cached membership");
         return;
+
       }
 
       // Check if we need to refresh (24h cache)
@@ -77,6 +80,9 @@ export const MembershipProvider = ({ children }) => {
       console.log("Syncing membership with server...");
       // Fetch from server
       const response = await fetchMembershipStatus();
+      if (response.status==404) {
+       Alert.alert("User not found. Please log in again."); 
+      }
       console.log("Membership sync response:", response);
       if (response.status == 200) {
         const newMembership = {

@@ -31,6 +31,7 @@ const verifyToken = require("../verifyToken");
 // GET /api/membership/status - Get user's current membership
 // Protected route - requires verifyToken middleware
 router.get("/status", verifyToken, async (req, res) => {
+  console.log('request coming for membership status')
   try {
     const user = await User.findOne({ firebaseUid: req.user.uid });
 

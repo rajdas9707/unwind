@@ -35,7 +35,7 @@ export default function AuthScreen() {
   const [name, setName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const { user } = useContext(AuthContext);
-  const membership = useMembership();
+  const {membership,syncMembership} = useMembership();
 
   const STORAGE_KEY = "@unwind_membership";
 
@@ -121,7 +121,7 @@ export default function AuthScreen() {
           })
         );
 
-        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(membership));
+        await syncMembership()
         console.log("✅ Membership synced:", membership);
 
         showAlert(
