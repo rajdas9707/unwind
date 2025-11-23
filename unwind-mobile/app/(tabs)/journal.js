@@ -60,7 +60,7 @@ export default function JournalScreen() {
 
   // Debug: Log loading state changes
   useEffect(() => {
-    console.log("loading changed:", loading);
+    // console.log("loading changed:", loading);
   }, [loading]);
   const router = useRouter();
   const [selectedDate, setSelectedDate] = useState(null);
@@ -125,7 +125,7 @@ export default function JournalScreen() {
   }
 
   // Test authentication before proceeding
-  console.log("Syncing entry for user:", auth.currentUser.uid);
+  // console.log("Syncing entry for user:", auth.currentUser.uid);
 
 
     let serverEntry;
@@ -136,7 +136,7 @@ export default function JournalScreen() {
         throw new Error("Unable to get authentication token. Please sign in again.");
       }
 
-      console.log("Syncing entry to server...");
+      // console.log("Syncing entry to server...");
       
       // Create entry on server
       serverEntry = await createJournalEntry({
@@ -144,7 +144,7 @@ export default function JournalScreen() {
         title: entry.title,
       });
 
-      console.log("Server entry created successfully:", serverEntry);
+      // console.log("Server entry created successfully:", serverEntry);
     } catch (error) {
       console.error("Error syncing to server:", error);
       console.error("Error response:", error.response?.data);
@@ -414,7 +414,7 @@ export default function JournalScreen() {
     const loadEntriesWithAbort = async () => {
       if (!isMounted) return;
 
-      console.log("loadentries function call");
+      // console.log("loadentries function call");
       setLoading(true);
 
       try {
@@ -452,7 +452,7 @@ export default function JournalScreen() {
         }
       } finally {
         if (isMounted) {
-          console.log("In finally block, about to setLoading(false)");
+          // console.log("In finally block, about to setLoading(false)");
           setLoading(false);
         }
       }
@@ -524,7 +524,7 @@ export default function JournalScreen() {
   const manualSync = async (entry) => {
     if (entry.synced) return;
 
-    console.log("Starting manual sync for entry:", entry);
+    // console.log("Starting manual sync for entry:", entry);
 
     // Check network status before attempting sync
     if (!isOnline) {
@@ -630,7 +630,7 @@ export default function JournalScreen() {
 
   // Add a new journal entry
   const addEntry = async () => {
-    console.log("Attempting to add new entry");
+    // console.log("Attempting to add new entry");
     if (!newEntry.trim()) {
       showAlert("Error", "Please write something in your journal");
       return;

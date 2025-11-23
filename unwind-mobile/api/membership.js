@@ -11,7 +11,7 @@ export const fetchMembershipStatus = async () => {
   }
   console.log('token',token)
   console.log("token from fetchmembership in api/membership:",`${API_BASE_URL}/api/membership/status`)
-  const response = await axios.get('http://localhost:5000/api/membership/status', {
+  const response = await axios.get(`${API_BASE_URL}/api/membership/status`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   console.log("response from fetchmembership in api/membership")

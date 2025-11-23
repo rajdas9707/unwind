@@ -3,7 +3,7 @@ import { auth } from "../firebaseConfig";
 
 
 //FOR SAME NETWORK
-const API_BASE_URL = "http://192.168.29.225:5000";
+const API_BASE_URL = "http://192.168.29.59:5000";
 
 //incase of TUNNELING
 // const API_BASE_URL = "https://cuisine-wine-hong-primary.trycloudflare.com";

@@ -70,7 +70,7 @@ export const closeDB = async () => {
 // Initialize database with tables and indexes
 const initializeDatabase = async () => {
   try {
-    console.log("📖 Initializing unwind database...");
+    // console.log("📖 Initializing unwind database...");
 
     // Close any existing connections first
     if (dbInstance) {
@@ -91,7 +91,7 @@ const initializeDatabase = async () => {
     }
     await runMigrations(db);
 
-    console.log("✅ unwind database initialized successfully");
+    // console.log("✅ unwind database initialized successfully");
     return db;
   } catch (error) {
     console.error("❌ Error initializing unwind database:", error);
@@ -109,10 +109,10 @@ async function runMigrations(db) {
     // List of all migrations in order
   const migrations = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12];
 
-    console.log("Migrations", migrations);
+    // console.log("Migrations", migrations);
 
     for (let i = currentVersion; i < migrations.length; i++) {
-      console.log(`Running migration v${i + 1}`);
+      // console.log(`Running migration v${i + 1}`);
       await migrations[i].migrate(db);
       await db.execAsync(`PRAGMA user_version = ${i + 1};`);
     }

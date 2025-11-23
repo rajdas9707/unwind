@@ -13,6 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { useMembership } from "../../context/MembershipProvider";
+import { fetchMembershipStatus } from "../../api/membership";
 // import MembershipModal from "../../components/MembershipModal";
 
 export default function BillingScreen() {
@@ -47,6 +48,19 @@ export default function BillingScreen() {
     ...membership,
   };
 
+  useEffect(()=>{
+    const  fetchMemberData=async ()=>{
+      try {
+        const response=await  syncMembership(true)
+        // console.log("membership from billing page", response.data)
+      } catch (error) {
+        console.log("error fetching membership", error)
+      }
+    }
+    fetchMemberData()
+   
+   
+  },[])
   // useEffect(() => {
   //   // Sync membership on mount
   //   if (syncMembership) {

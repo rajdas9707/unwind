@@ -25,7 +25,7 @@ export const initTable = async () => {
     await initwaterRemindersTable();
     await initTodosTable();
 
-    console.log("✅ All tables initialized");
+    // console.log("✅ All tables initialized");
   } catch (error) {
     console.error("❌ Error initializing database:", error);
   }

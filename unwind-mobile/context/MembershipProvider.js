@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import { View, ActivityIndicator, Alert } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AuthContext } from "./AuthProvider";
-import { fetchMembershipStatus } from "../api/utils";
+import { fetchMembershipStatus } from "../api/membership";
 import { useNetworkStatus } from "../utils/networkUtils";
 
 export const MembershipContext = createContext();
@@ -56,7 +56,7 @@ export const MembershipProvider = ({ children }) => {
   };
 
   // Sync membership with server
-  const syncMembership = async (force = false) => {
+  const syncMembership = async (force) => {
     try {
       // Check network connectivity
       if (!isOnline) {
@@ -68,6 +68,7 @@ export const MembershipProvider = ({ children }) => {
       // Check if we need to refresh (24h cache)
       const cached = await AsyncStorage.getItem(STORAGE_KEY);
       if (cached && !force) {
+        console.log("Membership cache found:", cached);
         const data = JSON.parse(cached);
         const lastUpdated = new Date(data.lastUpdated);
         const now = new Date();
@@ -80,15 +81,15 @@ export const MembershipProvider = ({ children }) => {
       console.log("Syncing membership with server...");
       // Fetch from server
       const response = await fetchMembershipStatus();
+      console.log("Membership sync response:", response.data);
       if (response.status==404) {
        Alert.alert("User not found. Please log in again."); 
       }
-      console.log("Membership sync response:", response);
       if (response.status == 200) {
         const newMembership = {
-          tier: response.membership.tier,
-          expiry: response.membership.expiry,
-          features: response.membership.features,
+          tier: response.data.membership?.tier,
+          expiry: response.data.membership?.expiry,
+          features: response.data.membership?.features,
           lastUpdated: new Date().toISOString(),
           isVerified: true,
         };
@@ -98,7 +99,8 @@ export const MembershipProvider = ({ children }) => {
 
         // Save to cache
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newMembership));
-        console.log("✅ Membership synced:", newMembership.tier);
+        console.log("✅ Membership synced:", newMembership);
+      return 
       }
     } catch (error) {
       console.error("Error syncing membership:", error);

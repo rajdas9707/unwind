@@ -121,7 +121,7 @@ export default function AuthScreen() {
           })
         );
 
-        await syncMembership()
+        await syncMembership(true)
         console.log("✅ Membership synced:", membership);
 
         showAlert(
