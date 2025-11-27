@@ -7,27 +7,10 @@ const User = require("../models/User");
 const axios = require("axios");
 const verifyToken = require("../verifyToken");
 
-
-
- const featureRules = {
-  free: [
-    "todo",
-    "ideas"
-  ],
-  trial: [
-    "todo",
-    "ideas",
-    "journal",
-    "documents"
-  ],
-  pro: [
-    "todo",
-    "ideas",
-    "journal",
-    "documents",
-    "overthinking",
-    "ai"
-  ]
+const featureRules = {
+  free: ["todo", "ideas"],
+  trial: ["todo", "ideas", "journal", "documents"],
+  pro: ["todo", "ideas", "journal", "documents", "overthinking", "ai"],
 };
 
 // GET /api/membership/plans - Fetch all active plans
@@ -54,7 +37,7 @@ const verifyToken = require("../verifyToken");
 // GET /api/membership/status - Get user's current membership
 // Protected route - requires verifyToken middleware
 router.get("/status", verifyToken, async (req, res) => {
-  console.log('request coming for membership status')
+  console.log("request coming for membership status");
   try {
     const user = await User.findOne({ firebaseUid: req.user.uid });
 
@@ -79,12 +62,13 @@ router.get("/status", verifyToken, async (req, res) => {
       membership: {
         tier: membership.tier,
         expiry: membership.expiry,
-        features:featureRules[membership?.tier] ,
+        features: featureRules[membership?.tier],
         lastUpdated: membership.lastUpdated,
         isExpired:
           membership.expiry && new Date(membership.expiry) < new Date(),
       },
     });
+    // console.log("membership found", featureRules[membership?.tier]);
   } catch (error) {
     console.error("Error fetching membership status:", error);
     res

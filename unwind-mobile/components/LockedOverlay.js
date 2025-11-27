@@ -1,16 +1,22 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Dimensions,
+} from "react-native";
 import { useMembership } from "../context/MembershipProvider";
-import MembershipModal from "./MembershipModal";
+// import MembershipModal from "./MembershipModal";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 
+export default function LockedOverlay() {
+  const [showModal, setShowModal] = useState(false);
+  const { membership } = useMembership();
+  const tier = membership.tier;
 
-const LockedOverlay = ({tier}) => {
-    const [showModal, setShowModal] = useState(false);
- 
- 
   // Show locked overlay with upgrade prompt
   return (
     <View style={styles.container}>
@@ -18,21 +24,21 @@ const LockedOverlay = ({tier}) => {
       <BlurView intensity={80} style={styles.blurContainer}>
         <View style={styles.overlayContent}>
           {/* Lock icon with gradient background */}
-          <LinearGradient
+          {/* <LinearGradient
             colors={["#8B5CF6", "#6366F1"]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.lockIconContainer}
           >
             <Ionicons name="lock-closed" size={40} color="#FFFFFF" />
-          </LinearGradient>
+          </LinearGradient> */}
 
           {/* Title */}
           <Text style={styles.title}>🔒 Premium Feature</Text>
 
           {/* Description */}
           <Text style={styles.description}>
-            This feature requires a  membership
+            This feature requires a membership
           </Text>
 
           {/* Feature benefits */}
@@ -63,7 +69,9 @@ const LockedOverlay = ({tier}) => {
               style={styles.upgradeButtonGradient}
             >
               <Ionicons name="arrow-up-circle" size={20} color="#FFFFFF" />
-              <Text style={styles.upgradeButtonText}>Upgrade to ....to be added</Text>
+              <Text style={styles.upgradeButtonText}>
+                Upgrade to ....to be added
+              </Text>
             </LinearGradient>
           </TouchableOpacity>
 
@@ -77,13 +85,13 @@ const LockedOverlay = ({tier}) => {
         </View>
       </BlurView>
 
-      <MembershipModal
+      {/* <MembershipModal
         visible={showModal}
         onClose={() => setShowModal(false)}
-      />
+      /> */}
     </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
   container: {
@@ -201,5 +209,3 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 });
-
-export default LockedOverlay;

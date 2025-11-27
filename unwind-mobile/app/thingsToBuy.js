@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -11,31 +11,38 @@ import {
   RefreshControl,
   Dimensions,
   ActivityIndicator,
-} from 'react-native';
-import { StatusBar } from 'expo-status-bar';
-import { Ionicons } from '@expo/vector-icons';
-import { router, useFocusEffect } from 'expo-router';
-import  { calculateCompletionPercentage, createList, deleteList, formatDate, getAllLists, getDefaultListName, updateList } from '../storage/buyItems/storage.js';
-import { useMembership } from '../context/MembershipProvider.js';
+} from "react-native";
+import { StatusBar } from "expo-status-bar";
+import { Ionicons } from "@expo/vector-icons";
+import { router, useFocusEffect } from "expo-router";
+import {
+  calculateCompletionPercentage,
+  createList,
+  deleteList,
+  formatDate,
+  getAllLists,
+  getDefaultListName,
+  updateList,
+} from "../storage/buyItems/storage.js";
+import { useMembership } from "../context/MembershipProvider.js";
+import LockedOverlay from "../components/LockedOverlay.js";
 
-const { width } = Dimensions.get('window');
+const { width } = Dimensions.get("window");
 
 export default function ThingsToBuy() {
-
-  const featureId="SHOPPING_LIST"
-  const {hasFeature,membership}=useMembership()
-  console.log("memebership & hasFeature", membership,hasFeature(featureId))
+  const featureId = "SHOPPING_LIST";
+  const { hasFeature, membership } = useMembership();
+  console.log("memebership & hasFeature", membership, hasFeature(featureId));
 
   const [lists, setLists] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
-  const [newListName, setNewListName] = useState('');
+  const [newListName, setNewListName] = useState("");
   const [editingList, setEditingList] = useState(null);
   const [creating, setCreating] = useState(false);
   const [updating, setUpdating] = useState(false);
-
 
   // Load lists from storage
   const loadLists = async () => {
@@ -43,7 +50,7 @@ export default function ThingsToBuy() {
       const allLists = await getAllLists();
       setLists(allLists);
     } catch (error) {
-      console.error('Error loading lists:', error);
+      console.error("Error loading lists:", error);
     } finally {
       setLoading(false);
     }
@@ -73,23 +80,23 @@ export default function ThingsToBuy() {
     if (creating) return;
 
     const listName = newListName.trim() || getDefaultListName();
-    
+
     setCreating(true);
     try {
       const listId = await createList(listName);
       if (listId) {
         setModalVisible(false);
-        setNewListName('');
+        setNewListName("");
         await loadLists();
-        
+
         // Navigate to the new list
         router.push({
-          pathname: '/buyItemsList',
-          params: { listId, listName }
+          pathname: "/buyItemsList",
+          params: { listId, listName },
         });
       }
     } catch (error) {
-      console.error('Error creating list:', error);
+      console.error("Error creating list:", error);
     } finally {
       setCreating(false);
     }
@@ -98,8 +105,8 @@ export default function ThingsToBuy() {
   // Navigate to list items
   const handleListPress = (list) => {
     router.push({
-      pathname: '/buyItemsList',
-      params: { listId: list.id, listName: list.name }
+      pathname: "/buyItemsList",
+      params: { listId: list.id, listName: list.name },
     });
   };
 
@@ -120,11 +127,11 @@ export default function ThingsToBuy() {
       if (success) {
         setEditModalVisible(false);
         setEditingList(null);
-        setNewListName('');
+        setNewListName("");
         await loadLists();
       }
     } catch (error) {
-      console.error('Error updating list:', error);
+      console.error("Error updating list:", error);
     } finally {
       setUpdating(false);
     }
@@ -142,31 +149,39 @@ export default function ThingsToBuy() {
   const handleCancelEditModal = () => {
     setEditModalVisible(false);
     setEditingList(null);
-    setNewListName('');
+    setNewListName("");
   };
 
   // Format completion text
   const getCompletionText = (totalItems, boughtItems) => {
-    if (totalItems === 0) return 'Empty list';
-    if (boughtItems === totalItems) return 'Completed';
+    if (totalItems === 0) return "Empty list";
+    if (boughtItems === totalItems) return "Completed";
     return `${boughtItems} of ${totalItems} items`;
   };
 
   // Get completion color
   const getCompletionColor = (totalItems, boughtItems) => {
-    if (totalItems === 0) return '#9CA3AF';
+    if (totalItems === 0) return "#9CA3AF";
     const percentage = calculateCompletionPercentage(totalItems, boughtItems);
-    if (percentage === 100) return '#10B981';
-    if (percentage >= 50) return '#F59E0B';
-    return '#EF4444';
+    if (percentage === 100) return "#10B981";
+    if (percentage >= 50) return "#F59E0B";
+    return "#EF4444";
   };
 
   // Render list card
   const renderListCard = (list) => {
-    const completionPercentage = 
-calculateCompletionPercentage(list.total_items, list.bought_items);
-    const completionColor = getCompletionColor(list.total_items, list.bought_items);
-    const completionText = getCompletionText(list.total_items, list.bought_items);
+    const completionPercentage = calculateCompletionPercentage(
+      list.total_items,
+      list.bought_items
+    );
+    const completionColor = getCompletionColor(
+      list.total_items,
+      list.bought_items
+    );
+    const completionText = getCompletionText(
+      list.total_items,
+      list.bought_items
+    );
 
     return (
       <TouchableOpacity
@@ -180,10 +195,7 @@ calculateCompletionPercentage(list.total_items, list.bought_items);
             <Text style={styles.listTitle} numberOfLines={2}>
               {list.name}
             </Text>
-            <Text style={styles.listDate}>
-              {
-              formatDate(list.created_at)}
-            </Text>
+            <Text style={styles.listDate}>{formatDate(list.created_at)}</Text>
           </View>
           <View style={styles.listActions}>
             <TouchableOpacity
@@ -206,14 +218,14 @@ calculateCompletionPercentage(list.total_items, list.bought_items);
         <View style={styles.listFooter}>
           <View style={styles.progressContainer}>
             <View style={styles.progressBar}>
-              <View 
+              <View
                 style={[
                   styles.progressFill,
-                  { 
+                  {
                     width: `${completionPercentage}%`,
-                    backgroundColor: completionColor
-                  }
-                ]} 
+                    backgroundColor: completionColor,
+                  },
+                ]}
               />
             </View>
             <Text style={[styles.completionText, { color: completionColor }]}>
@@ -221,11 +233,7 @@ calculateCompletionPercentage(list.total_items, list.bought_items);
             </Text>
           </View>
           <View style={styles.itemsIndicator}>
-            <Ionicons 
-              name="bag-outline" 
-              size={16} 
-              color={completionColor} 
-            />
+            <Ionicons name="bag-outline" size={16} color={completionColor} />
             <Text style={[styles.itemsCount, { color: completionColor }]}>
               {list.total_items}
             </Text>
@@ -247,10 +255,10 @@ calculateCompletionPercentage(list.total_items, list.bought_items);
   return (
     <View style={styles.container}>
       <StatusBar style="dark" />
-      
+
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.back()}
         >
@@ -265,10 +273,10 @@ calculateCompletionPercentage(list.total_items, list.bought_items);
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl 
-            refreshing={refreshing} 
+          <RefreshControl
+            refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={['#8B5CF6']}
+            colors={["#8B5CF6"]}
             tintColor="#8B5CF6"
           />
         }
@@ -280,13 +288,12 @@ calculateCompletionPercentage(list.total_items, list.bought_items);
             </View>
             <Text style={styles.emptyTitle}>No Shopping Lists Yet</Text>
             <Text style={styles.emptySubtitle}>
-              Create your first shopping list to get started organizing your purchases
+              Create your first shopping list to get started organizing your
+              purchases
             </Text>
           </View>
         ) : (
-          <View style={styles.listsContainer}>
-            {lists.map(renderListCard)}
-          </View>
+          <View style={styles.listsContainer}>{lists.map(renderListCard)}</View>
         )}
       </ScrollView>
 
@@ -343,7 +350,10 @@ calculateCompletionPercentage(list.total_items, list.bought_items);
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.saveButton, creating && styles.saveButtonDisabled]}
+                style={[
+                  styles.saveButton,
+                  creating && styles.saveButtonDisabled,
+                ]}
                 onPress={handleCreateList}
                 disabled={creating}
               >
@@ -400,8 +410,9 @@ calculateCompletionPercentage(list.total_items, list.bought_items);
               </TouchableOpacity>
               <TouchableOpacity
                 style={[
-                  styles.saveButton, 
-                  (updating || !newListName.trim()) && styles.saveButtonDisabled
+                  styles.saveButton,
+                  (updating || !newListName.trim()) &&
+                    styles.saveButtonDisabled,
                 ]}
                 onPress={handleUpdateList}
                 disabled={updating || !newListName.trim()}
@@ -416,6 +427,11 @@ calculateCompletionPercentage(list.total_items, list.bought_items);
           </View>
         </View>
       </Modal>
+
+      {!hasFeature(featureId) && (
+        // <LockedOverlay onUpgradePress={() => setUpgradeModalVisible(true)} />
+        <LockedOverlay />
+      )}
     </View>
   );
 }
@@ -423,28 +439,28 @@ calculateCompletionPercentage(list.total_items, list.bought_items);
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: "#F9FAFB",
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#F9FAFB",
   },
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#6B7280',
+    color: "#6B7280",
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingTop: 60,
     paddingBottom: 20,
     paddingHorizontal: 16,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: "#E5E7EB",
   },
   backButton: {
     padding: 4,
@@ -452,9 +468,9 @@ const styles = StyleSheet.create({
   headerTitle: {
     flex: 1,
     fontSize: 20,
-    fontWeight: '700',
-    color: '#111827',
-    textAlign: 'center',
+    fontWeight: "700",
+    color: "#111827",
+    textAlign: "center",
     marginLeft: -32,
   },
   headerSpacer: {
@@ -467,19 +483,19 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   listCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 16,
     padding: 20,
     marginBottom: 16,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 3,
   },
   listHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
     marginBottom: 16,
   },
   listTitleContainer: {
@@ -488,27 +504,27 @@ const styles = StyleSheet.create({
   },
   listTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
+    fontWeight: "600",
+    color: "#111827",
     marginBottom: 4,
     lineHeight: 24,
   },
   listDate: {
     fontSize: 14,
-    color: '#6B7280',
+    color: "#6B7280",
   },
   listActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   actionButton: {
     padding: 8,
     marginLeft: 4,
   },
   listFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   progressContainer: {
     flex: 1,
@@ -516,32 +532,32 @@ const styles = StyleSheet.create({
   },
   progressBar: {
     height: 6,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: "#E5E7EB",
     borderRadius: 3,
     marginBottom: 8,
   },
   progressFill: {
-    height: '100%',
+    height: "100%",
     borderRadius: 3,
     minWidth: 6,
   },
   completionText: {
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   itemsIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   itemsCount: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     marginLeft: 4,
   },
   emptyState: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: 32,
     paddingTop: 80,
   },
@@ -550,28 +566,28 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 24,
-    fontWeight: '700',
-    color: '#111827',
+    fontWeight: "700",
+    color: "#111827",
     marginBottom: 12,
-    textAlign: 'center',
+    textAlign: "center",
   },
   emptySubtitle: {
     fontSize: 16,
-    color: '#6B7280',
-    textAlign: 'center',
+    color: "#6B7280",
+    textAlign: "center",
     lineHeight: 24,
   },
   fab: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 24,
     right: 24,
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#8B5CF6',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
+    backgroundColor: "#8B5CF6",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -579,34 +595,34 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   modalContainer: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 16,
     margin: 20,
     width: width - 40,
     maxWidth: 400,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 16,
     elevation: 8,
   },
   modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: "#E5E7EB",
   },
   modalTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
+    fontWeight: "600",
+    color: "#111827",
   },
   modalCloseButton: {
     padding: 4,
@@ -616,27 +632,27 @@ const styles = StyleSheet.create({
   },
   inputLabel: {
     fontSize: 16,
-    fontWeight: '500',
-    color: '#374151',
+    fontWeight: "500",
+    color: "#374151",
     marginBottom: 8,
   },
   textInput: {
     borderWidth: 1,
-    borderColor: '#D1D5DB',
+    borderColor: "#D1D5DB",
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 16,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     marginBottom: 8,
   },
   inputHint: {
     fontSize: 12,
-    color: '#9CA3AF',
-    fontStyle: 'italic',
+    color: "#9CA3AF",
+    fontStyle: "italic",
   },
   modalActions: {
-    flexDirection: 'row',
+    flexDirection: "row",
     padding: 20,
     paddingTop: 0,
     gap: 12,
@@ -644,30 +660,30 @@ const styles = StyleSheet.create({
   cancelButton: {
     flex: 1,
     paddingVertical: 12,
-    alignItems: 'center',
-    backgroundColor: '#F3F4F6',
+    alignItems: "center",
+    backgroundColor: "#F3F4F6",
     borderRadius: 12,
   },
   cancelButtonText: {
     fontSize: 16,
-    fontWeight: '500',
-    color: '#374151',
+    fontWeight: "500",
+    color: "#374151",
   },
   saveButton: {
     flex: 1,
     paddingVertical: 12,
-    alignItems: 'center',
-    backgroundColor: '#8B5CF6',
+    alignItems: "center",
+    backgroundColor: "#8B5CF6",
     borderRadius: 12,
     minHeight: 48,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   saveButtonDisabled: {
     opacity: 0.7,
   },
   saveButtonText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontWeight: "600",
+    color: "#FFFFFF",
   },
 });
