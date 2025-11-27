@@ -7,6 +7,29 @@ const User = require("../models/User");
 const axios = require("axios");
 const verifyToken = require("../verifyToken");
 
+
+
+ const featureRules = {
+  free: [
+    "todo",
+    "ideas"
+  ],
+  trial: [
+    "todo",
+    "ideas",
+    "journal",
+    "documents"
+  ],
+  pro: [
+    "todo",
+    "ideas",
+    "journal",
+    "documents",
+    "overthinking",
+    "ai"
+  ]
+};
+
 // GET /api/membership/plans - Fetch all active plans
 // router.get("/plans", async (req, res) => {
 //   try {
@@ -56,7 +79,7 @@ router.get("/status", verifyToken, async (req, res) => {
       membership: {
         tier: membership.tier,
         expiry: membership.expiry,
-        features: membership.features,
+        features:featureRules[membership?.tier] ,
         lastUpdated: membership.lastUpdated,
         isExpired:
           membership.expiry && new Date(membership.expiry) < new Date(),

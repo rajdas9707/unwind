@@ -30,7 +30,7 @@ export const MembershipProvider = ({ children }) => {
   // Sync membership when user logs in or becomes online
   useEffect(() => {
     if (isOnline && user) {
-      syncMembership();
+      syncMembership(true);
     }
   }, [user]);
 
@@ -56,7 +56,7 @@ export const MembershipProvider = ({ children }) => {
   };
 
   // Sync membership with server
-  const syncMembership = async (force) => {
+  const syncMembership = async (force=false) => {
     try {
       // Check network connectivity
       if (!isOnline) {
@@ -109,12 +109,12 @@ export const MembershipProvider = ({ children }) => {
   };
 
   // Check if user has access to a feature
-  // const hasFeature = (featureId) => {
-  //   if (!featureId) return true; // No feature check = accessible
+  const hasFeature = (featureId) => {
+    if (!featureId) return true; // No feature check = accessible
 
-  //   // Check if feature is in user's feature list
-  //   return membership.features.includes(featureId);
-  // };
+    // Check if feature is in user's feature list
+    return membership.features.includes(featureId);
+  };
 
   // Check if user has a specific tier or higher
   // const hasTier = (requiredTier) => {
@@ -166,6 +166,7 @@ export const MembershipProvider = ({ children }) => {
         syncMembership,
         updateMembership,
         clearMembership,
+        hasFeature
       }}
     >
       {children}

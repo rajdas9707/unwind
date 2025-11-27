@@ -16,10 +16,16 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import  { calculateCompletionPercentage, createList, deleteList, formatDate, getAllLists, getDefaultListName, updateList } from '../storage/buyItems/storage.js';
+import { useMembership } from '../context/MembershipProvider.js';
 
 const { width } = Dimensions.get('window');
 
 export default function ThingsToBuy() {
+
+  const featureId="SHOPPING_LIST"
+  const {hasFeature,membership}=useMembership()
+  console.log("memebership & hasFeature", membership,hasFeature(featureId))
+
   const [lists, setLists] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -29,6 +35,7 @@ export default function ThingsToBuy() {
   const [editingList, setEditingList] = useState(null);
   const [creating, setCreating] = useState(false);
   const [updating, setUpdating] = useState(false);
+
 
   // Load lists from storage
   const loadLists = async () => {

@@ -18,6 +18,7 @@ const llmRoutes = require("./llm/routes/llm");
 const dataRoutes = require("./routes/data");
 const membershipRoutes = require("./routes/membership");
 
+
 // Middleware
 app.use(helmet());
 app.use(cors());
@@ -45,7 +46,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/journal", verifyToken, journalRoutes);
 app.use("/api/overthinking", verifyToken, overthinkingRoutes);
 app.use("/api/mistakes", verifyToken, mistakeRoutes);
-app.use("/api/todos", verifyToken, todoRoutes);
+
 app.use("/api/llm", llmRoutes);
 app.use("/api/data", dataRoutes);
 // Membership routes - /plans is public, others are protected
