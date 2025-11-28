@@ -2,10 +2,10 @@ import axios from "axios";
 import { auth } from "../firebaseConfig";
 
 //FOR SAME NETWORK
-// const API_BASE_URL = "http://192.168.29.59:5000";
+const API_BASE_URL = "http://192.168.29.59:5000";
 
 //incase of TUNNELING
-const API_BASE_URL = "https://courier-criterion-were-spatial.trycloudflare.com";
+// const API_BASE_URL = "https://courier-criterion-were-spatial.trycloudflare.com";
 
 // Helper function to get fresh Firebase ID token
 export const getFreshToken = async () => {
@@ -28,8 +28,8 @@ export const getHelpCenterUrl = () => {
 // Membership API functions
 export const fetchPlans = async () => {
   // Public endpoint - no auth required
-  const response = await axios.get(`${API_BASE_URL}/api/membership/plans`);
-  return response.data;
+  const response = await axios.get(`${API_BASE_URL}/api/plans`);
+  return response;
 };
 
 export const verifyPurchase = async (purchaseData) => {

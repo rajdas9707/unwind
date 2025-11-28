@@ -17,6 +17,7 @@ const todoRoutes = require("./routes/todos");
 const llmRoutes = require("./llm/routes/llm");
 const dataRoutes = require("./routes/data");
 const membershipRoutes = require("./routes/membership");
+const planRoutes = require("./routes/plan");
 
 
 // Middleware
@@ -51,6 +52,9 @@ app.use("/api/llm", llmRoutes);
 app.use("/api/data", dataRoutes);
 // Membership routes - /plans is public, others are protected
 app.use("/api/membership", membershipRoutes);
+app.use("/api/plans", planRoutes);
+
+
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {

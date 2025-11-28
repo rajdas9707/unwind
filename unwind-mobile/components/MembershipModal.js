@@ -18,6 +18,14 @@ import { fetchPlans, verifyPurchase } from "../api/utils";
 // Enable mock IAP in development/Expo Go
 const IS_DEV_MODE = __DEV__;
 
+let InAppPurchases;
+
+if (IS_DEV_MODE==__DEV__) {
+  InAppPurchases = null; // avoid native load in Expo Go
+} else {
+  InAppPurchases = require("expo-in-app-purchases-store-kit");
+}
+
 const MembershipModal = ({ visible, onClose }) => {
   const { membership, updateMembership, syncMembership } = useMembership();
   const [plans, setPlans] = useState([]);
@@ -27,12 +35,12 @@ const MembershipModal = ({ visible, onClose }) => {
   useEffect(() => {
     if (visible) {
       loadPlans();
-      connectIAP();
+      // connectIAP();
     }
 
-    return () => {
-      disconnectIAP();
-    };
+    // return () => {
+    //   disconnectIAP();
+    // };
   }, [visible]);
 
   // Load plans from server
@@ -52,22 +60,22 @@ const MembershipModal = ({ visible, onClose }) => {
   };
 
   // Connect to IAP
-  const connectIAP = async () => {
-    try {
-      await InAppPurchases.connectAsync();
-    } catch (error) {
-      console.error("Error connecting to IAP:", error);
-    }
-  };
+  // const connectIAP = async () => {
+  //   try {
+  //     await InAppPurchases.connectAsync();
+  //   } catch (error) {
+  //     console.error("Error connecting to IAP:", error);
+  //   }
+  // };
 
   // Disconnect from IAP
-  const disconnectIAP = async () => {
-    try {
-      await InAppPurchases.disconnectAsync();
-    } catch (error) {
-      console.error("Error disconnecting from IAP:", error);
-    }
-  };
+  // const disconnectIAP = async () => {
+  //   try {
+  //     await InAppPurchases.disconnectAsync();
+  //   } catch (error) {
+  //     console.error("Error disconnecting from IAP:", error);
+  //   }
+  // };
 
   // Handle purchase
   const handlePurchase = async (plan, period = "monthly") => {
@@ -75,15 +83,15 @@ const MembershipModal = ({ visible, onClose }) => {
       setPurchasing(true);
 
       // Get product ID based on platform
-      const productId =
-        Platform.OS === "ios"
-          ? plan.pricing[period].ios_product_id
-          : plan.pricing[period].android_product_id;
+      // const productId =
+      //   Platform.OS === "ios"
+      //     ? plan.pricing[period].ios_product_id
+      //     : plan.pricing[period].android_product_id;
 
-      if (!productId) {
-        Alert.alert("Error", "Product not available for your platform");
-        return;
-      }
+      // if (!productId) {
+      //   Alert.alert("Error", "Product not available for your platform");
+      //   return;
+      // }
 
       let verificationData;
 

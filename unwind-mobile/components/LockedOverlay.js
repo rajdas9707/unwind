@@ -11,6 +11,7 @@ import { useMembership } from "../context/MembershipProvider";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
+import MembershipModal from "./SubscriptionModal";
 
 export default function LockedOverlay() {
   const [showModal, setShowModal] = useState(false);
@@ -85,10 +86,10 @@ export default function LockedOverlay() {
         </View>
       </BlurView>
 
-      {/* <MembershipModal
+      <MembershipModal
         visible={showModal}
         onClose={() => setShowModal(false)}
-      /> */}
+      />
     </View>
   );
 }
