@@ -38,6 +38,7 @@ export default function TopicScreen() {
     }, [])
   );
 
+  
   const loadCards = async () => {
     try {
       setLoading(true);
@@ -140,7 +141,13 @@ export default function TopicScreen() {
             }}
           >
             <View style={{ flex: 1 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  marginBottom: 8,
+                }}
+              >
                 <Text
                   style={{
                     fontSize: 18,
@@ -153,21 +160,25 @@ export default function TopicScreen() {
                   }}
                   numberOfLines={2}
                 >
-                  {isCompleted ? '🎉 ' : '🚀 '}{item.displayTitle}{isCompleted ? ' 👑' : ' ⭐'}
+                  {isCompleted ? "🎉 " : "🚀 "}
+                  {item.displayTitle}
+                  {isCompleted ? " 👑" : " ⭐"}
                 </Text>
                 {isCompleted && (
-                  <View style={{ 
-                    backgroundColor: 'rgba(255,255,255,0.3)',
-                    borderRadius: 12,
-                    paddingHorizontal: 8,
-                    paddingVertical: 4,
-                    marginLeft: 8,
-                  }}>
+                  <View
+                    style={{
+                      backgroundColor: "rgba(255,255,255,0.3)",
+                      borderRadius: 12,
+                      paddingHorizontal: 8,
+                      paddingVertical: 4,
+                      marginLeft: 8,
+                    }}
+                  >
                     <Text style={{ fontSize: 16 }}>🏆</Text>
                   </View>
                 )}
               </View>
-              
+
               {item.description ? (
                 <Text
                   style={{
@@ -184,53 +195,75 @@ export default function TopicScreen() {
                   {item.description}
                 </Text>
               ) : null}
-              
+
               {/* Progress Section */}
               {hasTopics ? (
                 <View style={{ marginBottom: 8 }}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <Text style={{
-                      fontSize: 12,
-                      color: 'rgba(255,255,255,0.8)',
-                      fontWeight: '600',
-                    }}>
-                      {isCompleted ? '🎯 Completed!' : '📈 Progress'}
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      justifyContent: "space-between",
+                      marginBottom: 4,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        color: "rgba(255,255,255,0.8)",
+                        fontWeight: "600",
+                      }}
+                    >
+                      {isCompleted ? "🎯 Completed!" : "📈 Progress"}
                     </Text>
-                    <Text style={{
-                      fontSize: 12,
-                      color: 'rgba(255,255,255,0.8)',
-                      fontWeight: '600',
-                    }}>
-                      {isCompleted ? '✨ All done!' : `🔥 ${item.completed_topics}/${item.total_topics} topics`}
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        color: "rgba(255,255,255,0.8)",
+                        fontWeight: "600",
+                      }}
+                    >
+                      {isCompleted
+                        ? "✨ All done!"
+                        : `🔥 ${item.completed_topics}/${item.total_topics} topics`}
                     </Text>
                   </View>
-                  
-                  <View style={{
-                    height: 6,
-                    backgroundColor: 'rgba(255,255,255,0.3)',
-                    borderRadius: 3,
-                    overflow: 'hidden',
-                  }}>
-                    <View style={{
-                      height: '100%',
-                      width: `${progressPercentage}%`,
-                      backgroundColor: isCompleted ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.7)',
+
+                  <View
+                    style={{
+                      height: 6,
+                      backgroundColor: "rgba(255,255,255,0.3)",
                       borderRadius: 3,
-                    }} />
+                      overflow: "hidden",
+                    }}
+                  >
+                    <View
+                      style={{
+                        height: "100%",
+                        width: `${progressPercentage}%`,
+                        backgroundColor: isCompleted
+                          ? "rgba(255,255,255,0.9)"
+                          : "rgba(255,255,255,0.7)",
+                        borderRadius: 3,
+                      }}
+                    />
                   </View>
                 </View>
               ) : (
                 <View style={{ marginBottom: 8 }}>
-                  <Text style={{
-                    fontSize: 12,
-                    color: 'rgba(255,255,255,0.7)',
-                    fontStyle: 'italic',
-                  }}>
-                    {isCompleted ? '🎉 Ready for new challenges!' : '💡 No topics yet - tap to add some!'}
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      color: "rgba(255,255,255,0.7)",
+                      fontStyle: "italic",
+                    }}
+                  >
+                    {isCompleted
+                      ? "🎉 Ready for new challenges!"
+                      : "💡 No topics yet - tap to add some!"}
                   </Text>
                 </View>
               )}
-              
+
               <Text
                 style={{
                   fontSize: 12,
@@ -291,14 +324,20 @@ export default function TopicScreen() {
 
   return (
     <LinearGradient
-      colors={['#F8FAFC', '#F1F5F9', '#EEF2FF']}
+      colors={["#F8FAFC", "#F1F5F9", "#EEF2FF"]}
       style={styles.gradientContainer}
     >
       <SafeAreaView style={styles.container}>
         <StatusBar style="dark" />
-        
+
         {/* Header */}
         <View style={styles.header}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backButton}
+          >
+            <Ionicons name="chevron-back" size={28} color="#111827" />
+          </TouchableOpacity>
           <View style={styles.headerContent}>
             <View style={styles.titleIcon}>
               <Ionicons name="library" size={28} color="#8B5CF6" />
@@ -306,7 +345,7 @@ export default function TopicScreen() {
             <View style={styles.titleText}>
               <Text style={styles.title}>Topic Cards</Text>
               <Text style={styles.subtitle}>
-                {cards.length} {cards.length === 1 ? 'card' : 'cards'} created
+                {cards.length} {cards.length === 1 ? "card" : "cards"} created
               </Text>
             </View>
           </View>
@@ -317,42 +356,48 @@ export default function TopicScreen() {
           <TouchableOpacity
             style={[
               styles.toggleButton,
-              !showCompleted && styles.toggleButtonActive
+              !showCompleted && styles.toggleButtonActive,
             ]}
             onPress={() => setShowCompleted(false)}
           >
-            <Text style={[
-              styles.toggleButtonText,
-              !showCompleted && styles.toggleButtonTextActive
-            ]}>
-              Pending ({cards.filter(c => !c.is_completed).length})
+            <Text
+              style={[
+                styles.toggleButtonText,
+                !showCompleted && styles.toggleButtonTextActive,
+              ]}
+            >
+              Pending ({cards.filter((c) => !c.is_completed).length})
             </Text>
           </TouchableOpacity>
-          
+
           <TouchableOpacity
             style={[
               styles.toggleButton,
-              showCompleted && styles.toggleButtonActive
+              showCompleted && styles.toggleButtonActive,
             ]}
             onPress={() => setShowCompleted(true)}
           >
-            <Text style={[
-              styles.toggleButtonText,
-              showCompleted && styles.toggleButtonTextActive
-            ]}>
-              Completed ({cards.filter(c => c.is_completed).length})
+            <Text
+              style={[
+                styles.toggleButtonText,
+                showCompleted && styles.toggleButtonTextActive,
+              ]}
+            >
+              Completed ({cards.filter((c) => c.is_completed).length})
             </Text>
           </TouchableOpacity>
         </View>
 
         {/* Cards List */}
-        <ScrollView 
+        <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
           <FlatList
-            data={cards.filter(card => showCompleted ? card.is_completed : !card.is_completed)}
+            data={cards.filter((card) =>
+              showCompleted ? card.is_completed : !card.is_completed
+            )}
             keyExtractor={(item) => item.id.toString()}
             renderItem={renderCard}
             scrollEnabled={false}
@@ -373,12 +418,24 @@ export default function TopicScreen() {
                 </View>
               ) : (
                 <View style={styles.emptyState}>
-                  <Ionicons name={showCompleted ? "checkmark-circle-outline" : "time-outline"} size={60} color="#8B5CF6" />
+                  <Ionicons
+                    name={
+                      showCompleted
+                        ? "checkmark-circle-outline"
+                        : "time-outline"
+                    }
+                    size={60}
+                    color="#8B5CF6"
+                  />
                   <Text style={styles.emptyTitle}>
-                    {showCompleted ? '🏆 No completed cards yet' : '🚀 No pending cards'}
+                    {showCompleted
+                      ? "🏆 No completed cards yet"
+                      : "🚀 No pending cards"}
                   </Text>
                   <Text style={styles.emptySubtitle}>
-                    {showCompleted ? 'Complete some cards to see them here' : '🎉 All cards are completed!'}
+                    {showCompleted
+                      ? "Complete some cards to see them here"
+                      : "🎉 All cards are completed!"}
                   </Text>
                 </View>
               )
@@ -435,6 +492,15 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#F1F5F9",
     backdropFilter: "blur(10px)",
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  backButton: {
+    padding: 10,
+    marginRight: 10,
+    marginLeft: -10, // to align with screen edge
+    justifyContent: "center",
+    alignItems: "center",
   },
   headerContent: {
     flexDirection: "row",

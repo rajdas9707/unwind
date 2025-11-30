@@ -109,10 +109,12 @@ export default function AllListsScreen() {
         activeOpacity={0.7}
       >
         <View style={[styles.colorBar, { backgroundColor: list.color }]} />
-        
+
         <View style={styles.listContent}>
           <View style={styles.listHeader}>
-            <View style={[styles.colorCircle, { backgroundColor: list.color }]} />
+            <View
+              style={[styles.colorCircle, { backgroundColor: list.color }]}
+            />
             <Text style={styles.listTitle} numberOfLines={1}>
               {list.title}
             </Text>
@@ -180,10 +182,20 @@ export default function AllListsScreen() {
 
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>My Lists</Text>
-        <Text style={styles.headerSubtitle}>
-          {lists.length === 0 ? "No lists yet" : `${lists.length} list${lists.length !== 1 ? "s" : ""}`}
-        </Text>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backButton}
+        >
+          <Ionicons name="chevron-back" size={28} color="#111827" />
+        </TouchableOpacity>
+        <View style={styles.headerContent}>
+          <Text style={styles.headerTitle}>My Lists</Text>
+          <Text style={styles.headerSubtitle}>
+            {lists.length === 0
+              ? "No lists yet"
+              : `${lists.length} list${lists.length !== 1 ? "s" : ""}`}
+          </Text>
+        </View>
       </View>
 
       {/* Content */}
@@ -210,9 +222,7 @@ export default function AllListsScreen() {
             </Text>
           </View>
         ) : (
-          <View style={styles.listsContainer}>
-            {lists.map(renderListCard)}
-          </View>
+          <View style={styles.listsContainer}>{lists.map(renderListCard)}</View>
         )}
       </ScrollView>
 
@@ -244,6 +254,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#6B7280",
   },
+  backButton: {
+    padding: 10,
+    marginRight: 10,
+    marginLeft: -10, // to align with screen edge
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  headerContent: {
+    // flexDirection: "row",
+    // alignItems: "center",
+  },
   header: {
     paddingTop: 60,
     paddingBottom: 20,
@@ -251,6 +272,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderBottomWidth: 1,
     borderBottomColor: "#E5E7EB",
+    flexDirection: "row",
+    alignItems: "center",
   },
   headerTitle: {
     fontSize: 32,
