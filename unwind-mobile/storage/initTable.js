@@ -10,23 +10,30 @@ import { initTodosTable } from "./todo/db";
 import { initTopicsTable } from "./topic/db";
 import { initwaterRemindersTable } from "./waterreminder/db";
 
+import { openDB } from "./mainDb";
+
 export const initTable = async () => {
   try {
-    // Initialize all tables
-    await initBuyItemsTable();
-    await initCustomListsTable();
-    await initDocumentsTable();
-    await initIdeasTable();
-    await initJournalsTable();
-    await initMistakesTable();
-    await initNotesTable();
-    await initOverthinkingsTable();
-    await initTopicsTable();
-    await initwaterRemindersTable();
-    await initTodosTable();
+    // open the shared database connection and pass it to each initializer so
+    // the table creation runs in a single DB instance (prevents missing tables)
+    const db = await openDB();
+
+    // Initialize all tables with explicit DB connection
+    await initBuyItemsTable(db);
+    await initCustomListsTable(db);
+    await initDocumentsTable(db);
+    await initIdeasTable(db);
+    await initJournalsTable(db);
+    await initMistakesTable(db);
+    await initNotesTable(db);
+    await initOverthinkingsTable(db);
+    await initTopicsTable(db);
+    await initwaterRemindersTable(db);
+    await initTodosTable(db);
 
     // console.log("✅ All tables initialized");
   } catch (error) {
     console.error("❌ Error initializing database:", error);
+    throw error;
   }
 };

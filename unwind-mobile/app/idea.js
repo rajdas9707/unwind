@@ -135,6 +135,13 @@ export default function IdeaScreen() {
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerContent}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => router.back()}
+              accessibilityLabel="Back"
+            >
+              <Ionicons name="arrow-back" size={20} color="#111827" />
+            </TouchableOpacity>
             <View style={styles.titleIcon}>
               <Ionicons name="bulb" size={28} color="#F59E0B" />
             </View>
@@ -221,6 +228,22 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 3,
+  },
+  backButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.95)",
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.06)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 3,
+    marginRight: 8,
   },
   titleText: {
     flex: 1,

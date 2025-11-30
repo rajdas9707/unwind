@@ -22,6 +22,7 @@ import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import TopBarToggle from "../components/shared/TopBarToggle";
+import { useRouter } from "expo-router";
 import DateTimePicker from "@react-native-community/datetimepicker";
 
 const { width, height } = Dimensions.get("window");
@@ -36,6 +37,7 @@ Notifications.setNotificationHandler({
 });
 
 export default function ReminderScreen() {
+  const router = useRouter();
   const [reminders, setReminders] = useState([]);
   const [selectedKey, setSelectedKey] = useState("today"); // 'today' => Upcoming, 'backlogs' => Missed
   const [modalVisible, setModalVisible] = useState(false);
@@ -571,12 +573,22 @@ export default function ReminderScreen() {
         end={{ x: 1, y: 1 }}
       >
         {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>My Reminders</Text>
-          <Text style={styles.headerSubtitle}>
-            {reminders.length}{" "}
-            {reminders.length === 1 ? "reminder" : "reminders"}
-          </Text>
+        <View style={[styles.header, styles.headerRow]}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.back()}
+            accessibilityLabel="Back"
+          >
+            <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
+          </TouchableOpacity>
+
+          <View style={styles.headerTitleWrap}>
+            <Text style={styles.headerTitle}>My Reminders</Text>
+            <Text style={styles.headerSubtitle}>
+              {reminders.length}{" "}
+              {reminders.length === 1 ? "reminder" : "reminders"}
+            </Text>
+          </View>
         </View>
 
         {/* Toggle and counts */}
@@ -1113,6 +1125,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 20,
     marginBottom: 10,
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.12)",
+    marginRight: 12,
+  },
+  headerTitleWrap: {
+    flex: 1,
   },
   headerTitle: {
     fontSize: 32,

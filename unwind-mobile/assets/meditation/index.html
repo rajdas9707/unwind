@@ -781,7 +781,7 @@
     </div>
   </div>
 
-  <!-- Only focus audio is used -->
+  <!-- Mood audio elements (local files) -->
   <audio id="audio-focused" loop preload="auto"></audio>
     <audio id="audio-calm" loop preload="auto"></audio>
     <audio id="audio-relaxed" loop preload="auto"></audio>
@@ -795,15 +795,36 @@
         const w = parseFloat(usp.get('w'));
         const h = parseFloat(usp.get('h'));
         const dpr = parseFloat(usp.get('dpr'));
-        // Only focus audio is used, fallback to default if not present
+        // Link each mood to matching audio filenames in this folder by name.
+        // We will only use local files inside this folder. Query params are
+        // accepted only when they are simple filenames (no protocol or parent paths).
         const focused = usp.get('focused');
-        const audioEl = document.getElementById('audio-focused');
-        if(focused) {
-          audioEl.src = focused;
-        } else {
-          // fallback to a default music (relax-sound.mp3 in assets)
-          audioEl.src = '../relax-sound.mp3';
-        }
+        const calm = usp.get('calm');
+        const relaxed = usp.get('relaxed');
+        const energetic = usp.get('energetic');
+
+        // Allow simple filename overrides but prevent remote or parent-path usage
+        const safeLocal = (val) => {
+          if (!val) return false;
+          // disallow protocol (http:// or data:), absolute paths, and parent paths
+          if (val.includes('://')) return false;
+          if (val.startsWith('/') || val.startsWith('..')) return false;
+          // prevent any remaining suspicious path traversal
+          if (val.includes('..') || val.includes('\\')) return false;
+          return true;
+        };
+
+        // audio elements are declared below in the DOM
+        const audioFocused = document.getElementById('audio-focused');
+        const audioCalm = document.getElementById('audio-calm');
+        const audioRelaxed = document.getElementById('audio-relaxed');
+        const audioEnergetic = document.getElementById('audio-energetic');
+
+        // Use safe query param if present (restricted to filenames), else use local defaults.
+        if (audioFocused) audioFocused.src = safeLocal(focused) ? './' + focused : 'assets/meditation/focused.mp3';
+        if (audioCalm) audioCalm.src = safeLocal(calm) ? './' + calm : 'assets/meditation/calm.mp3';
+        if (audioRelaxed) audioRelaxed.src = safeLocal(relaxed) ? './' + relaxed : 'assets/meditation/relaxed.mp3';
+        if (audioEnergetic) audioEnergetic.src = safeLocal(energetic) ? './' + energetic : 'assets/meditation/energetic.mp3';
         if(!isNaN(w)) document.documentElement.style.setProperty('--screen-w', w+'px');
         if(!isNaN(h)) document.documentElement.style.setProperty('--screen-h', h+'px');
         if(!isNaN(dpr)) document.documentElement.style.setProperty('--dpr', String(dpr));
@@ -826,7 +847,7 @@
     const minutesLabel = document.getElementById('minutesLabel');
     const muteBtn = document.getElementById('mute');
 
-    // Only focus mood is available
+    // All mood audio elements are available and will play when the mood is selected
     const moods = ['calm', 'focused', 'relaxed', 'energetic'];
     const audios = {
       calm: document.getElementById('audio-calm'),
@@ -901,7 +922,7 @@
   const a = audios[currentMood];
   if(!a) return;
   if(isMuted){ try{ a.pause(); }catch(_){} return; }
-  try{ if(restart){ a.currentTime = 0; } a.volume = 0.6; a.play().catch(()=>{}); }catch(_){}
+  try{ if(restart){ a.currentTime = 0; } a.volume = 0.6; a.play().catch(e => console.error("Audio play failed:", e)); }catch(e){ console.error("Audio operation failed:", e); }
     }
   function pauseAudio(stopAll=false){ Object.values(audios).forEach(a=>{ if(a) try{ a.pause(); if(stopAll){ a.currentTime = 0; } }catch(_){} }); }
 

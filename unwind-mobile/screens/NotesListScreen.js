@@ -55,7 +55,7 @@ export default function NotesListScreen() {
    */
   const handleSearch = async (query) => {
     setSearchQuery(query);
-    
+
     if (query.trim() === "") {
       setFilteredNotes(notes);
       return;
@@ -86,10 +86,10 @@ export default function NotesListScreen() {
     } else if (diffInDays < 7) {
       return `${Math.floor(diffInDays)}d ago`;
     } else {
-      return date.toLocaleDateString("en-US", { 
-        month: "short", 
+      return date.toLocaleDateString("en-US", {
+        month: "short",
         day: "numeric",
-        year: date.getFullYear() !== now.getFullYear() ? "numeric" : undefined
+        year: date.getFullYear() !== now.getFullYear() ? "numeric" : undefined,
       });
     }
   };
@@ -117,15 +117,22 @@ export default function NotesListScreen() {
    */
   const renderNoteCard = ({ item }) => {
     // Get first image attachment for thumbnail
-    const imageAttachment = item.attachments.find((att) => att.type === "image");
-    
+    const imageAttachment = item.attachments.find(
+      (att) => att.type === "image"
+    );
+
     // Get PDF attachments count
-    const pdfCount = item.attachments.filter((att) => att.type === "pdf").length;
-    const imageCount = item.attachments.filter((att) => att.type === "image").length;
+    const pdfCount = item.attachments.filter(
+      (att) => att.type === "pdf"
+    ).length;
+    const imageCount = item.attachments.filter(
+      (att) => att.type === "image"
+    ).length;
 
     // Create content preview (first 100 characters)
-    const contentPreview = item.content 
-      ? item.content.substring(0, 100) + (item.content.length > 100 ? "..." : "")
+    const contentPreview = item.content
+      ? item.content.substring(0, 100) +
+        (item.content.length > 100 ? "..." : "")
       : "No content";
 
     return (
@@ -143,10 +150,10 @@ export default function NotesListScreen() {
             <Text style={styles.noteContent} numberOfLines={3}>
               {contentPreview}
             </Text>
-            
+
             <View style={styles.noteFooter}>
               <Text style={styles.noteDate}>{formatDate(item.createdAt)}</Text>
-              
+
               {/* Attachment indicators */}
               {(imageCount > 0 || pdfCount > 0) && (
                 <View style={styles.attachmentIndicators}>
@@ -169,11 +176,14 @@ export default function NotesListScreen() {
             {/* Tags */}
             {item.tags && item.tags.trim() !== "" && (
               <View style={styles.tagsContainer}>
-                {item.tags.split(",").slice(0, 3).map((tag, index) => (
-                  <View key={index} style={styles.tagBadge}>
-                    <Text style={styles.tagText}>{tag.trim()}</Text>
-                  </View>
-                ))}
+                {item.tags
+                  .split(",")
+                  .slice(0, 3)
+                  .map((tag, index) => (
+                    <View key={index} style={styles.tagBadge}>
+                      <Text style={styles.tagText}>{tag.trim()}</Text>
+                    </View>
+                  ))}
               </View>
             )}
           </View>
@@ -201,8 +211,8 @@ export default function NotesListScreen() {
       <Ionicons name="document-text-outline" size={80} color="#D1D5DB" />
       <Text style={styles.emptyTitle}>No Notes Yet</Text>
       <Text style={styles.emptySubtitle}>
-        {searchQuery 
-          ? "No notes match your search" 
+        {searchQuery
+          ? "No notes match your search"
           : "Tap the + button to create your first note"}
       </Text>
     </View>
@@ -211,10 +221,10 @@ export default function NotesListScreen() {
   return (
     <View style={styles.container}>
       <StatusBar style="dark" />
-      
+
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.back()}
         >
@@ -226,7 +236,12 @@ export default function NotesListScreen() {
 
       {/* Search Bar */}
       <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color="#6B7280" style={styles.searchIcon} />
+        <Ionicons
+          name="search"
+          size={20}
+          color="#6B7280"
+          style={styles.searchIcon}
+        />
         <TextInput
           style={styles.searchInput}
           placeholder="Search notes..."

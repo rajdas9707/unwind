@@ -16,23 +16,23 @@ const CARD_HEIGHT = 120; // Reduced height
 
 const DocCard = ({ item }) => {
   const router = useRouter();
-  
+
   // Dynamic colors based on category or file type
   const getCardColors = () => {
-    const tag = item.tag?.toLowerCase() || 'personal';
+    const tag = item.tag?.toLowerCase() || "personal";
     switch (tag) {
-      case 'work':
-        return ['#667EEA', '#764BA2'];
-      case 'personal':
-        return ['#FF6B6B', '#4ECDC4'];
-      case 'education':
-        return ['#4ECDC4', '#44A08D'];
-      case 'health':
-        return ['#FF6B6B', '#FFE66D'];
-      case 'finance':
-        return ['#A8E6CF', '#88D8A3'];
+      case "work":
+        return ["#667EEA", "#764BA2"];
+      case "personal":
+        return ["#FF6B6B", "#4ECDC4"];
+      case "education":
+        return ["#4ECDC4", "#44A08D"];
+      case "health":
+        return ["#FF6B6B", "#FFE66D"];
+      case "finance":
+        return ["#A8E6CF", "#88D8A3"];
       default:
-        return ['#667EEA', '#764BA2'];
+        return ["#667EEA", "#764BA2"];
     }
   };
 
@@ -76,7 +76,7 @@ const DocCard = ({ item }) => {
       }
     >
       <LinearGradient
-        colors={['#FFFFFF', '#F8FAFC']}
+        colors={["#FFFFFF", "#F8FAFC"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={{
@@ -85,7 +85,7 @@ const DocCard = ({ item }) => {
           flex: 1,
           minHeight: CARD_HEIGHT + 16,
           borderWidth: 1,
-          borderColor: 'rgba(255, 255, 255, 0.8)',
+          borderColor: "rgba(255, 255, 255, 0.8)",
         }}
       >
         {/* Header Row */}
@@ -121,8 +121,8 @@ const DocCard = ({ item }) => {
             <Text
               style={{
                 fontSize: 18,
-                fontWeight: "700",
-                color: "#1F2937",
+                fontWeight: "800",
+                color: "#0F1724",
                 marginBottom: 6,
                 letterSpacing: -0.2,
               }}
@@ -130,8 +130,9 @@ const DocCard = ({ item }) => {
             >
               {item.docName}
             </Text>
-            <Text style={{ fontSize: 14, color: "#6B7280", fontWeight: "500" }}>
-              {(item.files || []).length} {item.files?.length === 1 ? 'file' : 'files'}
+            <Text style={{ fontSize: 14, color: "#475569", fontWeight: "600" }}>
+              {(item.files || []).length}{" "}
+              {item.files?.length === 1 ? "file" : "files"}
             </Text>
           </View>
 
@@ -147,16 +148,24 @@ const DocCard = ({ item }) => {
               borderColor: `${cardColors[0]}30`,
             }}
           >
-            <Text style={{ fontSize: 13, color: cardColors[0], fontWeight: "700", letterSpacing: 0.3 }}>
+            <Text
+              style={{
+                fontSize: 13,
+                color: cardColors[0],
+                fontWeight: "700",
+                letterSpacing: 0.3,
+                textTransform: "uppercase",
+              }}
+            >
               {item.tag || "Personal"}
             </Text>
           </LinearGradient>
-      </View>
+        </View>
 
         {/* Footer Row */}
-        <View 
-          style={{ 
-            flexDirection: "row", 
+        <View
+          style={{
+            flexDirection: "row",
             justifyContent: "space-between",
             alignItems: "center",
             paddingTop: 16,
@@ -165,18 +174,23 @@ const DocCard = ({ item }) => {
           }}
         >
           <View style={{ flexDirection: "row", alignItems: "center" }}>
-            <Ionicons name="time-outline" size={16} color="#9CA3AF" style={{ marginRight: 8 }} />
+            <Ionicons
+              name="time-outline"
+              size={16}
+              color="#9CA3AF"
+              style={{ marginRight: 8 }}
+            />
             <Text style={{ fontSize: 13, color: "#9CA3AF", fontWeight: "600" }}>
               {formatDate(item.lastOpenedAt)}
             </Text>
           </View>
-          
+
           <LinearGradient
             colors={[`${cardColors[0]}20`, `${cardColors[1]}20`]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
-            style={{ 
-              flexDirection: "row", 
+            style={{
+              flexDirection: "row",
               alignItems: "center",
               paddingHorizontal: 12,
               paddingVertical: 6,
@@ -185,7 +199,14 @@ const DocCard = ({ item }) => {
               borderColor: `${cardColors[0]}40`,
             }}
           >
-            <Text style={{ fontSize: 13, color: cardColors[0], fontWeight: "700", marginRight: 6 }}>
+            <Text
+              style={{
+                fontSize: 13,
+                color: cardColors[0],
+                fontWeight: "700",
+                marginRight: 6,
+              }}
+            >
               View
             </Text>
             <Ionicons name="chevron-forward" size={14} color={cardColors[0]} />

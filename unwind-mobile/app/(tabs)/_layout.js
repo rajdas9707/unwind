@@ -4,7 +4,10 @@ import { Redirect, Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { initTable } from "../../storage/initTable";
 import { AuthContext } from "../../context/AuthProvider";
-import { OperationProvider, useOperation } from "../../context/OperationContext";
+import {
+  OperationProvider,
+  useOperation,
+} from "../../context/OperationContext";
 
 function TabsContent() {
   const { isOperating, operationMessage } = useOperation();
@@ -93,6 +96,24 @@ function TabsContent() {
 
 export default function TabLayout() {
   const { user } = useContext(AuthContext);
+
+  // Ensure database tables are initialized on app startup when the user is present
+  useEffect(() => {
+    if (!user) return;
+
+    (async () => {
+      try {
+        await initTable();
+        // console.log('Database initialization completed');
+      } catch (error) {
+        console.error("Failed to initialize database at startup:", error);
+        Alert.alert(
+          "Database Error",
+          "Failed to initialize local database. Please restart the app."
+        );
+      }
+    })();
+  }, [user]);
 
   console.log("Rendering TabLayout, user:", user);
 

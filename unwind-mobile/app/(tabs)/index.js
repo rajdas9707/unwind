@@ -76,6 +76,19 @@ export default function HomeScreen() {
     userInfo();
   }, []);
 
+  // Load saved custom quote from AsyncStorage (if any)
+  useEffect(() => {
+    const loadCustomQuote = async () => {
+      try {
+        const q = await AsyncStorage.getItem("customQuote");
+        if (q) setCustomQuote(q);
+      } catch (error) {
+        console.error("Error loading custom quote:", error);
+      }
+    };
+    loadCustomQuote();
+  }, []);
+
   // Load diet progress when screen is focused
   useFocusEffect(
     useCallback(() => {
@@ -122,6 +135,11 @@ export default function HomeScreen() {
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
 
+  // Custom motivational quote states
+  const [customQuote, setCustomQuote] = useState(null);
+  const [showQuoteModal, setShowQuoteModal] = useState(false);
+  const [quoteInput, setQuoteInput] = useState("");
+
   const motivationalQuotes = [
     "Progress, not perfection.",
     "Small steps lead to big changes.",
@@ -129,6 +147,35 @@ export default function HomeScreen() {
     "Your potential is endless.",
     "Every day is a new opportunity.",
   ];
+
+  // Save custom quote to AsyncStorage
+  const saveCustomQuote = async (text) => {
+    try {
+      if (text && text.trim().length > 0) {
+        await AsyncStorage.setItem("customQuote", text.trim());
+        setCustomQuote(text.trim());
+        setShowQuoteModal(false);
+      } else {
+        // if empty, treat as clearing
+        await AsyncStorage.removeItem("customQuote");
+        setCustomQuote(null);
+        setShowQuoteModal(false);
+      }
+    } catch (error) {
+      console.error("Error saving custom quote:", error);
+      Alert.alert("Error", "Failed to save quote");
+    }
+  };
+
+  const clearCustomQuote = async () => {
+    try {
+      await AsyncStorage.removeItem("customQuote");
+      setCustomQuote(null);
+      setShowQuoteModal(false);
+    } catch (error) {
+      console.error("Error clearing custom quote:", error);
+    }
+  };
 
   const taskCategories = [
     {
@@ -512,14 +559,123 @@ export default function HomeScreen() {
           <View style={styles.quoteIconContainer}>
             <Ionicons name="bulb" size={24} color="#F59E0B" />
           </View>
-          <Text style={styles.quote}>
-            {
-              motivationalQuotes[
-                Math.floor(Math.random() * motivationalQuotes.length)
-              ]
-            }
-          </Text>
+          <TouchableOpacity
+            style={{ flex: 1 }}
+            onPress={() => {
+              setQuoteInput(customQuote || "");
+              setShowQuoteModal(true);
+            }}
+          >
+            <Text style={styles.quote}>
+              {customQuote
+                ? customQuote
+                : motivationalQuotes[
+                    Math.floor(Math.random() * motivationalQuotes.length)
+                  ]}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => {
+              setQuoteInput(customQuote || "");
+              setShowQuoteModal(true);
+            }}
+            style={styles.quoteEditButton}
+            accessibilityLabel="Edit quote"
+            accessibilityRole="button"
+            hitSlop={{ top: 8, left: 8, right: 8, bottom: 8 }}
+          >
+            <LinearGradient
+              colors={["#7C3AED", "#06B6D4"]}
+              start={[0, 0]}
+              end={[1, 1]}
+              style={styles.quoteEditGradient}
+            >
+              <Ionicons name="pencil" size={20} color="#FFFFFF" />
+            </LinearGradient>
+          </TouchableOpacity>
         </View>
+
+        {/* Quote Edit Modal */}
+        <Modal
+          visible={showQuoteModal}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setShowQuoteModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContainer, { maxHeight: 320 }]}>
+              <LinearGradient
+                colors={["#FFFFFF", "#F8FAFC"]}
+                style={styles.modalContent}
+              >
+                <View style={styles.modalHeader}>
+                  <TouchableOpacity
+                    onPress={() => setShowQuoteModal(false)}
+                    style={styles.modalCloseButton}
+                  >
+                    <Ionicons name="close" size={24} color="#6B7280" />
+                  </TouchableOpacity>
+                  <Text style={styles.modalTitle}>Custom Quote</Text>
+                  <View style={styles.modalHeaderSpacer} />
+                </View>
+
+                <View style={{ paddingHorizontal: 20, paddingVertical: 12 }}>
+                  <Text
+                    style={{ fontSize: 14, color: "#6B7280", marginBottom: 8 }}
+                  >
+                    Write your own motivational quote. Leave empty to clear.
+                  </Text>
+                  <TextInput
+                    style={[
+                      styles.intervalInput,
+                      { width: "100%", textAlign: "left" },
+                    ]}
+                    multiline
+                    numberOfLines={3}
+                    value={quoteInput}
+                    onChangeText={setQuoteInput}
+                    placeholder="Type your custom quote here..."
+                  />
+                </View>
+
+                <View style={styles.modalActions}>
+                  <TouchableOpacity
+                    style={styles.modalCancelButton}
+                    onPress={() => setShowQuoteModal(false)}
+                  >
+                    <Text style={styles.modalCancelText}>Cancel</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.modalCancelButton}
+                    onPress={async () => {
+                      await clearCustomQuote();
+                    }}
+                  >
+                    <Text
+                      style={[styles.modalCancelText, { color: "#EF4444" }]}
+                    >
+                      Clear
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.modalSaveButton}
+                    onPress={() => saveCustomQuote(quoteInput)}
+                  >
+                    <LinearGradient
+                      colors={["#3B82F6", "#1D4ED8"]}
+                      style={styles.modalSaveGradient}
+                    >
+                      <Text style={styles.modalSaveText}>Save</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </View>
+              </LinearGradient>
+            </View>
+          </View>
+        </Modal>
 
         {/* Water Reminders Section */}
         {waterReminders.length > 0 && (
@@ -1032,6 +1188,24 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#374151",
     flex: 1,
+  },
+  quoteEditButton: {
+    marginLeft: 8,
+    padding: 0,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  quoteEditGradient: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    elevation: 6,
   },
   section: {
     marginBottom: 32,

@@ -14,6 +14,15 @@ import { openDB } from "../mainDb";
  */
 export const initNotesTable = async (db) => {
   try {
+    console.log("Initializing notes database");
+    // const db = await openDB();
+    if (!db) {
+      Alert.alert(
+        "Error initializing notes database",
+        "Failed to open database"
+      );
+      return;
+    }
     // Create notes table with required schema
     await db.execAsync(`
       CREATE TABLE IF NOT EXISTS notes (
@@ -50,7 +59,12 @@ export const initNotesTable = async (db) => {
  * @param {string} params.tags - Comma-separated tags
  * @returns {Object} The newly created note
  */
-export const insertNote = async ({ title, content = "", attachments = [], tags = "" }) => {
+export const insertNote = async ({
+  title,
+  content = "",
+  attachments = [],
+  tags = "",
+}) => {
   try {
     const db = await openDB();
     const now = new Date().toISOString();
@@ -85,11 +99,11 @@ export const insertNote = async ({ title, content = "", attachments = [], tags =
 export const getAllNotes = async (limit = null) => {
   try {
     const db = await openDB();
-    const query = limit 
+    const query = limit
       ? "SELECT * FROM notes ORDER BY createdAt DESC LIMIT ?"
       : "SELECT * FROM notes ORDER BY createdAt DESC";
-    
-    const rows = limit 
+
+    const rows = limit
       ? await db.getAllAsync(query, [limit])
       : await db.getAllAsync(query);
 
@@ -112,7 +126,7 @@ export const searchNotes = async (searchQuery) => {
   try {
     const db = await openDB();
     const searchPattern = `%${searchQuery}%`;
-    
+
     const rows = await db.getAllAsync(
       `SELECT * FROM notes 
        WHERE title LIKE ? OR content LIKE ? OR tags LIKE ? 
@@ -138,7 +152,9 @@ export const searchNotes = async (searchQuery) => {
 export const getNoteById = async (id) => {
   try {
     const db = await openDB();
-    const row = await db.getFirstAsync("SELECT * FROM notes WHERE id = ?", [id]);
+    const row = await db.getFirstAsync("SELECT * FROM notes WHERE id = ?", [
+      id,
+    ]);
 
     if (!row) return null;
 
@@ -205,7 +221,7 @@ export const getNotesByTag = async (tag) => {
   try {
     const db = await openDB();
     const searchPattern = `%${tag}%`;
-    
+
     const rows = await db.getAllAsync(
       "SELECT * FROM notes WHERE tags LIKE ? ORDER BY createdAt DESC",
       [searchPattern]
@@ -228,7 +244,9 @@ export const getNotesByTag = async (tag) => {
 export const getNotesCount = async () => {
   try {
     const db = await openDB();
-    const result = await db.getFirstAsync("SELECT COUNT(*) as count FROM notes");
+    const result = await db.getFirstAsync(
+      "SELECT COUNT(*) as count FROM notes"
+    );
     return result?.count || 0;
   } catch (error) {
     console.error("Error getting notes count:", error);

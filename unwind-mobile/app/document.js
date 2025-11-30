@@ -20,6 +20,7 @@ import {
 } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import DocCardList from "../components/document/docCard";
+import { useRouter } from "expo-router";
 import UploadDocModal from "../components/document/UploadDocModal";
 import FilterModal from "../components/document/FilterModal";
 import { getDocuments } from "../storage/document/db";
@@ -28,6 +29,16 @@ import { CATEGORIES } from "../utils/categories";
 const { width } = Dimensions.get("window");
 const CARD_MARGIN = 12;
 const CARD_SIZE = (width - CARD_MARGIN * 3 - 40) / 2;
+
+// Typography scale used across this screen
+const TYPO = {
+  headerTitle: 34,
+  headerSubtitle: 14,
+  search: 16,
+  tab: 13,
+  cardTitle: 17,
+  cardMeta: 12,
+};
 
 export default function Document() {
   const [query, setQuery] = useState("");
@@ -40,12 +51,29 @@ export default function Document() {
   const [sortBy, setSortBy] = useState("name"); // name, date, size
   const [sortOrder, setSortOrder] = useState("asc"); // asc, desc
   const fabAnim = useRef(new Animated.Value(0)).current;
-
-
-
+  const router = useRouter();
+  const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     loadDocs();
+  }, []);
+
+  // subtle pulsing animation for the title icon to make the page feel alive
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.08,
+          duration: 1400,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1.0,
+          duration: 1400,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
   }, []);
 
   const loadDocs = async () => {
@@ -64,8 +92,8 @@ export default function Document() {
 
     // Apply category filter
     if (category !== "All") {
-      filtered = filtered.filter((doc) => 
-        doc.tag?.toLowerCase() === category.toLowerCase()
+      filtered = filtered.filter(
+        (doc) => doc.tag?.toLowerCase() === category.toLowerCase()
       );
     }
 
@@ -75,7 +103,7 @@ export default function Document() {
       filtered = filtered.filter((doc) => {
         const nameMatch = doc.docName?.toLowerCase().includes(query);
         const tagMatch = doc.tag?.toLowerCase().includes(query);
-        const filesMatch = doc.files?.some(file => 
+        const filesMatch = doc.files?.some((file) =>
           file.name?.toLowerCase().includes(query)
         );
         return nameMatch || tagMatch || filesMatch;
@@ -84,14 +112,14 @@ export default function Document() {
 
     // Apply sorting
     filtered = sortDocuments(filtered);
-    
+
     setFilteredDocs(filtered);
   };
 
   const sortDocuments = (docsList) => {
     return [...docsList].sort((a, b) => {
       let aValue, bValue;
-      
+
       switch (sortBy) {
         case "name":
           aValue = a.docName?.toLowerCase() || "";
@@ -108,7 +136,7 @@ export default function Document() {
         default:
           return 0;
       }
-      
+
       if (sortBy === "date") {
         return sortOrder === "asc" ? aValue - bValue : bValue - aValue;
       } else if (sortBy === "size") {
@@ -154,8 +182,57 @@ export default function Document() {
     applyFilters(docs, "", "All");
   };
 
+  const toggleFab = () => {
+    setFabOpen((prev) => !prev);
+    Animated.sequence([
+      Animated.timing(fabAnim, {
+        toValue: 1.15,
+        duration: 120,
+        useNativeDriver: true,
+      }),
+      Animated.timing(fabAnim, {
+        toValue: 1.0,
+        duration: 120,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  const getCategoryIcon = (cat) => {
+    const s = (cat || "").toLowerCase();
+    switch (s) {
+      case "bank":
+        return { name: "card", color: "#F59E0B" };
+      case "work":
+        return { name: "briefcase", color: "#6366F1" };
+      case "personal":
+        return { name: "person", color: "#FF6B6B" };
+      case "id":
+        return { name: "id-card", color: "#06B6D4" };
+      case "medical":
+        return { name: "medkit", color: "#10B981" };
+      case "legal":
+        return { name: "gavel", color: "#F97316" };
+      case "education":
+        return { name: "school", color: "#8B5CF6" };
+      case "travel":
+        return { name: "airplane", color: "#3B82F6" };
+      case "insurance":
+        return { name: "shield-checkmark", color: "#06B6D4" };
+      default:
+        return { name: "albums", color: "#667EEA" };
+    }
+  };
+
   const handleSaveDocument = () => {
     setModalVisible(false);
+    // Ensure FAB returns to + state after saving
+    setFabOpen(false);
+    Animated.timing(fabAnim, {
+      toValue: 1.0,
+      duration: 150,
+      useNativeDriver: true,
+    }).start();
     loadDocs();
   };
 
@@ -170,7 +247,7 @@ export default function Document() {
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="light-content" backgroundColor="#667eea" />
       <LinearGradient
-        colors={['#667EEA', '#764BA2', '#F093FB']}
+        colors={["#667EEA", "#764BA2", "#F093FB"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.gradientBackground}
@@ -180,31 +257,51 @@ export default function Document() {
             {/* Header */}
             <View style={styles.headerContainer}>
               <LinearGradient
-                colors={['#FFFFFF', '#F8FAFC']}
+                colors={["#FFFFFF", "#F8FAFC"]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.headerGradient}
               >
                 <View style={styles.headerRow}>
                   <View style={styles.titleSection}>
-                    <LinearGradient
-                      colors={['#667EEA', '#764BA2']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.titleIcon}
+                    <View style={{ marginRight: 8 }}>
+                      <TouchableOpacity
+                        style={styles.backButton}
+                        onPress={() => router.back()}
+                      >
+                        <Ionicons name="arrow-back" size={18} color="#374151" />
+                      </TouchableOpacity>
+                    </View>
+                    <Animated.View
+                      style={[
+                        styles.titleIcon,
+                        { transform: [{ scale: pulseAnim }] },
+                      ]}
                     >
-                      <Feather name="folder" size={24} color="#FFFFFF" />
-                    </LinearGradient>
+                      <LinearGradient
+                        colors={["#667EEA", "#764BA2"]}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.titleIcon}
+                      >
+                        <Feather name="folder" size={24} color="#FFFFFF" />
+                      </LinearGradient>
+                    </Animated.View>
                     <View style={styles.titleTextContainer}>
                       <Text style={styles.headerTitle}>My Documents</Text>
                       <Text style={styles.headerSubtitle}>
-                        {filteredDocs.length} {filteredDocs.length === 1 ? 'document' : 'documents'}
+                        {filteredDocs.length}{" "}
+                        {filteredDocs.length === 1 ? "document" : "documents"}
                       </Text>
                     </View>
                   </View>
                   <View style={styles.headerActions}>
                     <TouchableOpacity style={styles.lockWrap}>
-                      <Ionicons name="shield-checkmark" size={20} color="#10B981" />
+                      <Ionicons
+                        name="shield-checkmark"
+                        size={20}
+                        color="#10B981"
+                      />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -213,17 +310,13 @@ export default function Document() {
 
             {/* Search */}
             <LinearGradient
-              colors={['#FFFFFF', '#F8FAFC']}
+              colors={["#FFFFFF", "#F8FAFC"]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.searchWrap}
             >
               <View style={styles.searchIconWrap}>
-                <Ionicons
-                  name="search"
-                  size={20}
-                  color="#667EEA"
-                />
+                <Ionicons name="search" size={20} color="#667EEA" />
               </View>
               <TextInput
                 placeholder="Search documents..."
@@ -234,12 +327,12 @@ export default function Document() {
                 returnKeyType="search"
                 clearButtonMode="while-editing"
               />
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.filterBtn}
                 onPress={() => setFilterModalVisible(true)}
               >
                 <LinearGradient
-                  colors={['#667EEA', '#764BA2']}
+                  colors={["#667EEA", "#764BA2"]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                   style={styles.filterGradient}
@@ -254,8 +347,8 @@ export default function Document() {
 
             {/* Tabs */}
             <View style={styles.tabsWrapper}>
-              <ScrollView 
-                horizontal 
+              <ScrollView
+                horizontal
                 showsHorizontalScrollIndicator={false}
                 style={styles.tabsScrollView}
                 contentContainerStyle={styles.tabsContent}
@@ -267,28 +360,53 @@ export default function Document() {
                   return (
                     <TouchableOpacity
                       key={t}
-                      style={[
-                        styles.tabItem, 
-                        active && styles.tabActive
-                      ]}
+                      style={[styles.tabItem, active && styles.tabActive]}
                       onPress={() => filterDocs(t)}
                       activeOpacity={0.8}
                     >
                       {active ? (
                         <LinearGradient
-                          colors={['#667EEA', '#764BA2']}
+                          colors={["#667EEA", "#764BA2"]}
                           start={{ x: 0, y: 0 }}
                           end={{ x: 1, y: 0 }}
                           style={styles.activeTabGradient}
                         >
-                          <Text style={[styles.tabText, styles.tabTextActive]}>
-                            {t}
-                          </Text>
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              gap: 8,
+                            }}
+                          >
+                            <Ionicons
+                              name={getCategoryIcon(t).name}
+                              size={14}
+                              color={"#FFFFFF"}
+                              style={{ marginRight: 6 }}
+                            />
+                            <Text
+                              style={[styles.tabText, styles.tabTextActive]}
+                            >
+                              {t}
+                            </Text>
+                          </View>
                         </LinearGradient>
                       ) : (
-                        <Text style={styles.tabText}>
-                          {t}
-                        </Text>
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 8,
+                          }}
+                        >
+                          <Ionicons
+                            name={getCategoryIcon(t).name}
+                            size={14}
+                            color={getCategoryIcon(t).color}
+                            style={{ marginRight: 4 }}
+                          />
+                          <Text style={styles.tabText}>{t}</Text>
+                        </View>
                       )}
                     </TouchableOpacity>
                   );
@@ -297,7 +415,7 @@ export default function Document() {
             </View>
 
             {/* Cards */}
-            <ScrollView 
+            <ScrollView
               style={styles.cardsContainer}
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.cardsContent}
@@ -308,30 +426,47 @@ export default function Document() {
 
           {/* Floating Action Button */}
           <View style={styles.fabWrap}>
-            <TouchableOpacity
-              style={styles.fab}
-              onPress={() => {
-                setModalVisible(true);
-              }}
-              activeOpacity={0.8}
-              accessibilityLabel="Add Document"
+            <Animated.View
+              style={[styles.fab, { transform: [{ scale: fabAnim }] }]}
             >
-              <LinearGradient
-                colors={['#FF6B6B', '#4ECDC4', '#45B7D1']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.fabGradient}
+              <TouchableOpacity
+                onPress={() => {
+                  toggleFab();
+                  setModalVisible(true);
+                }}
+                activeOpacity={0.9}
+                accessibilityLabel="Add Document"
               >
-                <Ionicons name={fabOpen ? "close" : "add"} size={28} color="#FFFFFF" />
-              </LinearGradient>
-            </TouchableOpacity>
+                <LinearGradient
+                  colors={["#FF6B6B", "#FF9A9E", "#FFD59E"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.fabGradient}
+                >
+                  <Ionicons
+                    name={fabOpen ? "close" : "add"}
+                    size={28}
+                    color="#FFFFFF"
+                  />
+                </LinearGradient>
+              </TouchableOpacity>
+            </Animated.View>
           </View>
 
           {/* {modal for upload} */}
 
           <UploadDocModal
             visible={modalVisible}
-            onClose={() => setModalVisible(false)}
+            onClose={() => {
+              // Close the modal and reset FAB to plus
+              setModalVisible(false);
+              setFabOpen(false);
+              Animated.timing(fabAnim, {
+                toValue: 1.0,
+                duration: 150,
+                useNativeDriver: true,
+              }).start();
+            }}
             onSave={handleSaveDocument}
           />
 
@@ -350,15 +485,15 @@ export default function Document() {
 }
 
 const styles = StyleSheet.create({
-  safe: { 
+  safe: {
     flex: 1,
-    backgroundColor: '#667EEA',
+    backgroundColor: "#667EEA",
   },
-  gradientBackground: { 
-    flex: 1, 
+  gradientBackground: {
+    flex: 1,
     paddingTop: Platform.OS === "android" ? 25 : 0,
   },
-  container: { 
+  container: {
     flex: 1,
   },
   leftPane: {
@@ -371,7 +506,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 20,
     elevation: 10,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   headerContainer: {
     marginBottom: 16,
@@ -407,17 +542,19 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerTitle: {
-    fontSize: 32,
-    fontWeight: "800",
-    color: "#1F2937",
-    letterSpacing: -0.8,
+    fontSize: TYPO.headerTitle,
+    fontWeight: "900",
+    color: "#0F1724",
+    letterSpacing: -1,
     marginBottom: 6,
+    lineHeight: TYPO.headerTitle * 1.05,
   },
   headerSubtitle: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#64748B",
+    fontSize: TYPO.headerSubtitle,
+    fontWeight: "600",
+    color: "#475569",
     letterSpacing: 0.2,
+    opacity: 0.92,
   },
   headerActions: {
     flexDirection: "row",
@@ -437,6 +574,38 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 6,
     elevation: 3,
+  },
+  iconBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.85)",
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.06)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 4,
+    marginLeft: 8,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.95)",
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.06)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 3,
+    marginRight: 6,
   },
   searchWrap: {
     height: 60,
@@ -463,11 +632,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginRight: 12,
   },
-  searchInput: { 
+  searchInput: {
     flex: 1,
-    fontSize: 16, 
-    color: "#1F2937",
-    fontWeight: "500",
+    fontSize: TYPO.search,
+    color: "#0F1724",
+    fontWeight: "600",
+    letterSpacing: 0.2,
   },
   filterBtn: {
     width: 48,
@@ -521,7 +691,6 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
     height: "auto",
-    
   },
   tabItem: {
     paddingHorizontal: 16,
@@ -543,16 +712,17 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     minHeight: 36,
   },
-  tabText: { 
-    color: "#64748B", 
-    fontSize: 14, 
-    fontWeight: "500",
-    letterSpacing: 0.2,
-  },
-  tabTextActive: { 
-    color: "#FFFFFF", 
+  tabText: {
+    color: "#475569",
+    fontSize: TYPO.tab,
     fontWeight: "600",
-    letterSpacing: 0.3,
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+  },
+  tabTextActive: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+    letterSpacing: 0.6,
   },
   cardsContainer: {
     flex: 1,
@@ -569,7 +739,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: "#E5E7EB",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -584,16 +754,16 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
   },
-  cardBody: { 
+  cardBody: {
     padding: 14,
     paddingTop: 12,
   },
   cardTitle: {
-    fontSize: 15,
-    fontWeight: "700",
+    fontSize: TYPO.cardTitle,
+    fontWeight: "800",
     color: "#0F1724",
     marginBottom: 6,
-    lineHeight: 20,
+    lineHeight: TYPO.cardTitle * 1.25,
   },
   cardMetaRow: {
     flexDirection: "row",
@@ -607,18 +777,19 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: 10,
   },
-  tagText: { 
-    color: "#6366F1", 
-    fontWeight: "600", 
+  tagText: {
+    color: "#6366F1",
+    fontWeight: "600",
     fontSize: 12,
     letterSpacing: 0.2,
   },
-  cardMeta: { 
-    fontSize: 11, 
-    color: "#64748B", 
-    flex: 1, 
+  cardMeta: {
+    fontSize: TYPO.cardMeta,
+    color: "#475569",
+    flex: 1,
     textAlign: "right",
-    fontWeight: "500",
+    fontWeight: "600",
+    opacity: 0.9,
   },
 
   fabWrap: {
