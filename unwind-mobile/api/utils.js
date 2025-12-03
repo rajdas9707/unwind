@@ -5,9 +5,7 @@ import { auth } from "../firebaseConfig";
 // const API_BASE_URL = "http://192.168.29.59:5000";
 
 //incase of TUNNELING
-const API_BASE_URL =
-  "https://twenty-musicians-methodology-freeware.trycloudflare.com";
-
+const API_BASE_URL = "https://usual-geography-swim-maximize.trycloudflare.com";
 // Helper function to get fresh Firebase ID token
 export const getFreshToken = async () => {
   if (auth?.currentUser) {

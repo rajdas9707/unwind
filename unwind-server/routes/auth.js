@@ -69,26 +69,38 @@ router.post("/signup", async (req, res) => {
 
 // PUT route to update user name
 router.put("/update-name", verifyToken, async (req, res) => {
-  const user = req.user;
-  console.log("User from token:", user);
+  const { uid } = req.user;
   const { newName } = req.body;
-  // if (!newName) {
-  //   return res.status(400).json({ error: "UID and name are required" });
-  // }
-  // try {
-  //   const user = await User.findOneAndUpdate(
-  //     { firebaseUid: uid },
-  //     { name },
-  //     { new: true }
-  //   );
-  //   if (!user) {
-  //     return res.status(404).json({ error: "User not found" });
-  //   }
-  //   return res.json({ message: "User name updated successfully", user });
-  // } catch (error) {
-  //   console.error("Error updating user name:", error);
-  //   return res.status(500).json({ error: "Internal server error" });
-  // }
+  console.log(
+    `Received request to update name for UID: ${uid} to new name: ${newName}`
+  );
+
+  if (!newName) {
+    return res.status(400).json({ error: "newName is required" });
+  }
+
+  try {
+    console.log(`Updating name for UID: ${uid} to new name: ${newName}`);
+    const updatedUser = await User.findOneAndUpdate(
+      { firebaseUid: uid },
+      { name: newName },
+      { new: true }
+    );
+    console.log("Updated user:", updatedUser);
+
+    if (!updatedUser) {
+      console.log("User not found");
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    return res.status(200).json({
+      message: "User name updated successfully",
+      user: updatedUser,
+    });
+  } catch (error) {
+    console.error("Error updating user name:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 module.exports = router; // ✅ must export router

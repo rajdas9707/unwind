@@ -115,7 +115,7 @@ export const deleteUserAccount = async () => {
 };
 
 // Update user name
-export const updateUserName = async ({ uid, name }) => {
+export const updateUserName = async ({ newName }) => {
   const token = await getFreshToken();
 
   const headers = {
@@ -128,18 +128,14 @@ export const updateUserName = async ({ uid, name }) => {
 
   const response = await axios.put(
     `${API_BASE_URL}/api/auth/update-name`,
-    { uid, name },
+    { newName },
     {
       headers,
       timeout: 10000,
     }
   );
 
-  if (response.status !== 200) {
-    throw new Error(`Unexpected response status: ${response.status}`);
-  }
-
-  return response.data;
+  return response;
 };
 
 // ...existing code...

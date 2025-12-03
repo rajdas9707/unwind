@@ -389,19 +389,28 @@ export default function AccountScreen() {
         return;
       }
       setUpdatingName(true);
-      const userId = auth.currentUser.uid;
+      // const userId = auth.currentUser.uid;
 
       // 1) Update in backend (MongoDB)
-      const response = await updateUserName({ uid: userId, newName: trimmed });
-      console.log("Backend name update response:", response);
+      const response = await updateUserName({ newName: trimmed });
+      // console.log("Backend name update response:", response.status);
 
-      // 2) Update Firebase profile displayName
+      // 2) Update Firebase profile displayName]
+      // console.log("Updating Firebase profile name to:", auth.currentUser);
+      if (response.status !== 200) {
+        Alert.alert(
+          "Error",
+          "Failed to update name on server. Please try again."
+        );
+        return;
+      }
       await updateProfile(auth.currentUser, { displayName: trimmed });
 
       // 3) Update AsyncStorage userInfo
       try {
         const stored = await AsyncStorage.getItem("userInfo");
         let parsed = stored ? JSON.parse(stored) : {};
+        console.log("Current stored userInfo before name update:", parsed);
         parsed = { ...parsed, name: trimmed };
         await AsyncStorage.setItem("userInfo", JSON.stringify(parsed));
         setUserInfo(parsed);
@@ -413,7 +422,7 @@ export default function AccountScreen() {
       setNameModalVisible(false);
       Alert.alert("Success", "Name updated successfully.");
     } catch (e) {
-      console.error("Change name failed:", e);
+      // console.error("Change name failed:", e);
       Alert.alert(
         "Error",
         e?.message || "Failed to update name. Please try again."
@@ -1591,32 +1600,33 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#F8FAFF",
-    borderRadius: 10,
+    // backgroundColor: "#F8FAFF",
+    // backgroundColor: "#142144ff",
+    // borderRadius: 10,
     paddingVertical: 8,
     paddingHorizontal: 12,
     marginBottom: 8,
-    shadowColor: "#6366F1",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 2,
-    elevation: 1,
+    // shadowColor: "#6366F1",
+    // shadowOffset: { width: 0, height: 1 },
+    // shadowOpacity: 0.06,
+    // shadowRadius: 2,
+    // elevation: 1,
   },
   userName: {
     fontSize: 20,
     fontWeight: "700",
     color: "#111827",
-    flex: 1,
+    // flex: 1,
     marginRight: 8,
-    letterSpacing: 0.1,
+    // letterSpacing: 0.1,
   },
   userEmail: {
     fontSize: 15,
     color: "#374151",
     fontWeight: "500",
-    flex: 1,
+    // flex: 1,
     marginRight: 8,
-    letterSpacing: 0.05,
+    // letterSpacing: 0.05,
   },
   pencilButton: {
     marginLeft: 8,
@@ -1631,7 +1641,7 @@ const styles = StyleSheet.create({
   },
   joinDate: {
     color: "#6B7280",
-    fontSize: 13,
+    fontSize: 15,
     marginTop: 2,
   },
 

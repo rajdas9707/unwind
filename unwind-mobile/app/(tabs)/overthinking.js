@@ -83,8 +83,9 @@ export default function OverthinkingScreen() {
   // const { idToken } = useContext(AuthContext); // removed, now handled in client.js
 
   const isScreenActiveRef = useRef(true);
-  const { isOperating, operationMessage, startOperation, endOperation } = useOperation();
-  
+  const { isOperating, operationMessage, startOperation, endOperation } =
+    useOperation();
+
   const showAlert = (title, message, buttons) => {
     if (!isScreenActiveRef.current) return;
     Alert.alert(title, message, buttons);
@@ -94,20 +95,23 @@ export default function OverthinkingScreen() {
     // eslint-disable-next-line no-console
     console.error(...args);
   };
-  
+
   // Prevent back navigation when operating
   useEffect(() => {
-    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (isOperating) {
-        showAlert(
-          "Operation in Progress",
-          operationMessage || "Please wait while the operation completes.",
-          [{ text: "OK" }]
-        );
-        return true;
+    const backHandler = BackHandler.addEventListener(
+      "hardwareBackPress",
+      () => {
+        if (isOperating) {
+          showAlert(
+            "Operation in Progress",
+            operationMessage || "Please wait while the operation completes.",
+            [{ text: "OK" }]
+          );
+          return true;
+        }
+        return false;
       }
-      return false;
-    });
+    );
 
     return () => backHandler.remove();
   }, [isOperating, operationMessage]);
@@ -129,6 +133,7 @@ export default function OverthinkingScreen() {
 
     // Create entry on server
     const serverEntry = await createOverthinkingEntry({
+      title: entry.title,
       thought: entry.thought,
       solution: entry.solution,
       date: entry.created_at.split("T")[0],
@@ -146,16 +151,19 @@ export default function OverthinkingScreen() {
       server_meta: {
         createdAt: serverEntry.createdAt,
         updatedAt: serverEntry.updatedAt,
-        tags: serverEntry.tags || [],
-        mood: serverEntry.mood || null,
         // AI-generated fields from server (with fallbacks)
         category: serverEntry.category || null,
         intensity: serverEntry.intensity || null,
-        triggers: Array.isArray(serverEntry.triggers) ? serverEntry.triggers : [],
-        patterns: Array.isArray(serverEntry.patterns) ? serverEntry.patterns : [],
-        coping_strategies: Array.isArray(serverEntry.coping_strategies) ? serverEntry.coping_strategies : [],
+        triggers: Array.isArray(serverEntry.triggers)
+          ? serverEntry.triggers
+          : [],
+        patterns: Array.isArray(serverEntry.patterns)
+          ? serverEntry.patterns
+          : [],
+        coping_strategies: Array.isArray(serverEntry.coping_strategies)
+          ? serverEntry.coping_strategies
+          : [],
         reframe: serverEntry.reframe || null,
-        urgency: serverEntry.urgency || null,
       },
     });
 
@@ -167,14 +175,14 @@ export default function OverthinkingScreen() {
     try {
       // Fetch recent entries from server (last 30 days or so)
       const serverEntries = await listOverthinkingEntries({ limit: 100 });
-      
+
       if (!serverEntries || !Array.isArray(serverEntries.entries)) {
         console.log("No server entries to sync");
         return { syncedCount: 0 };
       }
 
       let syncedCount = 0;
-      
+
       for (const serverEntry of serverEntries.entries) {
         try {
           // Validate required fields before syncing
@@ -200,16 +208,25 @@ export default function OverthinkingScreen() {
               // AI-generated fields from server (with fallbacks)
               category: serverEntry.category || null,
               intensity: serverEntry.intensity || null,
-              triggers: Array.isArray(serverEntry.triggers) ? serverEntry.triggers : [],
-              patterns: Array.isArray(serverEntry.patterns) ? serverEntry.patterns : [],
-              coping_strategies: Array.isArray(serverEntry.coping_strategies) ? serverEntry.coping_strategies : [],
+              triggers: Array.isArray(serverEntry.triggers)
+                ? serverEntry.triggers
+                : [],
+              patterns: Array.isArray(serverEntry.patterns)
+                ? serverEntry.patterns
+                : [],
+              coping_strategies: Array.isArray(serverEntry.coping_strategies)
+                ? serverEntry.coping_strategies
+                : [],
               reframe: serverEntry.reframe || null,
               urgency: serverEntry.urgency || null,
             },
           });
           syncedCount++;
         } catch (error) {
-          console.error(`Failed to sync entry ${serverEntry._id} from server:`, error);
+          console.error(
+            `Failed to sync entry ${serverEntry._id} from server:`,
+            error
+          );
         }
       }
 
@@ -315,7 +332,10 @@ export default function OverthinkingScreen() {
             await syncEntriesFromServer();
             console.log("Successfully synced entries from server");
           } catch (syncError) {
-            console.warn("Failed to sync from server, continuing with local data:", syncError);
+            console.warn(
+              "Failed to sync from server, continuing with local data:",
+              syncError
+            );
           }
         }
 
@@ -483,7 +503,7 @@ export default function OverthinkingScreen() {
       setIsSyncingAll(true);
       startOperation("Syncing all entries to cloud...");
 
-      try{
+      try {
         const result = await syncAllOverthinkingEntries();
 
         if (result.syncedCount > 0 || result.failedCount > 0) {
@@ -632,15 +652,18 @@ export default function OverthinkingScreen() {
 
   // Add a new overthinking entry
   const addEntry = async () => {
-    if (!newThought.trim()) {
-      showAlert("Error", "Please describe your overthinking pattern");
+    if (!newThought.trim() || !newSolution.trim() || !newTitle.trim()) {
+      showAlert(
+        "All the fields are required",
+        "Please describe your overthinking pattern"
+      );
       return;
     }
 
     setIsAddingEntry(true);
     startOperation("Creating overthinking entry...");
 
-    try{
+    try {
       // Create entry locally - error handling is now centralized
       const entry = await createOverthinkingEntryLocal({
         title: newTitle.trim(),
@@ -811,22 +834,28 @@ export default function OverthinkingScreen() {
                 id: entry.id,
                 dumped: true, // Always set to true (releasing)
               });
-              
+
               // If entry is synced, also update on server
               if (entry.synced && entry.server_id && isOnline) {
                 try {
-                  console.log("Updating dump status on server...", entry.server_id);
+                  console.log(
+                    "Updating dump status on server...",
+                    entry.server_id
+                  );
                   await dumpOverthinkingEntry({ id: entry.server_id });
                   console.log("Server dump status updated successfully");
                 } catch (serverError) {
-                  console.error("Failed to update dump status on server:", serverError);
+                  console.error(
+                    "Failed to update dump status on server:",
+                    serverError
+                  );
                   showAlert(
                     "Partially Synced",
                     "Thought released locally but couldn't be synced to server. It will sync later."
                   );
                 }
               }
-              
+
               // Refresh the list
               setLoading(true);
               try {
@@ -904,10 +933,10 @@ export default function OverthinkingScreen() {
   return (
     <View style={styles.container}>
       <StatusBar style="dark" />
-      
+
       {/* Operation Overlay */}
-      <SavingOverlay 
-        visible={isOperating} 
+      <SavingOverlay
+        visible={isOperating}
         message={operationMessage || "Processing..."}
         submessage="Please don't navigate away"
       />
@@ -1066,7 +1095,10 @@ export default function OverthinkingScreen() {
                   <Text style={styles.moodEmoji}>{entry.mood}</Text>
                   <View style={styles.thoughtSection}>
                     <Text style={styles.thoughtPreview}>
-                      {entry.truncatedThought || (entry.thought?.length > 120 ? entry.thought.substring(0, 120) + "..." : entry.thought)}
+                      {entry.truncatedThought ||
+                        (entry.thought?.length > 120
+                          ? entry.thought.substring(0, 120) + "..."
+                          : entry.thought)}
                     </Text>
                   </View>
                 </View>
@@ -1075,7 +1107,10 @@ export default function OverthinkingScreen() {
                 {entry.solution && (
                   <View style={styles.solutionPreview}>
                     <Text style={styles.solutionPreviewText}>
-                      💡 {entry.solution.length > 80 ? entry.solution.substring(0, 80) + "..." : entry.solution}
+                      💡{" "}
+                      {entry.solution.length > 80
+                        ? entry.solution.substring(0, 80) + "..."
+                        : entry.solution}
                     </Text>
                   </View>
                 )}
@@ -1084,7 +1119,9 @@ export default function OverthinkingScreen() {
                 {entry.synced && (
                   <View style={styles.syncedIndicator}>
                     <Ionicons name="cloud-done" size={14} color="#10B981" />
-                    <Text style={styles.syncedIndicatorText}>Tap for full details</Text>
+                    <Text style={styles.syncedIndicatorText}>
+                      Tap for full details
+                    </Text>
                   </View>
                 )}
 
@@ -1191,7 +1228,7 @@ export default function OverthinkingScreen() {
 
           <ScrollView style={styles.modalScrollView}>
             <View style={styles.inputSection}>
-              <Text style={styles.inputLabel}>Title (Optional)</Text>
+              <Text style={styles.inputLabel}>Title</Text>
               <TextInput
                 style={styles.titleInput}
                 placeholder="Brief summary..."
@@ -1220,9 +1257,7 @@ export default function OverthinkingScreen() {
             </View>
 
             <View style={styles.inputSection}>
-              <Text style={styles.inputLabel}>
-                Potential Solution (Optional)
-              </Text>
+              <Text style={styles.inputLabel}>Potential Solution</Text>
               <TextInput
                 style={styles.textInput}
                 placeholder="What could help resolve this?"
@@ -1681,7 +1716,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "600",
   },
-  
+
   // AI Insights Section Styles
   aiInsightsSection: {
     marginTop: 8,
@@ -1741,7 +1776,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "600",
   },
-  
+
   // Simplified Card Layout Styles - Local Data Only
   thoughtPreview: {
     fontSize: 15,
