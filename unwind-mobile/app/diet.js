@@ -268,12 +268,7 @@ export default function DietScreen() {
               <Text style={[styles.itemName, isCompleted && styles.itemNameCompleted]}>
                 {item.name}
               </Text>
-              {item.repeat_id && (
-                <View style={styles.repeatBadge}>
-                  <Ionicons name="repeat" size={12} color="#FF9500" />
-                  <Text style={styles.repeatBadgeText}>Daily</Text>
-                </View>
-              )}
+            
             </View>
           </View>
 
@@ -289,21 +284,29 @@ export default function DietScreen() {
             />
           </TouchableOpacity>
 
+           </View>
+             
           {/* Action Buttons */}
           <View style={styles.actionButtons}>
+              {item.repeat_id && (
+                <View style={styles.repeatBadge}>
+                  <Ionicons name="repeat" size={12} color="#FF9500" />
+                  <Text style={styles.repeatBadgeText}>Daily</Text>
+                </View>
+              )}
             <TouchableOpacity
               style={styles.actionButton}
               onPress={() => handleEditItem(item)}
             >
-              <Ionicons name="create-outline" size={20} color="#007AFF" />
+              <Ionicons name="create-outline" size={25} color="#007AFF" />
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.actionButton}
               onPress={() => handleDeleteItem(item)}
             >
-              <Ionicons name="trash-outline" size={20} color="#EF4444" />
+              <Ionicons name="trash-outline" size={25} color="#EF4444" />
             </TouchableOpacity>
-          </View>
+         
         </View>
       </View>
     );
@@ -462,12 +465,14 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: 16,
+    paddingTop: 8,
     paddingBottom: 100,
   },
   itemContainer: {
     backgroundColor: "#fff",
     borderRadius: 12,
-    marginBottom: 12,
+    marginBottom: 16,
+    marginHorizontal: 8,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -475,19 +480,23 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   itemContent: {
-    padding: 16,
+    padding: 14,
     flexDirection: "row",
     alignItems: "center",
+    // justifyContent: "space-between",
     gap: 12,
+    
   },
   timeBadge: {
     backgroundColor: "#E3F2FD",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 8,
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
+    minWidth: 72,
+    justifyContent: "center",
   },
   timeBadgeCompleted: {
     backgroundColor: "#D1FAE5",
@@ -502,11 +511,13 @@ const styles = StyleSheet.create({
   },
   itemDetails: {
     flex: 1,
+    marginLeft: 8,
   },
   itemHeader: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
+    justifyContent: "flex-start",
   },
   itemName: {
     fontSize: 16,
@@ -532,17 +543,25 @@ const styles = StyleSheet.create({
     color: "#FF9500",
   },
   statusButton: {
-    padding: 4,
+    padding: 8,
+    marginHorizontal: 8,
+   
   },
   statusButtonCompleted: {
     // Additional styling if needed
   },
   actionButtons: {
+     display: "flex",
+    alignItems: "center",
+    justifyContent: "flex-end",
     flexDirection: "row",
-    gap: 8,
+    gap: 10,
+    marginLeft: 8,
+
   },
   actionButton: {
     padding: 8,
+    marginLeft: 6,
   },
   emptyState: {
     flex: 1,

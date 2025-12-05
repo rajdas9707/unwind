@@ -212,6 +212,7 @@ export default function WorkoutScreen() {
     return (
       <View style={styles.itemContainer}>
         <View style={styles.itemContent}>
+
           <View style={[styles.timeBadge, isCompleted && styles.timeBadgeCompleted]}>
             <Ionicons
               name="time-outline"
@@ -222,18 +223,14 @@ export default function WorkoutScreen() {
               {formatTime(item.time)}
             </Text>
           </View>
+          
 
           <View style={styles.itemDetails}>
             <View style={styles.itemHeader}>
               <Text style={[styles.itemName, isCompleted && styles.itemNameCompleted]}>
                 {item.name}
               </Text>
-              {item.repeat_id && (
-                <View style={styles.repeatBadge}>
-                  <Ionicons name="repeat" size={12} color="#FF9500" />
-                  <Text style={styles.repeatBadgeText}>Daily</Text>
-                </View>
-              )}
+     
             </View>
             <Text style={[styles.setsReps, isCompleted && styles.setsRepsCompleted]}>
               {item.sets} × {item.reps} reps
@@ -250,23 +247,29 @@ export default function WorkoutScreen() {
               color={isCompleted ? "#FF6B6B" : "#999"}
             />
           </TouchableOpacity>
-
+              </View>
           <View style={styles.actionButtons}>
+                     {item.repeat_id && (
+                <View style={styles.repeatBadge}>
+                  <Ionicons name="repeat" size={12} color="#FF9500" />
+                  <Text style={styles.repeatBadgeText}>Daily</Text>
+                </View>
+              )}
             <TouchableOpacity
               style={styles.actionButton}
               onPress={() => handleEditItem(item)}
             >
-              <Ionicons name="create-outline" size={20} color="#007AFF" />
+              <Ionicons name="create-outline" size={25} color="#007AFF" />
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.actionButton}
               onPress={() => handleDeleteItem(item)}
             >
-              <Ionicons name="trash-outline" size={20} color="#EF4444" />
+              <Ionicons name="trash-outline" size={25} color="#EF4444" />
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+     
     );
   };
 
@@ -501,7 +504,9 @@ const styles = StyleSheet.create({
   statusButtonCompleted: {},
   actionButtons: {
     flexDirection: "row",
+    justifyContent: "flex-end",
     gap: 8,
+    padding:6
   },
   actionButton: {
     padding: 8,

@@ -42,6 +42,8 @@ router.get("/status", verifyToken, async (req, res) => {
     const user = await User.findOne({ firebaseUid: req.user.uid });
 
     if (!user) {
+      console.log("user not found");
+      
       return res.status(404).json({ success: false, error: "User not found" });
     }
 
