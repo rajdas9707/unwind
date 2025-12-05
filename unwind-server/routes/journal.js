@@ -171,7 +171,8 @@ router.put("/:id", async (req, res) => {
       return res.status(403).json({
         error: "Cannot edit past journal entries",
         code: "EDIT_PAST_JOURNAL_NOT_ALLOWED",
-        message: "You can only edit today's journal entry. Past entries cannot be modified.",
+        message:
+          "You can only edit today's journal entry. Past entries cannot be modified.",
         entryDate: entry.date,
         todayDate: today,
       });

@@ -9,6 +9,7 @@ import { initOverthinkingsTable } from "./overthinking/db";
 import { initTodosTable } from "./todo/db";
 import { initTopicsTable } from "./topic/db";
 import { initwaterRemindersTable } from "./waterreminder/db";
+import { initReminderTable } from "./reminder/db";
 
 import { openDB } from "./mainDb";
 
@@ -29,6 +30,8 @@ export const initTable = async () => {
     await initOverthinkingsTable(db);
     await initTopicsTable(db);
     await initwaterRemindersTable(db);
+    // General reminder feature uses its own small SQLite file; just ensure its table exists
+    await initReminderTable(db);
     await initTodosTable(db);
 
     // console.log("✅ All tables initialized");

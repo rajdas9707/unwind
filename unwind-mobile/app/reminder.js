@@ -13,17 +13,27 @@ import {
   Animated,
   Alert,
 } from "react-native";
-import * as SQLite from "expo-sqlite";
 import * as Notifications from "expo-notifications";
 import { Calendar } from "react-native-calendars";
 import { Picker } from "@react-native-picker/picker";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import TopBarToggle from "../components/shared/TopBarToggle";
 import { useRouter } from "expo-router";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import {
+  fetchAllReminders,
+  getReminderById,
+  getReminderMetaById,
+  insertReminder,
+  updateReminderCore,
+  updateReminderNotificationId,
+  clearReminderNotificationId,
+  getRemindersBySeriesId,
+  deleteReminderById,
+  deleteRemindersBySeriesId,
+} from "../storage/reminder/db";
 
 const { width, height } = Dimensions.get("window");
 
@@ -59,48 +69,17 @@ export default function ReminderScreen() {
   const modalScrollRef = useRef();
   const dbRef = useRef(null);
 
-  // Get database connection
-  const getDatabase = async () => {
-    if (!dbRef.current) {
-      dbRef.current = await SQLite.openDatabaseAsync("remindertask.db");
-    }
-    return dbRef.current;
-  };
-
-  // Create table on first load
+  // Load reminders on first mount (tables are initialized centrally in storage/initTable.js)
   useEffect(() => {
-    const initDatabase = async () => {
+    const loadReminders = async () => {
       try {
-        const db = await getDatabase();
-        await db.execAsync(
-          "CREATE TABLE IF NOT EXISTS reminders (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, description TEXT, datetime TEXT, repeat_every_days INTEGER, repeat_until TEXT, series_id TEXT, notification_id TEXT);"
-        );
-        // Optional migrations for older installs
-        try {
-          await db.execAsync(
-            "ALTER TABLE reminders ADD COLUMN repeat_every_days INTEGER"
-          );
-        } catch (e) {}
-        try {
-          await db.execAsync(
-            "ALTER TABLE reminders ADD COLUMN repeat_until TEXT"
-          );
-        } catch (e) {}
-        try {
-          await db.execAsync("ALTER TABLE reminders ADD COLUMN series_id TEXT");
-        } catch (e) {}
-        try {
-          await db.execAsync(
-            "ALTER TABLE reminders ADD COLUMN notification_id TEXT"
-          );
-        } catch (e) {}
         await fetchReminders();
       } catch (error) {
-        console.error("Database initialization error:", error);
+        console.error("Error loading reminders on mount:", error);
       }
     };
 
-    initDatabase();
+    loadReminders();
     initializeDefaults();
 
     // Android Notification Channel
@@ -123,10 +102,7 @@ export default function ReminderScreen() {
   // Fetch all reminders
   const fetchReminders = async () => {
     try {
-      const db = await getDatabase();
-      const result = await db.getAllAsync(
-        "SELECT * FROM reminders ORDER BY datetime ASC"
-      );
+      const result = await fetchAllReminders();
       setReminders(result);
     } catch (error) {
       console.error("Error fetching reminders:", error);
@@ -308,14 +284,9 @@ export default function ReminderScreen() {
     }
 
     try {
-      const db = await getDatabase();
-
       if (isEditing && editingId) {
         // Update existing reminder in place; preserve series metadata and repeat fields
-        const existing = await db.getFirstAsync(
-          "SELECT series_id, notification_id FROM reminders WHERE id = ?",
-          [editingId]
-        );
+        const existing = await getReminderMetaById(editingId);
 
         // Cancel previously scheduled notification if stored
         if (existing?.notification_id) {
@@ -326,10 +297,12 @@ export default function ReminderScreen() {
           } catch {}
         }
 
-        await db.runAsync(
-          "UPDATE reminders SET name = ?, description = ?, datetime = ? WHERE id = ?",
-          [taskName, taskDesc, reminderDate.toISOString(), editingId]
-        );
+        await updateReminderCore({
+          id: editingId,
+          name: taskName,
+          description: taskDesc,
+          datetimeISO: reminderDate.toISOString(),
+        });
 
         // Schedule local notification for the updated time and store id
         if (reminderDate > new Date()) {
@@ -340,32 +313,24 @@ export default function ReminderScreen() {
             },
             trigger: reminderDate,
           });
-          await db.runAsync(
-            "UPDATE reminders SET notification_id = ? WHERE id = ?",
-            [notifId, editingId]
-          );
+          await updateReminderNotificationId(editingId, notifId);
         } else {
-          await db.runAsync(
-            "UPDATE reminders SET notification_id = NULL WHERE id = ?",
-            [editingId]
-          );
+          await clearReminderNotificationId(editingId);
         }
       } else {
         const seriesId = repeatEnabled ? genSeriesId() : null;
         // Insert first occurrence
-        const insertRes = await db.runAsync(
-          "INSERT INTO reminders (name, description, datetime, repeat_every_days, repeat_until, series_id, notification_id) VALUES (?, ?, ?, ?, ?, ?, NULL)",
-          [
-            taskName,
-            taskDesc,
-            reminderDate.toISOString(),
-            repeatEnabled ? repeatEveryDays : null,
+        const insertRes = await insertReminder({
+          name: taskName,
+          description: taskDesc,
+          datetimeISO: reminderDate.toISOString(),
+          repeatEveryDays: repeatEnabled ? repeatEveryDays : null,
+          repeatUntilISO:
             repeatEnabled && repeatUntilDate
               ? repeatUntilDate.toISOString()
               : null,
-            seriesId,
-          ]
-        );
+          seriesId,
+        });
 
         // Schedule first notification
         if (reminderDate > new Date()) {
@@ -377,9 +342,9 @@ export default function ReminderScreen() {
             trigger: reminderDate,
           });
           if (insertRes?.lastInsertRowId) {
-            await db.runAsync(
-              "UPDATE reminders SET notification_id = ? WHERE id = ?",
-              [notifId, insertRes.lastInsertRowId]
+            await updateReminderNotificationId(
+              insertRes.lastInsertRowId,
+              notifId
             );
           }
         }
@@ -391,17 +356,14 @@ export default function ReminderScreen() {
 
           while (next <= repeatUntilDate) {
             const iso = next.toISOString();
-            const ins = await db.runAsync(
-              "INSERT INTO reminders (name, description, datetime, repeat_every_days, repeat_until, series_id, notification_id) VALUES (?, ?, ?, ?, ?, ?, NULL)",
-              [
-                taskName,
-                taskDesc,
-                iso,
-                repeatEveryDays,
-                repeatUntilDate.toISOString(),
-                seriesId,
-              ]
-            );
+            const ins = await insertReminder({
+              name: taskName,
+              description: taskDesc,
+              datetimeISO: iso,
+              repeatEveryDays,
+              repeatUntilISO: repeatUntilDate.toISOString(),
+              seriesId,
+            });
 
             if (next > new Date()) {
               const nid = await Notifications.scheduleNotificationAsync({
@@ -412,9 +374,9 @@ export default function ReminderScreen() {
                 trigger: new Date(iso),
               });
               if (ins?.lastInsertRowId) {
-                await db.runAsync(
-                  "UPDATE reminders SET notification_id = ? WHERE id = ?",
-                  [nid, ins.lastInsertRowId]
+                await updateReminderNotificationId(
+                  ins.lastInsertRowId,
+                  nid
                 );
               }
             }
@@ -437,11 +399,7 @@ export default function ReminderScreen() {
   const editReminder = async (reminder) => {
     try {
       console.log("Edit button pressed for:", reminder.id);
-      const db = await getDatabase();
-      const row = await db.getFirstAsync(
-        "SELECT * FROM reminders WHERE id = ?",
-        [reminder.id]
-      );
+      const row = await getReminderById(reminder.id);
       const r = row || reminder;
       const reminderDate = new Date(r.datetime);
       setTaskName(r.name || "");
@@ -480,8 +438,6 @@ export default function ReminderScreen() {
   // Delete reminder
   const deleteReminder = async (item) => {
     try {
-      const db = await getDatabase();
-
       if (selectedKey === "backlogs") {
         // Missed tab: delete only this single occurrence
         if (item.notification_id) {
@@ -491,15 +447,12 @@ export default function ReminderScreen() {
             );
           } catch {}
         }
-        await db.runAsync("DELETE FROM reminders WHERE id = ?", [item.id]);
+        await deleteReminderById(item.id);
       } else {
         // Upcoming tab: keep prior behavior — delete series if applicable
         if (item.series_id) {
           // Delete whole series: cancel notifications then delete
-          const rows = await db.getAllAsync(
-            "SELECT id, notification_id FROM reminders WHERE series_id = ?",
-            [item.series_id]
-          );
+          const rows = await getRemindersBySeriesId(item.series_id);
           for (const row of rows) {
             if (row.notification_id) {
               try {
@@ -509,9 +462,7 @@ export default function ReminderScreen() {
               } catch {}
             }
           }
-          await db.runAsync("DELETE FROM reminders WHERE series_id = ?", [
-            item.series_id,
-          ]);
+          await deleteRemindersBySeriesId(item.series_id);
         } else {
           if (item.notification_id) {
             try {
@@ -520,7 +471,7 @@ export default function ReminderScreen() {
               );
             } catch {}
           }
-          await db.runAsync("DELETE FROM reminders WHERE id = ?", [item.id]);
+          await deleteReminderById(item.id);
         }
       }
 

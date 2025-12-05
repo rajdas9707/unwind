@@ -153,21 +153,27 @@ export const requestNotificationPermissions = async () => {
 };
 
 // Schedule notifications for checkpoints
+// Each checkpoint is scheduled as a separate, one‑off local notification
+// at the next occurrence of its time (today, or tomorrow if that time
+// has already passed).
 export const scheduleCheckpointNotifications = async (checkpoints, quantity) => {
   try {
     const notificationIds = [];
     const now = new Date();
-    
+
     for (const checkpoint of checkpoints) {
       const [hours, minutes] = checkpoint.time.split(':').map(Number);
       const notificationTime = new Date();
       notificationTime.setHours(hours, minutes, 0, 0);
-      
+
       // If the time has passed today, schedule for tomorrow
       if (notificationTime <= now) {
         notificationTime.setDate(notificationTime.getDate() + 1);
       }
-      
+
+      // Use the absolute Date as the trigger so that each checkpoint
+      // fires once at its scheduled time instead of all firing
+      // immediately or repeating unexpectedly.
       const notificationId = await Notifications.scheduleNotificationAsync({
         content: {
           title: '💧 Time to Hydrate!',
@@ -175,19 +181,15 @@ export const scheduleCheckpointNotifications = async (checkpoints, quantity) => 
           data: { type: 'water_reminder' },
           sound: 'default',
         },
-        trigger: {
-          hour: hours,
-          minute: minutes,
-          repeats: true,
-        },
+        trigger: notificationTime,
       });
-      
+
       notificationIds.push({
         time: checkpoint.time,
-        notificationId
+        notificationId,
       });
     }
-    
+
     return notificationIds;
   } catch (error) {
     console.error('Error scheduling notifications:', error);
