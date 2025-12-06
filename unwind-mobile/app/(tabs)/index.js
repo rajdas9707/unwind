@@ -12,12 +12,12 @@ import {
   ActivityIndicator,
   Switch,
   Animated,
+  Platform,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { Picker } from "@react-native-picker/picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useFocusEffect } from "expo-router";
 import { getAllReminders } from "../../storage/waterreminder/db.js";
@@ -363,6 +363,9 @@ export default function HomeScreen() {
   };
 
   const closeModal = () => {
+    // Ensure any visible native pickers are hidden when closing the modal
+    setShowStartPicker(false);
+    setShowEndPicker(false);
     setShowModal(false);
     setEditingReminder(null);
   };
@@ -432,20 +435,24 @@ export default function HomeScreen() {
   };
 
   const handleTimeChange = (event, selectedTime, isStart = true) => {
-    if (event.type === "set" && selectedTime) {
+    // selectedTime can be undefined when the user cancels; guard against that
+    if (selectedTime) {
       const hours = selectedTime.getHours().toString().padStart(2, "0");
       const minutes = selectedTime.getMinutes().toString().padStart(2, "0");
       const timeString = `${hours}:${minutes}`;
 
       if (isStart) {
         setStartTime(timeString);
-        setShowStartPicker(false);
       } else {
         setEndTime(timeString);
-        setShowEndPicker(false);
       }
-    } else {
+    }
+
+    // Hide the picker for both platforms after a selection or cancel.
+    // Use optional chaining for event because some platforms may pass undefined.
+    if (isStart) {
       setShowStartPicker(false);
+    } else {
       setShowEndPicker(false);
     }
   };
@@ -1005,15 +1012,42 @@ export default function HomeScreen() {
 
                     <View style={styles.intervalUnitContainer}>
                       <Text style={styles.inputLabel}>Unit</Text>
-                      <View style={styles.pickerContainer}>
-                        <Picker
-                          selectedValue={intervalUnit}
-                          onValueChange={setIntervalUnit}
-                          style={styles.picker}
+                      <View style={styles.radioGroup}>
+                        <TouchableOpacity
+                          style={styles.radioOption}
+                          onPress={() => setIntervalUnit("minutes")}
+                          accessibilityRole="button"
                         >
-                          <Picker.Item label="Minutes" value="minutes" />
-                          <Picker.Item label="Hours" value="hours" />
-                        </Picker>
+                          <View
+                            style={[
+                              styles.radioCircle,
+                              intervalUnit === "minutes" && styles.radioSelected,
+                            ]}
+                          >
+                            {intervalUnit === "minutes" && (
+                              <View style={styles.radioInner} />
+                            )}
+                          </View>
+                          <Text style={styles.radioLabel}>Minutes</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={styles.radioOption}
+                          onPress={() => setIntervalUnit("hours")}
+                          accessibilityRole="button"
+                        >
+                          <View
+                            style={[
+                              styles.radioCircle,
+                              intervalUnit === "hours" && styles.radioSelected,
+                            ]}
+                          >
+                            {intervalUnit === "hours" && (
+                              <View style={styles.radioInner} />
+                            )}
+                          </View>
+                          <Text style={styles.radioLabel}>Hours</Text>
+                        </TouchableOpacity>
                       </View>
                     </View>
                   </View>
@@ -1106,7 +1140,87 @@ export default function HomeScreen() {
       </Modal>
 
       {/* Time Pickers */}
-      {showStartPicker && (
+      {/* iOS: Show picker in a modal with Done button to ensure visibility */}
+      {Platform.OS === "ios" && showModal && showStartPicker && (
+        <Modal
+          visible={true}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setShowStartPicker(false)}
+        >
+          <View style={styles.iosPickerOverlay}>
+            <View style={styles.iosPickerContainer}>
+              <DateTimePicker
+                value={(() => {
+                  const [hours, minutes] = startTime.split(":").map(Number);
+                  const date = new Date();
+                  date.setHours(hours, minutes, 0, 0);
+                  return date;
+                })()}
+                mode="time"
+                is24Hour={false}
+                display="spinner"
+                onChange={(event, selectedTime) => {
+                  if (selectedTime) {
+                    const h = selectedTime.getHours().toString().padStart(2, "0");
+                    const m = selectedTime.getMinutes().toString().padStart(2, "0");
+                    setStartTime(`${h}:${m}`);
+                  }
+                }}
+                style={{backgroundColor: "white"}}
+              />
+              <TouchableOpacity
+                style={styles.iosPickerDoneButton}
+                onPress={() => setShowStartPicker(false)}
+              >
+                <Text style={styles.iosPickerDoneText}>Done</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      )}
+
+      {Platform.OS === "ios" && showModal && showEndPicker && (
+        <Modal
+          visible={true}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setShowEndPicker(false)}
+        >
+          <View style={styles.iosPickerOverlay}>
+            <View style={styles.iosPickerContainer}>
+              <DateTimePicker
+                value={(() => {
+                  const [hours, minutes] = endTime.split(":").map(Number);
+                  const date = new Date();
+                  date.setHours(hours, minutes, 0, 0);
+                  return date;
+                })()}
+                mode="time"
+                is24Hour={false}
+                display="spinner"
+                onChange={(event, selectedTime) => {
+                  if (selectedTime) {
+                    const h = selectedTime.getHours().toString().padStart(2, "0");
+                    const m = selectedTime.getMinutes().toString().padStart(2, "0");
+                    setEndTime(`${h}:${m}`);
+                  }
+                }}
+                style={{backgroundColor: "white"}}
+              />
+              <TouchableOpacity
+                style={styles.iosPickerDoneButton}
+                onPress={() => setShowEndPicker(false)}
+              >
+                <Text style={styles.iosPickerDoneText}>Done</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      )}
+
+      {/* Android: Render as before */}
+      {Platform.OS !== "ios" && showModal && showStartPicker && (
         <DateTimePicker
           value={(() => {
             const [hours, minutes] = startTime.split(":").map(Number);
@@ -1123,7 +1237,7 @@ export default function HomeScreen() {
         />
       )}
 
-      {showEndPicker && (
+      {Platform.OS !== "ios" && showModal && showEndPicker && (
         <DateTimePicker
           value={(() => {
             const [hours, minutes] = endTime.split(":").map(Number);
@@ -1144,6 +1258,33 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  iosPickerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+  },
+  iosPickerContainer: {
+    backgroundColor: 'white',
+    width: '100%',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingBottom: 24,
+    paddingTop: 8,
+    alignItems: 'center',
+  },
+  iosPickerDoneButton: {
+    marginTop: 8,
+    backgroundColor: '#3B82F6',
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 32,
+  },
+  iosPickerDoneText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
   container: {
     flex: 1,
     backgroundColor: "#F9FAFB",
@@ -1723,7 +1864,49 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   picker: {
-    height: 50,
+   height: Platform.OS === "ios" ? 150 : 50,
+   width: "100%",
+  },
+  radioGroup: {
+    flexDirection: "row",
+    justifyContent: "flex-start",
+    gap: 12,
+  },
+  radioOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    marginRight: 8,
+  },
+  radioCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: "#D1D5DB",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 10,
+    backgroundColor: "transparent",
+  },
+  radioSelected: {
+    borderColor: "#3B82F6",
+  },
+  radioInner: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: "#3B82F6",
+  },
+  radioLabel: {
+    fontSize: 16,
+    color: "#1F2937",
+    fontWeight: "500",
   },
   quantityContainer: {
     flexDirection: "row",
