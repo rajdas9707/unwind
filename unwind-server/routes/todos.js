@@ -105,7 +105,7 @@ router.post("/", async (req, res) => {
       userId,
       title,
       description: description || "",
-      category: category || "personal",
+      category: category || "2-Minute",
       priority: priority || "medium",
     };
     

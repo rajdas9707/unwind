@@ -47,6 +47,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/journal", verifyToken, journalRoutes);
 app.use("/api/overthinking", verifyToken, overthinkingRoutes);
 app.use("/api/mistakes", verifyToken, mistakeRoutes);
+app.use("/api/todos", verifyToken, todoRoutes);
 
 app.use("/api/llm", llmRoutes);
 app.use("/api/data", dataRoutes);

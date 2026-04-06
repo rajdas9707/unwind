@@ -5,9 +5,9 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { LinearGradient } from "expo-linear-gradient";
 import { getSummaryScoresInRange } from "../../storage/summaryscore/db";
-import { getJournalEntriesByDate } from "../../storage/journal/db";
-import { getMistakesEntriesByDate } from "../../storage/mistakes/db";
-import { getOverthinkingEntriesByDate } from "../../storage/overthinking/db";
+import { fetchJournalsByDate } from "../../storage/journal/storage";
+import { fetchMistakesByDate } from "../../storage/mistakes/storage";
+import { fetchOverthinkingByDate } from "../../storage/overthinking/storage";
 import { router } from "expo-router";
 
 function formatDate(d) {
@@ -170,9 +170,9 @@ export default function DailySummaryScreen() {
       // Cards only for dates that actually have a stored summary score
       const cardPromises = rows.map(async ({ date, score }) => {
         const [j, m, o] = await Promise.all([
-          getJournalEntriesByDate(date),
-          getMistakesEntriesByDate(date),
-          getOverthinkingEntriesByDate(date),
+          fetchJournalsByDate(date).catch(() => []),
+          fetchMistakesByDate(date).catch(() => []),
+          fetchOverthinkingByDate(date).catch(() => []),
         ]);
         return {
           date,

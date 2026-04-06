@@ -50,7 +50,7 @@ export default function Document() {
   const [filteredDocs, setFilteredDocs] = useState([]);
   const [sortBy, setSortBy] = useState("name"); // name, date, size
   const [sortOrder, setSortOrder] = useState("asc"); // asc, desc
-  const fabAnim = useRef(new Animated.Value(0)).current;
+  const fabAnim = useRef(new Animated.Value(1)).current;
   const router = useRouter();
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
@@ -184,18 +184,6 @@ export default function Document() {
 
   const toggleFab = () => {
     setFabOpen((prev) => !prev);
-    Animated.sequence([
-      Animated.timing(fabAnim, {
-        toValue: 1.15,
-        duration: 120,
-        useNativeDriver: true,
-      }),
-      Animated.timing(fabAnim, {
-        toValue: 1.0,
-        duration: 120,
-        useNativeDriver: true,
-      }),
-    ]).start();
   };
 
   const getCategoryIcon = (cat) => {
@@ -272,21 +260,7 @@ export default function Document() {
                         <Ionicons name="arrow-back" size={18} color="#374151" />
                       </TouchableOpacity>
                     </View>
-                    <Animated.View
-                      style={[
-                        styles.titleIcon,
-                        { transform: [{ scale: pulseAnim }] },
-                      ]}
-                    >
-                      <LinearGradient
-                        colors={["#667EEA", "#764BA2"]}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={styles.titleIcon}
-                      >
-                        <Feather name="folder" size={24} color="#FFFFFF" />
-                      </LinearGradient>
-                    </Animated.View>
+
                     <View style={styles.titleTextContainer}>
                       <Text style={styles.headerTitle}>My Documents</Text>
                       <Text style={styles.headerSubtitle}>
@@ -294,15 +268,6 @@ export default function Document() {
                         {filteredDocs.length === 1 ? "document" : "documents"}
                       </Text>
                     </View>
-                  </View>
-                  <View style={styles.headerActions}>
-                    <TouchableOpacity style={styles.lockWrap}>
-                      <Ionicons
-                        name="shield-checkmark"
-                        size={20}
-                        color="#10B981"
-                      />
-                    </TouchableOpacity>
                   </View>
                 </View>
               </LinearGradient>
@@ -799,22 +764,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   fab: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#FF6B6B",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 10,
+    position: "absolute",
+    bottom: 20,
+    right: 20,
+    zIndex: 10, // Ensure the FAB is above other components
+    elevation: 10, // For Android shadow
   },
   fabGradient: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    alignItems: "center",
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5, // For Android shadow
   },
 });

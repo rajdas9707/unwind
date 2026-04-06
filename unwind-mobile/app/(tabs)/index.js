@@ -34,6 +34,7 @@ import {
 import { AuthContext } from "../../context/AuthProvider.js";
 import { getTodayDietProgress } from "../../storage/diet/db.js";
 import { getTodayWorkoutProgress } from "../../storage/workout/db.js";
+import WaterReminderModal from "../../components/WaterReminderModal";
 // initTable is now called once in tabs layout startup
 
 const { width } = Dimensions.get("window");
@@ -917,342 +918,33 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </Animated.View>
 
-      {/* Water Reminder Modal */}
-      <Modal
-        visible={showModal}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={closeModal}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <LinearGradient
-              colors={["#FFFFFF", "#F8FAFC"]}
-              style={styles.modalContent}
-            >
-              {/* Modal Header */}
-              <View style={styles.modalHeader}>
-                <TouchableOpacity
-                  onPress={closeModal}
-                  style={styles.modalCloseButton}
-                >
-                  <Ionicons name="close" size={24} color="#6B7280" />
-                </TouchableOpacity>
-                <Text style={styles.modalTitle}>
-                  {editingReminder
-                    ? "Edit Water Reminder"
-                    : "Create Water Reminder"}
-                </Text>
-                <View style={styles.modalHeaderSpacer} />
-              </View>
-
-              <ScrollView
-                style={styles.modalForm}
-                showsVerticalScrollIndicator={false}
-              >
-                {/* Time Pickers */}
-                <View style={styles.formSection}>
-                  <Text style={styles.formSectionTitle}>Schedule</Text>
-
-                  <View style={styles.timePickerRow}>
-                    <View style={styles.timePickerContainer}>
-                      <Text style={styles.inputLabel}>Start Time</Text>
-                      <TouchableOpacity
-                        style={styles.timePickerButton}
-                        onPress={() => setShowStartPicker(true)}
-                      >
-                        <Ionicons
-                          name="time-outline"
-                          size={20}
-                          color="#6B7280"
-                        />
-                        <Text style={styles.timePickerText}>
-                          {formatTimeForDisplay(startTime)}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-
-                    <View style={styles.timePickerContainer}>
-                      <Text style={styles.inputLabel}>End Time</Text>
-                      <TouchableOpacity
-                        style={styles.timePickerButton}
-                        onPress={() => setShowEndPicker(true)}
-                      >
-                        <Ionicons
-                          name="time-outline"
-                          size={20}
-                          color="#6B7280"
-                        />
-                        <Text style={styles.timePickerText}>
-                          {formatTimeForDisplay(endTime)}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                </View>
-
-                {/* Interval Section */}
-                <View style={styles.formSection}>
-                  <Text style={styles.formSectionTitle}>Reminder Interval</Text>
-
-                  <View style={styles.intervalRow}>
-                    <View style={styles.intervalValueContainer}>
-                      <Text style={styles.inputLabel}>Every</Text>
-                      <TextInput
-                        style={styles.intervalInput}
-                        value={intervalValue.toString()}
-                        onChangeText={(text) => {
-                          const num = parseInt(text) || 1;
-                          setIntervalValue(Math.max(1, Math.min(24, num)));
-                        }}
-                        keyboardType="numeric"
-                        maxLength={2}
-                      />
-                    </View>
-
-                    <View style={styles.intervalUnitContainer}>
-                      <Text style={styles.inputLabel}>Unit</Text>
-                      <View style={styles.radioGroup}>
-                        <TouchableOpacity
-                          style={styles.radioOption}
-                          onPress={() => setIntervalUnit("minutes")}
-                          accessibilityRole="button"
-                        >
-                          <View
-                            style={[
-                              styles.radioCircle,
-                              intervalUnit === "minutes" && styles.radioSelected,
-                            ]}
-                          >
-                            {intervalUnit === "minutes" && (
-                              <View style={styles.radioInner} />
-                            )}
-                          </View>
-                          <Text style={styles.radioLabel}>Minutes</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                          style={styles.radioOption}
-                          onPress={() => setIntervalUnit("hours")}
-                          accessibilityRole="button"
-                        >
-                          <View
-                            style={[
-                              styles.radioCircle,
-                              intervalUnit === "hours" && styles.radioSelected,
-                            ]}
-                          >
-                            {intervalUnit === "hours" && (
-                              <View style={styles.radioInner} />
-                            )}
-                          </View>
-                          <Text style={styles.radioLabel}>Hours</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  </View>
-                </View>
-
-                {/* Water Quantity */}
-                <View style={styles.formSection}>
-                  <Text style={styles.formSectionTitle}>Water Quantity</Text>
-                  <View style={styles.quantityContainer}>
-                    <TextInput
-                      style={styles.quantityInput}
-                      value={quantity.toString()}
-                      onChangeText={(text) => {
-                        const num = parseInt(text) || 50;
-                        setQuantity(Math.max(50, Math.min(1000, num)));
-                      }}
-                      keyboardType="numeric"
-                      maxLength={4}
-                    />
-                    <Text style={styles.quantityLabel}>ml per reminder</Text>
-                  </View>
-                </View>
-
-                {/* Preview */}
-                <View style={styles.formSection}>
-                  <Text style={styles.formSectionTitle}>Preview</Text>
-                  <View style={styles.previewContainer}>
-                    <Text style={styles.previewText}>
-                      You'll be reminded to drink {quantity}ml of water{" "}
-                      {formatInterval(
-                        intervalValue,
-                        intervalUnit
-                      ).toLowerCase()}{" "}
-                      from {formatTimeForDisplay(startTime)} to{" "}
-                      {formatTimeForDisplay(endTime)}.
-                    </Text>
-                    <Text style={styles.previewCheckpoints}>
-                      Total checkpoints:{" "}
-                      {
-                        calculateCheckpoints(
-                          startTime,
-                          endTime,
-                          intervalValue,
-                          intervalUnit
-                        ).length
-                      }
-                    </Text>
-                  </View>
-                </View>
-              </ScrollView>
-
-              {/* Modal Actions */}
-              <View style={styles.modalActions}>
-                <TouchableOpacity
-                  style={styles.modalCancelButton}
-                  onPress={closeModal}
-                >
-                  <Text style={styles.modalCancelText}>Cancel</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles.modalSaveButton,
-                    loading && styles.modalSaveButtonDisabled,
-                  ]}
-                  onPress={handleSaveReminder}
-                  disabled={loading}
-                >
-                  <LinearGradient
-                    colors={
-                      loading ? ["#D1D5DB", "#D1D5DB"] : ["#3B82F6", "#1D4ED8"]
-                    }
-                    style={styles.modalSaveGradient}
-                  >
-                    {loading ? (
-                      <ActivityIndicator size="small" color="#FFFFFF" />
-                    ) : (
-                      <Text style={styles.modalSaveText}>
-                        {editingReminder
-                          ? "Update Reminder"
-                          : "Create Reminder"}
-                      </Text>
-                    )}
-                  </LinearGradient>
-                </TouchableOpacity>
-              </View>
-            </LinearGradient>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Time Pickers */}
-      {/* iOS: Show picker in a modal with Done button to ensure visibility */}
-      {Platform.OS === "ios" && showModal && showStartPicker && (
-        <Modal
-          visible={true}
-          transparent={true}
-          animationType="slide"
-          onRequestClose={() => setShowStartPicker(false)}
-        >
-          <View style={styles.iosPickerOverlay}>
-            <View style={styles.iosPickerContainer}>
-              <DateTimePicker
-                value={(() => {
-                  const [hours, minutes] = startTime.split(":").map(Number);
-                  const date = new Date();
-                  date.setHours(hours, minutes, 0, 0);
-                  return date;
-                })()}
-                mode="time"
-                is24Hour={false}
-                display="spinner"
-                onChange={(event, selectedTime) => {
-                  if (selectedTime) {
-                    const h = selectedTime.getHours().toString().padStart(2, "0");
-                    const m = selectedTime.getMinutes().toString().padStart(2, "0");
-                    setStartTime(`${h}:${m}`);
-                  }
-                }}
-                style={{backgroundColor: "white"}}
-              />
-              <TouchableOpacity
-                style={styles.iosPickerDoneButton}
-                onPress={() => setShowStartPicker(false)}
-              >
-                <Text style={styles.iosPickerDoneText}>Done</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
-      )}
-
-      {Platform.OS === "ios" && showModal && showEndPicker && (
-        <Modal
-          visible={true}
-          transparent={true}
-          animationType="slide"
-          onRequestClose={() => setShowEndPicker(false)}
-        >
-          <View style={styles.iosPickerOverlay}>
-            <View style={styles.iosPickerContainer}>
-              <DateTimePicker
-                value={(() => {
-                  const [hours, minutes] = endTime.split(":").map(Number);
-                  const date = new Date();
-                  date.setHours(hours, minutes, 0, 0);
-                  return date;
-                })()}
-                mode="time"
-                is24Hour={false}
-                display="spinner"
-                onChange={(event, selectedTime) => {
-                  if (selectedTime) {
-                    const h = selectedTime.getHours().toString().padStart(2, "0");
-                    const m = selectedTime.getMinutes().toString().padStart(2, "0");
-                    setEndTime(`${h}:${m}`);
-                  }
-                }}
-                style={{backgroundColor: "white"}}
-              />
-              <TouchableOpacity
-                style={styles.iosPickerDoneButton}
-                onPress={() => setShowEndPicker(false)}
-              >
-                <Text style={styles.iosPickerDoneText}>Done</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
-      )}
-
-      {/* Android: Render as before */}
-      {Platform.OS !== "ios" && showModal && showStartPicker && (
-        <DateTimePicker
-          value={(() => {
-            const [hours, minutes] = startTime.split(":").map(Number);
-            const date = new Date();
-            date.setHours(hours, minutes, 0, 0);
-            return date;
-          })()}
-          mode="time"
-          is24Hour={false}
-          display="default"
-          onChange={(event, selectedTime) =>
-            handleTimeChange(event, selectedTime, true)
-          }
-        />
-      )}
-
-      {Platform.OS !== "ios" && showModal && showEndPicker && (
-        <DateTimePicker
-          value={(() => {
-            const [hours, minutes] = endTime.split(":").map(Number);
-            const date = new Date();
-            date.setHours(hours, minutes, 0, 0);
-            return date;
-          })()}
-          mode="time"
-          is24Hour={false}
-          display="default"
-          onChange={(event, selectedTime) =>
-            handleTimeChange(event, selectedTime, false)
-          }
-        />
-      )}
+      {/* Water Reminder Modal & Time Pickers */}
+      <WaterReminderModal
+        showModal={showModal}
+        closeModal={closeModal}
+        editingReminder={editingReminder}
+        startTime={startTime}
+        endTime={endTime}
+        intervalValue={intervalValue}
+        intervalUnit={intervalUnit}
+        quantity={quantity}
+        showStartPicker={showStartPicker}
+        showEndPicker={showEndPicker}
+        setShowStartPicker={setShowStartPicker}
+        setShowEndPicker={setShowEndPicker}
+        setStartTime={setStartTime}
+        setEndTime={setEndTime}
+        setIntervalValue={setIntervalValue}
+        setIntervalUnit={setIntervalUnit}
+        setQuantity={setQuantity}
+        formatTimeForDisplay={formatTimeForDisplay}
+        formatInterval={formatInterval}
+        calculateCheckpoints={calculateCheckpoints}
+        handleTimeChange={handleTimeChange}
+        handleSaveReminder={handleSaveReminder}
+        loading={loading}
+        styles={styles}
+      />
     </View>
   );
 }
@@ -1260,29 +952,29 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   iosPickerOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
+    backgroundColor: "rgba(0,0,0,0.3)",
+    justifyContent: "flex-end",
+    alignItems: "center",
   },
   iosPickerContainer: {
-    backgroundColor: 'white',
-    width: '100%',
+    backgroundColor: "white",
+    width: "100%",
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     paddingBottom: 24,
     paddingTop: 8,
-    alignItems: 'center',
+    alignItems: "center",
   },
   iosPickerDoneButton: {
     marginTop: 8,
-    backgroundColor: '#3B82F6',
+    backgroundColor: "#3B82F6",
     borderRadius: 8,
     paddingVertical: 10,
     paddingHorizontal: 32,
   },
   iosPickerDoneText: {
-    color: 'white',
-    fontWeight: 'bold',
+    color: "white",
+    fontWeight: "bold",
     fontSize: 16,
   },
   container: {
@@ -1864,8 +1556,8 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   picker: {
-   height: Platform.OS === "ios" ? 150 : 50,
-   width: "100%",
+    height: Platform.OS === "ios" ? 150 : 50,
+    width: "100%",
   },
   radioGroup: {
     flexDirection: "row",

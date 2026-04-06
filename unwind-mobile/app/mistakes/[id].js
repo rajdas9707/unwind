@@ -14,42 +14,14 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useNetworkStatus } from "../../utils/networkUtils";
 
-// Import storage layer
+// Import storage layer (backend-only)
 import {
   fetchMistakesEntryById,
-  canSyncMistakesToday,
+  deleteMistakesEntryLocal,
   getMistakeCategories,
   getCategoryColor,
   getCategoryEmoji,
 } from "../../storage/mistakes/storage";
-
-// Import API client functions
-import {
-  createMistakeEntry,
-  deleteMistakeEntry,
-  listMistakesEntries,
-} from "../../api/mistakes";
-
-// Add a function to get mistake entry by server ID
-const getMistakeEntryFromServer = async (serverId) => {
-  try {
-    // Fetch the specific entry from server using list API with server ID
-    const response = await listMistakesEntries({ limit: 100 });
-    // Note: You might need to implement a specific getMistakeEntry API endpoint
-    // For now, we'll work with the existing API structure
-    return response?.entries?.find(entry => entry._id === serverId) || null;
-  } catch (error) {
-    console.error('Error fetching server mistake entry:', error);
-    return null;
-  }
-};
-
-// Import database operations
-import {
-  getMistakesEntryById,
-  markMistakesEntrySynced,
-  deleteMistakesEntryById,
-} from "../../storage/mistakes/db";
 
 export default function MistakesDetailScreen() {
   const { id } = useLocalSearchParams();
@@ -59,113 +31,7 @@ export default function MistakesDetailScreen() {
   const [entry, setEntry] = useState(null);
   const [combinedData, setCombinedData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [loadingServerData, setLoadingServerData] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
-
-  // Sync single mistake entry to server
-  const syncMistakeEntryToServer = async ({ entry }) => {
-    if (entry.synced) {
-      return entry; // Already synced
-    }
-
-    // Create entry on server
-    const serverEntry = await createMistakeEntry({
-      description: entry.description || entry.mistake,
-      category: entry.category,
-      learning: entry.learning,
-      date: entry.created_at.split("T")[0],
-    });
-
-    console.log("Server entry created:", serverEntry);
-    if (!serverEntry || !serverEntry._id) {
-      return null;
-    }
-
-    // Mark as synced locally - store AI-generated fields in server_meta
-    const syncedEntry = await markMistakesEntrySynced({
-      id: entry.id,
-      server_id: serverEntry._id,
-      server_meta: {
-        createdAt: serverEntry.createdAt,
-        updatedAt: serverEntry.updatedAt,
-        tags: serverEntry.tags || [],
-        category: serverEntry.category || entry.category,
-        // AI-generated fields from server (with fallbacks)
-        solution: serverEntry.solution || null,
-        learning: serverEntry.learning || null,
-        intensity: serverEntry.intensity || null,
-        prevention_strategies: Array.isArray(serverEntry.prevention_strategies) ? serverEntry.prevention_strategies : [],
-        root_causes: Array.isArray(serverEntry.root_causes) ? serverEntry.root_causes : [],
-        next_steps: Array.isArray(serverEntry.next_steps) ? serverEntry.next_steps : [],
-      },
-    });
-
-    return syncedEntry;
-  };
-
-  // Get local data for a mistake entry
-  const fetchMistakeEntryLocal = async (id) => {
-    const localEntry = await getMistakesEntryById(id);
-    if (!localEntry) return null;
-
-    return {
-      local: {
-        ...localEntry,
-      },
-      server: null,
-      isSynced: localEntry.synced || false
-    };
-  };
-
-  // Fetch server data separately
-  const fetchMistakeServerData = async (serverId) => {
-    setLoadingServerData(true);
-    try {
-      console.log('Fetching server data for mistake entry:', serverId);
-      const serverData = await getMistakeEntryFromServer(serverId);
-      if (serverData) {
-        return {
-          createdAt: serverData.createdAt,
-          updatedAt: serverData.updatedAt,
-          tags: serverData.tags || [],
-          category: serverData.category,
-          // AI-generated fields
-          solution: serverData.solution,
-          learning: serverData.learning,
-          intensity: serverData.intensity,
-          prevention_strategies: serverData.prevention_strategies || [],
-          root_causes: serverData.root_causes || [],
-          next_steps: serverData.next_steps || [],
-        };
-      }
-      return null;
-    } catch (error) {
-      console.warn('Failed to fetch server data:', error);
-      return null;
-    } finally {
-      setLoadingServerData(false);
-    }
-  };
-
-  // Delete mistake entry locally and from server
-  const deleteMistakeEntryLocal = async ({ entry }) => {
-    // Delete from local database first
-    await deleteMistakesEntryById(entry.id);
-
-    // If entry was synced, also delete from server
-    if (entry.synced && entry.server_id) {
-      try {
-        await deleteMistakeEntry({ id: entry.server_id });
-      } catch (serverError) {
-        console.warn(
-          "Failed to delete from server, but local deletion succeeded:",
-          serverError
-        );
-      }
-    }
-
-    return true;
-  };
 
   // Load entry data
   useEffect(() => {
@@ -177,42 +43,25 @@ export default function MistakesDetailScreen() {
   const loadEntry = async () => {
     try {
       setLoading(true);
+      // Load entry from backend
+      const entryData = await fetchMistakesEntryById(id);
       
-      // First load local data only
-      const localData = await fetchMistakeEntryLocal(id);
-      
-      if (!localData) {
+      if (!entryData) {
         Alert.alert("Entry Not Found", "This mistake entry could not be found.", [
           { text: "OK", onPress: () => router.back() }
         ]);
         return;
       }
       
-      // Set local data immediately so UI can render
-      const entryData = localData.local;
-      setCombinedData(localData);
       setEntry(entryData);
-      setLoading(false); // Stop main loading
-      
-      // If entry is synced, fetch server data separately in the background
-      if (localData.isSynced && entryData.server_id && isOnline) {
-        const serverData = await fetchMistakeServerData(entryData.server_id);
-        if (serverData) {
-          // Update combined data with server data
-          setCombinedData(prev => ({
-            ...prev,
-            server: serverData
-          }));
-        }
-      }
+      setCombinedData({ local: entryData, server: entryData, isSynced: true });
     } catch (error) {
       console.error("Error loading mistake entry:", error);
       Alert.alert("Error", "Failed to load mistake entry");
+    } finally {
       setLoading(false);
     }
   };
-
-
   const handleDelete = () => {
     Alert.alert(
       "Delete Entry",
@@ -238,49 +87,6 @@ export default function MistakesDetailScreen() {
     );
   };
 
-  const handleSync = async () => {
-    if (!entry || entry.synced) return;
-    
-    if (!isOnline) {
-      Alert.alert(
-        "No Internet Connection",
-        "Please check your connection and try again."
-      );
-      return;
-    }
-    
-    try {
-      // Check daily sync limit
-      const canSync = await canSyncMistakesToday();
-      if (!canSync) {
-        Alert.alert(
-          "Sync Limit Reached",
-          "You can only sync 3 times per day. Try again tomorrow."
-        );
-        return;
-      }
-      
-      setIsSyncing(true);
-      
-      const synced = await syncMistakeEntryToServer({ entry });
-      
-      if (!synced) {
-        Alert.alert("Sync Failed", "Failed to sync entry. Please try again later.");
-        return;
-      }
-      await loadEntry(); // Refresh to show synced status
-      
-      Alert.alert("Success", "Entry synced to cloud successfully!");
-    } catch (error) {
-      console.error("Error syncing entry:", error);
-      Alert.alert(
-        "Sync Failed",
-        error.message || "Failed to sync entry. Please try again later."
-      );
-    } finally {
-      setIsSyncing(false);
-    }
-  };
 
   const handleShare = async () => {
     if (!entry) return;

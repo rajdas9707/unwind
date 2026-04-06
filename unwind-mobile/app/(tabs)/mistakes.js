@@ -25,34 +25,16 @@ import { Calendar } from "react-native-calendars";
 import { useNetworkStatus } from "../../utils/networkUtils";
 // import { AuthContext } from "../../context/AuthProvider";
 
-// Import storage layer (local operations only)
+// Import storage layer (backend-only)
 import {
   fetchRecentMistakesEntries,
   fetchMistakesByDate,
   createMistakeEntryLocal,
-  getUnsyncedMistakesCount,
-  canCreateMistakeEntryToday,
-  canSyncMistakesToday,
+  deleteMistakesEntryLocal,
   getMistakeCategories,
   getCategoryColor,
   getCategoryEmoji,
 } from "../../storage/mistakes/storage";
-
-// Import API client functions for network operations
-import {
-  createMistakeEntry,
-  deleteMistakeEntry,
-  listMistakesEntries,
-} from "../../api/mistakes";
-
-// Import database operations
-import {
-  getUnsyncedMistakesEntries,
-  markMistakesEntrySynced,
-  deleteMistakesEntryById,
-  getMistakesSyncAttemptsCountToday,
-  upsertMistakesFromServer,
-} from "../../storage/mistakes/db";
 
 // Removed database health utilities
 
@@ -72,14 +54,9 @@ export default function MistakesScreen() {
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const isOnline = useNetworkStatus();
-  const [pendingSyncCount, setPendingSyncCount] = useState(0);
-  const [syncingEntries, setSyncingEntries] = useState(new Set());
-  const [isSyncingAll, setIsSyncingAll] = useState(false);
-
   // Additional loading states for different operations
   const [isAddingEntry, setIsAddingEntry] = useState(false);
   const [isDeletingEntry, setIsDeletingEntry] = useState(new Set());
-  const [isUpdatingUnsyncedCount, setIsUpdatingUnsyncedCount] = useState(false);
   // const { idToken } = useContext(AuthContext); // removed, now handled in client.js
 
   const isScreenActiveRef = useRef(true);
@@ -112,160 +89,6 @@ export default function MistakesScreen() {
     return () => backHandler.remove();
   }, [isOperating, operationMessage]);
 
-  // Sync single mistakes entry to server
-  const syncMistakeEntryToServer = async ({ entry }) => {
-    if (entry.synced) {
-      return entry; // Already synced
-    }
-
-    // Create entry on server
-    const serverEntry = await createMistakeEntry({
-      description: entry.description || entry.mistake, // Support both field names
-      category: entry.category,
-      learning: entry.learning,
-      date: entry.created_at.split("T")[0],
-    });
-
-    console.log("Server entry created:", serverEntry);
-    if (!serverEntry || !serverEntry._id) {
-      return null;
-    }
-
-    // Mark as synced locally - store AI-generated fields in server_meta
-    const syncedEntry = await markMistakesEntrySynced({
-      id: entry.id,
-      server_id: serverEntry._id,
-      server_meta: {
-        createdAt: serverEntry.createdAt,
-        updatedAt: serverEntry.updatedAt,
-        tags: serverEntry.tags || [],
-        category: serverEntry.category || entry.category,
-        // AI-generated fields from server (with fallbacks)
-        solution: serverEntry.solution || null,
-        learning: serverEntry.learning || null,
-        intensity: serverEntry.intensity || null,
-        prevention_strategies: Array.isArray(serverEntry.prevention_strategies) ? serverEntry.prevention_strategies : [],
-        root_causes: Array.isArray(serverEntry.root_causes) ? serverEntry.root_causes : [],
-        next_steps: Array.isArray(serverEntry.next_steps) ? serverEntry.next_steps : [],
-      },
-    });
-
-    return syncedEntry;
-  };
-
-  // Sync entries from server to local (download from server)
-  const syncMistakesFromServer = async () => {
-    try {
-      // Fetch recent entries from server (last 30 days or so)
-      const serverEntries = await listMistakesEntries({ limit: 100 });
-      
-      if (!serverEntries || !Array.isArray(serverEntries.entries)) {
-        console.log("No server mistake entries to sync");
-        return { syncedCount: 0 };
-      }
-
-      let syncedCount = 0;
-      
-      for (const serverEntry of serverEntries.entries) {
-        try {
-          // Validate required fields before syncing
-          if (!serverEntry._id || !serverEntry.description) {
-            console.warn(`Skipping invalid server mistake entry:`, serverEntry);
-            continue;
-          }
-
-          // Upsert each entry from server, storing AI fields in server_meta
-          await upsertMistakesFromServer({
-            server_id: serverEntry._id,
-            title: serverEntry.title || "",
-            mistake: serverEntry.description,
-            solution: serverEntry.learning || "",
-            category: serverEntry.category || "Other",
-            created_at: serverEntry.createdAt || new Date().toISOString(),
-            updated_at: serverEntry.updatedAt || new Date().toISOString(),
-            server_meta: {
-              createdAt: serverEntry.createdAt,
-              updatedAt: serverEntry.updatedAt,
-              tags: serverEntry.tags || [],
-              category: serverEntry.category || "Other",
-              // AI-generated fields from server (with fallbacks)
-              solution: serverEntry.solution || null,
-              learning: serverEntry.learning || null,
-              intensity: serverEntry.intensity || null,
-              prevention_strategies: Array.isArray(serverEntry.prevention_strategies) ? serverEntry.prevention_strategies : [],
-              root_causes: Array.isArray(serverEntry.root_causes) ? serverEntry.root_causes : [],
-              next_steps: Array.isArray(serverEntry.next_steps) ? serverEntry.next_steps : [],
-            },
-          });
-          syncedCount++;
-        } catch (error) {
-          console.error(`Failed to sync mistake entry ${serverEntry._id} from server:`, error);
-        }
-      }
-
-      return { syncedCount };
-    } catch (error) {
-      console.error("Failed to sync mistake entries from server:", error);
-      throw error;
-    }
-  };
-
-  // Sync all unsynced mistakes entries with rate limiting
-  const syncAllMistakesEntries = async () => {
-    // Check daily sync limit (3 syncs per day)
-    const todaySyncCount = await getMistakesSyncAttemptsCountToday();
-    if (todaySyncCount >= 3) {
-      throw new Error("You can only sync 3 times per day. Try again tomorrow!");
-    }
-
-    const unsyncedEntries = await getUnsyncedMistakesEntries();
-
-    if (unsyncedEntries.length === 0) {
-      return { syncedCount: 0, failedCount: 0 };
-    }
-
-    let syncedCount = 0;
-    let failedCount = 0;
-    const errors = [];
-
-    for (const entry of unsyncedEntries) {
-      try {
-        await syncMistakeEntryToServer({ entry });
-        syncedCount++;
-      } catch (error) {
-        console.error(`Failed to sync mistakes entry ${entry.id}:`, error);
-        failedCount++;
-        errors.push(`Entry ${entry.id}: ${error.message}`);
-      }
-    }
-
-    return {
-      syncedCount,
-      failedCount,
-      errors,
-      total: unsyncedEntries.length,
-    };
-  };
-
-  // Delete mistakes entry locally and from server
-  const deleteMistakeEntryLocal = async ({ entry }) => {
-    // Delete from local database first
-    await deleteMistakesEntryById(entry.id);
-
-    // If entry was synced, also delete from server
-    if (entry.synced && entry.server_id) {
-      try {
-        await deleteMistakeEntry({ id: entry.server_id });
-      } catch (serverError) {
-        console.warn(
-          "Failed to delete from server, but local deletion succeeded:",
-          serverError
-        );
-      }
-    }
-
-    return true;
-  };
 
   // Set screen active state
   useFocusEffect(
@@ -277,27 +100,6 @@ export default function MistakesScreen() {
     }, [])
   );
 
-  // Spinning animation for sync icon
-  const spinValue = useSharedValue(0);
-
-  const spinStyle = useAnimatedStyle(() => {
-    return {
-      transform: [{ rotate: `${spinValue.value}deg` }],
-    };
-  });
-
-  // Start spinning animation when syncing
-  useEffect(() => {
-    if (syncingEntries.size > 0 || isSyncingAll) {
-      spinValue.value = withRepeat(
-        withTiming(360, { duration: 1000, easing: Easing.linear }),
-        -1
-      );
-    } else {
-      spinValue.value = withTiming(0, { duration: 0 });
-    }
-  }, [syncingEntries.size, isSyncingAll]);
-
   // Load entries when the component mounts or when selectedDate changes
   useEffect(() => {
     let isMounted = true;
@@ -308,17 +110,6 @@ export default function MistakesScreen() {
       setLoading(true);
 
       try {
-        // First, try to sync from server if we're online (but don't block the UI)
-        if (isOnline && !selectedDate) {
-          try {
-            console.log("Syncing mistake entries from server...");
-            await syncMistakesFromServer();
-            console.log("Successfully synced mistake entries from server");
-          } catch (syncError) {
-            console.warn("Failed to sync mistakes from server, continuing with local data:", syncError);
-          }
-        }
-
         let loadedEntries;
 
         if (selectedDate) {
@@ -332,34 +123,11 @@ export default function MistakesScreen() {
         if (isMounted) {
           console.log("Loaded mistakes entries:", loadedEntries);
           setEntries(loadedEntries || []);
-
-          // Update unsynced count
-          await updateUnsyncedCount();
         }
       } catch (error) {
         if (!isMounted) return;
-
         console.error("Error loading mistakes entries:", error);
-
-        // Check if it's a database lock error
-        if (error.message && error.message.includes("database is locked")) {
-          showAlert(
-            "Database Busy",
-            "The database is currently busy. Please try again in a moment.",
-            [
-              {
-                text: "Retry",
-                onPress: () => setTimeout(() => loadEntriesWithGuard(), 1000),
-              },
-            ]
-          );
-        } else {
-          showAlert(
-            "Error",
-            "Failed to load mistakes entries: " +
-              (error.message || "Unknown error")
-          );
-        }
+        showAlert("Error", "Failed to load mistakes entries: " + (error.message || "Unknown error"));
       } finally {
         if (isMounted) {
           setLoading(false);
@@ -398,35 +166,12 @@ export default function MistakesScreen() {
 
           if (isMounted) {
             console.log("Loaded mistakes entries:", loadedEntries);
-            setEntries(loadedEntries || []);
-
-            // Update unsynced count
-            await updateUnsyncedCount();
+          setEntries(loadedEntries || []);
           }
         } catch (error) {
           if (!isMounted) return;
-
           console.error("Error loading mistakes entries:", error);
-
-          // Check if it's a database lock error
-          if (error.message && error.message.includes("database is locked")) {
-            showAlert(
-              "Database Busy",
-              "The database is currently busy. Please try again in a moment.",
-              [
-                {
-                  text: "Retry",
-                  onPress: () => setTimeout(() => fetchData(), 1000),
-                },
-              ]
-            );
-          } else {
-            showAlert(
-              "Error",
-              "Failed to load mistakes entries: " +
-                (error.message || "Unknown error")
-            );
-          }
+          showAlert("Error", "Failed to load mistakes entries: " + (error.message || "Unknown error"));
         } finally {
           if (isMounted) {
             setLoading(false);
@@ -444,189 +189,6 @@ export default function MistakesScreen() {
     }, [selectedDate])
   );
 
-  // Update unsynced count periodically
-  useEffect(() => {
-    const interval = setInterval(() => {
-      updateUnsyncedCount();
-    }, 10000); // Check every 10 seconds
-
-    return () => clearInterval(interval);
-  }, []);
-
-  // Update the count of unsynced entries
-  const updateUnsyncedCount = async () => {
-    setIsUpdatingUnsyncedCount(true);
-    try {
-      const count = await getUnsyncedMistakesCount();
-      setPendingSyncCount(count);
-    } catch (error) {
-      console.error("Error updating unsynced mistakes count:", error);
-    } finally {
-      setIsUpdatingUnsyncedCount(false);
-    }
-  };
-
-  // Sync all pending entries
-  const syncPendingEntries = async () => {
-    try {
-      // Check if online
-      if (!isOnline) {
-        Alert.alert(
-          "No Internet Connection",
-          "Please check your connection and try again.",
-          [{ text: "OK" }]
-        );
-        return;
-      }
-
-      // idToken check removed, handled in client.js
-
-      // Start syncing
-      setIsSyncingAll(true);
-      startOperation("Syncing all entries to cloud...");
-
-      try {
-        const result = await syncAllMistakesEntries();
-
-        if (result.syncedCount > 0 || result.failedCount > 0) {
-          showAlert(
-            "Sync Complete",
-            `Successfully synced ${result.syncedCount} entries. ${
-              result.failedCount > 0
-                ? `Failed to sync ${result.failedCount} entries.`
-                : ""
-            }`
-          );
-        } else {
-          showAlert(
-            "No Entries to Sync",
-            "All your entries are already synced."
-          );
-        }
-
-        // Refresh the list
-        setLoading(true);
-        try {
-          let loadedEntries;
-
-          if (selectedDate) {
-            console.log("Loading mistakes entries for date:", selectedDate);
-            loadedEntries = await fetchMistakesByDate(selectedDate);
-          } else {
-            console.log("Loading recent mistakes entries");
-            loadedEntries = await fetchRecentMistakesEntries(10);
-          }
-
-          console.log("Loaded mistakes entries:", loadedEntries);
-          setEntries(loadedEntries || []);
-
-          // Update unsynced count
-          await updateUnsyncedCount();
-        } catch (error) {
-          logError("Error loading mistakes entries:", error);
-        } finally {
-          setLoading(false);
-        }
-      } catch (error) {
-        logError("Error syncing all entries:", error);
-        showAlert(
-          "Sync Failed",
-          error.message || "Failed to sync entries. Please try again later."
-        );
-      } finally {
-        setIsSyncingAll(false);
-        endOperation();
-      }
-    } catch (e) {
-      logError("Error in syncPendingEntries:", e);
-      setIsSyncingAll(false);
-      endOperation();
-    }
-  };
-
-  // Sync a single entry to the server
-  const manualSync = async (entry) => {
-    if (entry.synced) return;
-
-    console.log("Starting manual sync for mistakes entry:", entry);
-
-    // Check network status before attempting sync
-    if (!isOnline) {
-      showAlert(
-        "No Network Connection",
-        "Please check your internet connection and try again.",
-        [{ text: "OK" }]
-      );
-      return;
-    }
-
-    try {
-      // Check daily sync limit
-      const canSync = await canSyncMistakesToday();
-      if (!canSync) {
-        showAlert(
-          "Sync Limit Reached",
-          "You can only sync 3 times per day. Try again tomorrow.",
-          [{ text: "OK" }]
-        );
-        return;
-      }
-
-      // Set loading state for this entry
-      setSyncingEntries((prev) => new Set(prev).add(entry.id));
-      startOperation("Syncing to cloud...");
-
-      // Use the new sync function
-      await syncMistakeEntryToServer({ entry });
-
-      // Refresh the entries list
-      setLoading(true);
-      try {
-        let loadedEntries;
-
-        if (selectedDate) {
-          console.log("Loading mistakes entries for date:", selectedDate);
-          loadedEntries = await fetchMistakesByDate(selectedDate);
-        } else {
-          console.log("Loading recent mistakes entries");
-          loadedEntries = await fetchRecentMistakesEntries(10);
-        }
-
-        console.log("Loaded mistakes entries:", loadedEntries);
-        setEntries(loadedEntries || []);
-
-        // Update unsynced count
-        await updateUnsyncedCount();
-      } catch (error) {
-        logError("Error loading mistakes entries:", error);
-      } finally {
-        setLoading(false);
-      }
-
-      // Show success message
-      showAlert(
-        "Sync Successful",
-        "Your mistake entry has been saved to the cloud!",
-        [{ text: "OK" }]
-      );
-    } catch (error) {
-      logError("Sync error:", error);
-      showAlert(
-        "Sync Failed",
-        error.message || "Failed to sync entry. Please try again later.",
-        [{ text: "OK" }]
-      );
-    } finally {
-      // Clear loading state
-      setSyncingEntries((prev) => {
-        const newSet = new Set(prev);
-        newSet.delete(entry.id);
-        return newSet;
-      });
-      endOperation();
-    }
-  };
-
   // Navigate to mistake detail screen
   const viewMistakeEntry = (entry) => {
     router.push(`/mistakes/${entry.id}`);
@@ -643,7 +205,7 @@ export default function MistakesScreen() {
     startOperation("Creating mistake entry...");
 
     try {
-      // Create entry locally - error handling is now centralized
+      // Create entry on backend
       const entry = await createMistakeEntryLocal({
         description: newDescription.trim(),
         lesson: newLesson.trim(),
@@ -656,65 +218,20 @@ export default function MistakesScreen() {
       setNewCategory("Other");
       setShowAddModal(false);
 
-      // Add to current entries list
-      setEntries([entry, ...entries]);
-
-      // Update unsynced count
-      await updateUnsyncedCount();
-
-      // Show appropriate alert based on network status
-      if (!isOnline) {
-        showAlert(
-          "Entry Saved Offline",
-          "Your mistake entry has been saved locally. It will be synced when you're back online.",
-          [{ text: "OK" }]
-        );
-        return;
-      }
-
-      // Try to sync immediately if online
-      if (isOnline) {
-        setSyncingEntries((prev) => new Set(prev).add(entry.id));
-
-        try {
-          await syncMistakeEntryToServer({ entry });
-          // Refresh the list
-          setLoading(true);
-          try {
-            let loadedEntries;
-
-            if (selectedDate) {
-              console.log("Loading mistakes entries for date:", selectedDate);
-              loadedEntries = await fetchMistakesByDate(selectedDate);
-            } else {
-              console.log("Loading recent mistakes entries");
-              loadedEntries = await fetchRecentMistakesEntries(10);
-            }
-
-            console.log("Loaded mistakes entries:", loadedEntries);
-            setEntries(loadedEntries || []);
-
-            // Update unsynced count
-            await updateUnsyncedCount();
-          } catch (error) {
-            logError("Error loading mistakes entries:", error);
-          } finally {
-            setLoading(false);
-          }
-        } catch (syncError) {
-          logError("Failed to sync new entry:", syncError);
-          showAlert(
-            "Sync Failed",
-            "Entry saved locally but couldn't be synced. You can try again later.",
-            [{ text: "OK" }]
-          );
-        } finally {
-          setSyncingEntries((prev) => {
-            const newSet = new Set(prev);
-            newSet.delete(entry.id);
-            return newSet;
-          });
+      // Refresh the list
+      setLoading(true);
+      try {
+        let loadedEntries;
+        if (selectedDate) {
+          loadedEntries = await fetchMistakesByDate(selectedDate);
+        } else {
+          loadedEntries = await fetchRecentMistakesEntries(10);
         }
+        setEntries(loadedEntries || []);
+      } catch (error) {
+        logError("Error refreshing entries:", error);
+      } finally {
+        setLoading(false);
       }
     } catch (error) {
       logError("Error adding entry:", error);
@@ -740,34 +257,20 @@ export default function MistakesScreen() {
           setEntries(entries.filter((e) => e.id !== entry.id));
 
           try {
-            // Delete from storage - error handling is now centralized
-            await deleteMistakeEntryLocal({ entry });
-
-            // Update unsynced count
-            await updateUnsyncedCount();
+            // Delete from backend
+            await deleteMistakesEntryLocal({ entry });
           } catch (error) {
             logError("Error deleting entry:", error);
             showAlert("Error", "Failed to delete entry");
             // Refresh the list to show the entry again if deletion failed
             setLoading(true);
             try {
-              let loadedEntries;
-
-              if (selectedDate) {
-                console.log("Loading mistakes entries for date:", selectedDate);
-                loadedEntries = await fetchMistakesByDate(selectedDate);
-              } else {
-                console.log("Loading recent mistakes entries");
-                loadedEntries = await fetchRecentMistakesEntries(10);
-              }
-
-              console.log("Loaded mistakes entries:", loadedEntries);
+              const loadedEntries = selectedDate
+                ? await fetchMistakesByDate(selectedDate)
+                : await fetchRecentMistakesEntries(10);
               setEntries(loadedEntries || []);
-
-              // Update unsynced count
-              await updateUnsyncedCount();
-            } catch (error) {
-              logError("Error loading mistakes entries:", error);
+            } catch (refreshError) {
+              logError("Error loading mistakes entries:", refreshError);
             } finally {
               setLoading(false);
             }
@@ -854,22 +357,6 @@ export default function MistakesScreen() {
       <View style={styles.header}>
         <Text style={styles.title}>Mistakes</Text>
         <View style={styles.headerActions}>
-          {pendingSyncCount > 0 && (
-            <TouchableOpacity
-              style={styles.syncAllButton}
-              onPress={syncPendingEntries}
-              disabled={isSyncingAll}
-            >
-              {isSyncingAll ? (
-                <Animated.View style={spinStyle}>
-                  <Ionicons name="sync" size={16} color="#FFFFFF" />
-                </Animated.View>
-              ) : (
-                <Ionicons name="cloud-upload" size={16} color="#FFFFFF" />
-              )}
-              <Text style={styles.syncAllText}>{pendingSyncCount}</Text>
-            </TouchableOpacity>
-          )}
           <TouchableOpacity
             style={styles.calendarButton}
             onPress={() => setShowCalendar(true)}
@@ -897,13 +384,6 @@ export default function MistakesScreen() {
           >
             {isOnline ? "Online" : "Offline"}
           </Text>
-          {isUpdatingUnsyncedCount && (
-            <ActivityIndicator
-              size="small"
-              color="#F59E0B"
-              style={{ marginLeft: 8 }}
-            />
-          )}
         </View>
       </View>
 
@@ -975,26 +455,6 @@ export default function MistakesScreen() {
                       )}
                     </TouchableOpacity>
 
-                    {!entry.synced && (
-                      <TouchableOpacity
-                        onPress={(e) => {
-                          e.stopPropagation();
-                          manualSync(entry);
-                        }}
-                        style={styles.actionButton}
-                        disabled={syncingEntries.has(entry.id)}
-                      >
-                        {syncingEntries.has(entry.id) ? (
-                          <ActivityIndicator size="small" color="#F59E0B" />
-                        ) : (
-                          <Ionicons
-                            name="cloud-upload-outline"
-                            size={18}
-                            color="#F59E0B"
-                          />
-                        )}
-                      </TouchableOpacity>
-                    )}
                   </View>
                 </View>
 
@@ -1052,31 +512,9 @@ export default function MistakesScreen() {
                 )}
 
                 <View style={styles.entryFooter}>
-                  <View style={styles.syncStatusContainer}>
-                    {entry.synced ? (
-                      <View style={styles.syncStatus}>
-                        <Ionicons
-                          name="checkmark-circle"
-                          size={14}
-                          color="#10B981"
-                        />
-                        <Text style={styles.syncedText}>Synced</Text>
-                      </View>
-                    ) : syncingEntries.has(entry.id) ? (
-                      <View style={styles.syncStatus}>
-                        <ActivityIndicator size="small" color="#F59E0B" />
-                        <Text style={styles.syncingText}>Syncing...</Text>
-                      </View>
-                    ) : (
-                      <View style={styles.syncStatus}>
-                        <Ionicons
-                          name="time-outline"
-                          size={14}
-                          color="#F59E0B"
-                        />
-                        <Text style={styles.unsyncedText}>Pending sync</Text>
-                      </View>
-                    )}
+                  <View style={styles.syncStatus}>
+                    <Ionicons name="checkmark-circle" size={14} color="#10B981" />
+                    <Text style={styles.syncedText}>Saved</Text>
                   </View>
                 </View>
               </TouchableOpacity>

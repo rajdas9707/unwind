@@ -14,39 +14,11 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useNetworkStatus } from "../../utils/networkUtils";
 
-// Import storage layer
+// Import storage layer (backend-only)
 import {
   fetchOverthinkingEntryById,
-  canSyncOverthinkingToday,
+  deleteOverthinkingEntryLocal,
 } from "../../storage/overthinking/storage";
-
-// Import API client functions
-import {
-  createOverthinkingEntry,
-  deleteOverthinkingEntry,
-  listOverthinkingEntries,
-} from "../../api/overthinking";
-
-// Add a function to get overthinking entry by server ID
-const getOverthinkingEntryFromServer = async (serverId) => {
-  try {
-    // Fetch the specific entry from server using list API with server ID
-    const response = await listOverthinkingEntries({ limit: 1 });
-    // Note: You might need to implement a specific getOverthinkingEntry API endpoint
-    // For now, we'll work with the existing API structure
-    return response?.entries?.find(entry => entry._id === serverId) || null;
-  } catch (error) {
-    console.error('Error fetching server entry:', error);
-    return null;
-  }
-};
-
-// Import database operations
-import {
-  getOverthinkingEntryById,
-  markOverthinkingEntrySynced,
-  deleteOverthinkingEntryById,
-} from "../../storage/overthinking/db";
 
 export default function OverthinkingDetailScreen() {
   const { id } = useLocalSearchParams();
@@ -56,113 +28,7 @@ export default function OverthinkingDetailScreen() {
   const [entry, setEntry] = useState(null);
   const [combinedData, setCombinedData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [loadingServerData, setLoadingServerData] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
-
-  // Sync single overthinking entry to server
-  const syncOverthinkingEntryToServer = async ({ entry }) => {
-    if (entry.synced) {
-      return entry; // Already synced
-    }
-
-    // Create entry on server
-    const serverEntry = await createOverthinkingEntry({
-      thought: entry.thought,
-      solution: entry.solution,
-      date: entry.created_at.split("T")[0],
-    });
-
-    console.log("Server entry created:", serverEntry);
-    if (!serverEntry || !serverEntry._id) {
-      return null;
-    }
-
-    // Mark as synced locally - store AI-generated fields in server_meta
-    const syncedEntry = await markOverthinkingEntrySynced({
-      id: entry.id,
-      server_id: serverEntry._id,
-      server_meta: {
-        createdAt: serverEntry.createdAt,
-        updatedAt: serverEntry.updatedAt,
-        tags: serverEntry.tags || [],
-        mood: serverEntry.mood || null,
-        // AI-generated fields from server
-        category: serverEntry.category || null,
-        intensity: serverEntry.intensity || null,
-        triggers: Array.isArray(serverEntry.triggers) ? serverEntry.triggers : [],
-        patterns: Array.isArray(serverEntry.patterns) ? serverEntry.patterns : [],
-        coping_strategies: Array.isArray(serverEntry.coping_strategies) ? serverEntry.coping_strategies : [],
-        reframe: serverEntry.reframe || null,
-        urgency: serverEntry.urgency || null,
-      },
-    });
-
-    return syncedEntry;
-  };
-
-  // Get combined local and server data for an overthinking entry (if synced)
-  const fetchOverthinkingEntryWithServerData = async (id) => {
-    // First get the local entry
-    const localEntry = await getOverthinkingEntryById(id);
-    if (!localEntry) return null;
-
-    const result = {
-      local: {
-        ...localEntry,
-      },
-      server: null,
-      isSynced: localEntry.synced || false
-    };
-
-    // If entry is synced and we're online, fetch server data via API call
-    if (localEntry.synced && localEntry.server_id && isOnline) {
-      try {
-        console.log('Fetching server data for overthinking entry:', localEntry.server_id);
-        const serverData = await getOverthinkingEntryFromServer(localEntry.server_id);
-        if (serverData) {
-          result.server = {
-            createdAt: serverData.createdAt,
-            updatedAt: serverData.updatedAt,
-            tags: serverData.tags || [],
-            mood: serverData.mood || null,
-            // AI-generated fields
-            category: serverData.category,
-            intensity: serverData.intensity,
-            triggers: serverData.triggers || [],
-            patterns: serverData.patterns || [],
-            coping_strategies: serverData.coping_strategies || [],
-            reframe: serverData.reframe,
-            urgency: serverData.urgency,
-          };
-        }
-      } catch (error) {
-        console.warn('Failed to fetch server data:', error);
-        // Continue without server data
-      }
-    }
-
-    return result;
-  };
-
-  // Delete overthinking entry locally and from server
-  const deleteOverthinkingEntryLocal = async ({ entry }) => {
-    // Delete from local database first
-    await deleteOverthinkingEntryById(entry.id);
-
-    // If entry was synced, also delete from server
-    if (entry.synced && entry.server_id) {
-      try {
-        await deleteOverthinkingEntry({ id: entry.server_id });
-      } catch (serverError) {
-        console.warn(
-          "Failed to delete from server, but local deletion succeeded:",
-          serverError
-        );
-      }
-    }
-
-    return true;
-  };
 
   // Load entry data
   useEffect(() => {
@@ -174,70 +40,25 @@ export default function OverthinkingDetailScreen() {
   const loadEntry = async () => {
     try {
       setLoading(true);
+      // Load entry from backend
+      const entryData = await fetchOverthinkingEntryById(id);
       
-      // First, load local data immediately
-      const localEntry = await getOverthinkingEntryById(id);
-      
-      if (!localEntry) {
+      if (!entryData) {
         Alert.alert("Entry Not Found", "This overthinking entry could not be found.", [
           { text: "OK", onPress: () => router.back() }
         ]);
         return;
       }
       
-      // Set up initial combined data with local entry
-      const initialCombinedData = {
-        local: localEntry,
-        server: null,
-        isSynced: localEntry.synced || false
-      };
-      
-      // Set local data immediately
-      setCombinedData(initialCombinedData);
-      setEntry(localEntry);
-      setLoading(false); // Show UI with local data
-      
-      // If entry is synced, fetch server data in background
-      if (localEntry.synced && localEntry.server_id && isOnline) {
-        setLoadingServerData(true);
-        try {
-          console.log('Fetching server data for overthinking entry:', localEntry.server_id);
-          const serverData = await getOverthinkingEntryFromServer(localEntry.server_id);
-          
-          if (serverData) {
-            const updatedCombinedData = {
-              ...initialCombinedData,
-              server: {
-                createdAt: serverData.createdAt,
-                updatedAt: serverData.updatedAt,
-                tags: serverData.tags || [],
-                mood: serverData.mood || null,
-                // AI-generated fields
-                category: serverData.category,
-                intensity: serverData.intensity,
-                triggers: serverData.triggers || [],
-                patterns: serverData.patterns || [],
-                coping_strategies: serverData.coping_strategies || [],
-                reframe: serverData.reframe,
-                urgency: serverData.urgency,
-              }
-            };
-            setCombinedData(updatedCombinedData);
-          }
-        } catch (error) {
-          console.warn('Failed to fetch server data:', error);
-        } finally {
-          setLoadingServerData(false);
-        }
-      }
+      setEntry(entryData);
+      setCombinedData({ local: entryData, server: entryData, isSynced: true });
     } catch (error) {
       console.error("Error loading overthinking entry:", error);
       Alert.alert("Error", "Failed to load overthinking entry");
+    } finally {
       setLoading(false);
     }
   };
-
-
   const handleDelete = () => {
     Alert.alert(
       "Delete Entry",
@@ -261,50 +82,6 @@ export default function OverthinkingDetailScreen() {
         },
       ]
     );
-  };
-
-  const handleSync = async () => {
-    if (!entry || entry.synced) return;
-    
-    if (!isOnline) {
-      Alert.alert(
-        "No Internet Connection",
-        "Please check your connection and try again."
-      );
-      return;
-    }
-    
-    try {
-      // Check daily sync limit
-      const canSync = await canSyncOverthinkingToday();
-      if (!canSync) {
-        Alert.alert(
-          "Sync Limit Reached",
-          "You can only sync 3 times per day. Try again tomorrow."
-        );
-        return;
-      }
-      
-      setIsSyncing(true);
-      
-      const synced = await syncOverthinkingEntryToServer({ entry });
-      
-      if (!synced) {
-        Alert.alert("Sync Failed", "Failed to sync entry. Please try again later.");
-        return;
-      }
-      await loadEntry(); // Refresh to show synced status
-      
-      Alert.alert("Success", "Entry synced to cloud successfully!");
-    } catch (error) {
-      console.error("Error syncing entry:", error);
-      Alert.alert(
-        "Sync Failed",
-        error.message || "Failed to sync entry. Please try again later."
-      );
-    } finally {
-      setIsSyncing(false);
-    }
   };
 
   const handleShare = async () => {

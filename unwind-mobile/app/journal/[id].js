@@ -19,29 +19,14 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { useNetworkStatus } from "../../utils/networkUtils";
 // import { useDatabaseReady } from "../../hooks/useDatabaseReady";
 
-// Import storage layer (local operations only)
+// Import storage layer (backend-only)
 import {
   fetchJournalEntryById,
   updateJournalEntryLocal,
-  canSyncToday
+  deleteJournalEntryLocal,
 } from "../../storage/journal/storage";
-
+import { updateJournalEntry } from "../../api/journal";
 import SavingOverlay from "../../components/SavingOverlay";
-
-// Import API client functions for network operations
-import {
-  createJournalEntry,
-  deleteJournalEntry,
-  getJournalEntry,
-  updateJournalEntry,
-} from "../../api/journal";
-
-// Import database operations
-import {
-  getJournalEntryById,
-  markJournalEntrySynced,
-  deleteJournalEntryById,
-} from "../../storage/journal/db";
 
 export default function JournalDetailScreen() {
   const { id } = useLocalSearchParams();
@@ -61,93 +46,6 @@ export default function JournalDetailScreen() {
   
   // Removed animation logic
 
-  // Sync single journal entry to server
-  const syncJournalEntryToServer = async ({ entry }) => {
-    if (entry.synced) {
-      return entry; // Already synced
-    }
-
-    // Create entry on server
-    const serverEntry = await createJournalEntry({
-      content: entry.content,
-      date: entry.created_at.split("T")[0],
-      title: entry.title,
-    });
-
-    console.log("Server entry created:", serverEntry);
-    if (!serverEntry || !serverEntry._id) {
-      return null;
-    }
-
-    // Mark as synced locally
-    const syncedEntry = await markJournalEntrySynced({
-      id: entry.id,
-      server_id: serverEntry?._id,
-      server_meta: {
-        createdAt: serverEntry?.createdAt,
-        updatedAt: serverEntry?.updatedAt,
-        tags: serverEntry?.tags || [],
-        mood: serverEntry?.mood || null,
-      },
-    });
-
-    return syncedEntry;
-  };
-
-  // Get local data for a journal entry
-  const fetchJournalEntryLocal = async (id) => {
-    const localEntry = await getJournalEntryById(id);
-    if (!localEntry) return null;
-    
-    return {
-      local: {
-        ...localEntry,
-      },
-      server: null,
-      isSynced: localEntry.synced || false
-    };
-  };
-
-  // Fetch server data separately
-  const fetchServerData = async (serverId, signal) => {
-    setLoadingServerData(true);
-    try {
-      const serverEntry = await getJournalEntry({ 
-        id: serverId, 
-        signal 
-      });
-      return serverEntry;
-    } catch (error) {
-      console.warn('Failed to fetch server data for journal entry:', error);
-      // For authentication errors, user might need to re-login
-      if (error.message && error.message.includes('401')) {
-        console.warn('Authentication error when fetching server data - user may need to re-authenticate');
-      }
-      return null;
-    } finally {
-      setLoadingServerData(false);
-    }
-  };
-
-  // Delete journal entry locally and from server
-  const deleteJournalEntryLocal = async ({ entry }) => {
-    // Delete from local database first
-    await deleteJournalEntryById(entry.id);
-
-    // If entry was synced, also delete from server
-    if (entry.synced && entry.server_id) {
-      try {
-        await deleteJournalEntry({ id: entry.server_id });
-      } catch (serverError) {
-        console.warn(
-          "Failed to delete from server, but local deletion succeeded:",
-          serverError
-        );
-      }
-    }
-
-    return true;
-  };
 
   // Prevent back navigation when saving
   useEffect(() => {
@@ -176,52 +74,23 @@ export default function JournalDetailScreen() {
   const loadEntry = async () => {
     try {
       setLoading(true);
+      // Load entry from backend
+      const entryData = await fetchJournalEntryById(id);
       
-      // First load local data only
-      const localData = await fetchJournalEntryLocal(id);
-      
-      if (!localData) {
+      if (!entryData) {
         Alert.alert("Entry Not Found", "This journal entry could not be found.", [
           { text: "OK", onPress: () => router.back() }
         ]);
         return;
       }
       
-      // Set local data immediately so UI can render
-      const entryData = localData.local;
-      setCombinedData(localData);
       setEntry(entryData);
       setEditContent(entryData.content || "");
-      setLoading(false); // Stop main loading
-      
-      // If entry is synced, fetch server data separately in the background
-      if (localData.isSynced && entryData.server_id && isOnline) {
-        const serverData = await fetchServerData(entryData.server_id);
-        if (serverData) {
-          // Update combined data with server data
-          setCombinedData(prev => ({
-            ...prev,
-            server: {
-              ...serverData,
-            }
-          }));
-          
-          // Calculate edit info from server data
-          if (serverData.editHistory) {
-            const today = new Date().toISOString().split('T')[0];
-            const editsToday = serverData.editHistory.filter(
-              edit => edit.editDate === today
-            ).length;
-            setEditInfo({
-              editsToday,
-              remainingEdits: Math.max(0, 3 - editsToday)
-            });
-          }
-        }
-      }
+      setCombinedData({ local: entryData, server: entryData, isSynced: true });
     } catch (error) {
       console.error("Error loading journal entry:", error);
       Alert.alert("Error", "Failed to load journal entry");
+    } finally {
       setLoading(false);
     }
   };
@@ -259,70 +128,16 @@ export default function JournalDetailScreen() {
 
       setIsSaving(true); // Start saving state - locks the screen
 
-      console.log("Step 1: Saving to local database...");
-      // Update locally first (title remains unchanged as auto-generated date)
+      // Update via backend
       const updatedEntry = await updateJournalEntryLocal({
         id: entry.id,
-        title: entry.title, // Keep the original auto-generated title
+        title: entry.title,
         content: editContent.trim()
       });
-      console.log("Step 1 complete: Local save successful");
 
       setEntry(updatedEntry);
-      
-      // Try to sync to server if entry is already synced and online
-      if (entry.synced && entry.server_id && isOnline) {
-        try {
-          setIsSyncing(true);
-          
-          console.log("Step 2: Syncing to server...");
-          // Call server API to update (only content, title stays the same)
-          const serverResponse = await updateJournalEntry({
-            id: entry.server_id,
-            content: editContent.trim(),
-            title: entry.title // Keep the original auto-generated title
-          });
-          console.log("Step 2 complete: Server sync successful");
-          
-          // Update edit info from server response
-          if (serverResponse.editInfo) {
-            setEditInfo(serverResponse.editInfo);
-          }
-          
-          console.log("Step 3: Reloading entry data...");
-          await loadEntry(); // Refresh to show updated status
-          console.log("Step 3 complete: Entry reloaded");
-          
-          Alert.alert(
-            "Success", 
-            `Entry updated successfully! ${serverResponse.editInfo ? `\n${serverResponse.editInfo.remainingEdits} edits remaining today.` : ''}`
-          );
-        } catch (syncError) {
-          console.error("Failed to sync updated entry:", syncError);
-          
-          // Handle edit limit error
-          if (syncError.response?.status === 400 && syncError.response?.data?.code === 'MAX_EDITS_PER_DAY') {
-            Alert.alert(
-              "Edit Limit Reached",
-              syncError.response.data.message || "You can only edit a journal entry 3 times per day."
-            );
-          } else if (syncError.response?.status === 403 && syncError.response?.data?.code === 'EDIT_PAST_JOURNAL_NOT_ALLOWED') {
-            Alert.alert(
-              "Cannot Edit Past Entries",
-              syncError.response.data.message || "You can only edit today's journal entry."
-            );
-          } else {
-            Alert.alert(
-              "Sync Failed", 
-              "Entry updated locally but couldn't be synced to the server. You can try again later."
-            );
-          }
-        } finally {
-          setIsSyncing(false);
-        }
-      } else {
-        Alert.alert("Success", "Entry updated successfully!");
-      }
+      await loadEntry();
+      Alert.alert("Success", "Entry updated successfully!");
       
       // Only exit edit mode after everything is complete
       setIsEditing(false);
@@ -345,31 +160,8 @@ export default function JournalDetailScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              // If entry is synced, delete from server FIRST
-              if (entry.synced && entry.server_id) {
-                try {
-                  console.log("Deleting from server first...", entry.server_id);
-                  await deleteJournalEntry({ id: entry.server_id });
-                  console.log("Server deletion successful");
-                } catch (serverError) {
-                  console.error("Failed to delete from server:", serverError);
-                  
-                  // If server deletion fails, don't proceed with local deletion
-                  Alert.alert(
-                    "Delete Failed",
-                    isOnline 
-                      ? "Failed to delete entry from server. Please try again."
-                      : "Cannot delete synced entries while offline. Please connect to the internet and try again."
-                  );
-                  return; // Exit early - don't delete locally
-                }
-              }
-              
-              // Only delete locally if server deletion succeeded (or entry wasn't synced)
-              console.log("Deleting from local database...");
-              await deleteJournalEntryById(entry.id);
-              console.log("Local deletion successful");
-              
+              // Delete from backend
+              await deleteJournalEntryLocal({ entry });
               Alert.alert("Success", "Entry deleted successfully!", [
                 { text: "OK", onPress: () => router.back() }
               ]);
@@ -383,52 +175,6 @@ export default function JournalDetailScreen() {
     );
   };
 
-  const handleSync = async () => {
-    if (!entry || entry.synced) return;
-    
-    if (!isOnline) {
-      Alert.alert(
-        "No Internet Connection",
-        "Please check your connection and try again."
-      );
-      return;
-    }
-    
-    // idToken check removed, handled in client.js
-    
-    try {
-      // Check daily sync limit
-      const canSync = await canSyncToday();
-      if (!canSync) {
-        Alert.alert(
-          "Sync Limit Reached",
-          "You can only sync 3 times per day. Try again tomorrow."
-        );
-        return;
-      }
-      
-      setIsSyncing(true);
-      
- const synced=await syncJournalEntryToServer({ entry });
-                   
- if(!synced)
- {
-                            Alert.alert("Sync Failed", "Failed to sync entry. Please try again later.");
-                            return;
-                          }
-      await loadEntry(); // Refresh to show synced status
-      
-      Alert.alert("Success", "Entry synced to cloud successfully!");
-    } catch (error) {
-      console.error("Error syncing entry:", error);
-      Alert.alert(
-        "Sync Failed",
-        error.message || "Failed to sync entry. Please try again later."
-      );
-    } finally {
-      setIsSyncing(false);
-    }
-  };
 
   const handleShare = async () => {
     if (!entry) return;

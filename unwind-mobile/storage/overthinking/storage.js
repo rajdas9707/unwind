@@ -1,215 +1,102 @@
-import * as db from "./db";
+import {
+  createOverthinkingEntry,
+  listOverthinkingEntries,
+  updateOverthinkingEntry as updateOverthinkingEntryAPI,
+  dumpOverthinkingEntry as dumpOverthinkingEntryAPI,
+  deleteOverthinkingEntry as deleteOverthinkingEntryAPI,
+} from '../../api/overthinking';
 
-// Business logic and validation layer for overthinking entries
-
-// Validate overthinking entry content
-const validateOverthinkingEntry = (thought, title = "", solution = "") => {
-  if (!thought || typeof thought !== "string" || thought.trim().length === 0) {
-    throw new Error("Overthinking thought is required and cannot be empty");
-  }
-
-  if (thought.trim().length > 5000) {
-    throw new Error("Thought must be less than 5000 characters");
-  }
-
-  if (title && title.length > 200) {
-    throw new Error("Title must be less than 200 characters");
-  }
-
-  if (solution && solution.length > 2000) {
-    throw new Error("Solution must be less than 2000 characters");
-  }
-
-  return {
-    title: title?.trim() || "",
-    thought: thought.trim(),
-    solution: solution?.trim() || "",
-  };
-};
-
-// Get mood emoji based on thought content
 const getMoodEmoji = (thought) => {
-  const lowerThought = thought.toLowerCase();
-
-  // Anxiety keywords
-  const anxiousWords = [
-    "worry",
-    "anxious",
-    "nervous",
-    "stress",
-    "panic",
-    "fear",
-    "scared",
-    "overthink",
-    "spiral",
-  ];
-  const reliefWords = [
-    "calm",
-    "peace",
-    "better",
-    "solved",
-    "clear",
-    "understand",
-    "relief",
-    "resolved",
-  ];
-
+  const lowerThought = (thought || '').toLowerCase();
+  const anxiousWords = ['worry', 'anxious', 'nervous', 'stress', 'panic', 'fear', 'scared', 'overthink', 'spiral'];
+  const reliefWords = ['calm', 'peace', 'better', 'solved', 'clear', 'understand', 'relief', 'resolved'];
   let anxiousCount = 0;
   let reliefCount = 0;
-
-  anxiousWords.forEach((word) => {
-    if (lowerThought.includes(word)) anxiousCount++;
-  });
-
-  reliefWords.forEach((word) => {
-    if (lowerThought.includes(word)) reliefCount++;
-  });
-
-  if (reliefCount > anxiousCount) return "😌";
-  if (anxiousCount > reliefCount) return "😰";
-  return "🤔";
+  anxiousWords.forEach((word) => { if (lowerThought.includes(word)) anxiousCount++; });
+  reliefWords.forEach((word) => { if (lowerThought.includes(word)) reliefCount++; });
+  if (reliefCount > anxiousCount) return '\U0001F60C';
+  if (anxiousCount > reliefCount) return '\U0001F630';
+  return '\U0001F914';
 };
 
-// Create new overthinking entry with validation and rate limiting
-export const createOverthinkingEntryLocal = async ({
-  title,
-  thought,
-  solution,
-}) => {
-  try {
-    // Validate input
-    const validatedData = validateOverthinkingEntry(thought, title, solution);
+const normalizeEntry = (entry) => {
+  const thought = entry.thought || '';
+  return {
+    id: entry._id, _id: entry._id, title: entry.title || '',
+    thought, solution: entry.solution || '',
+    created_at: entry.createdAt || entry.created_at || '',
+    updated_at: entry.updatedAt || entry.updated_at || '',
+    synced: true, server_id: entry._id,
+    dumped: entry.dumped || false,
+    mood: getMoodEmoji(thought),
+    category: entry.category || null,
+    intensity: entry.intensity || null,
+    triggers: entry.triggers || [],
+    patterns: entry.patterns || [],
+    coping_strategies: entry.coping_strategies || [],
+    reframe: entry.reframe || null,
+    urgency: entry.urgency || null,
+    tags: entry.tags || [], server_meta: null,
+    truncatedThought: thought.length > 100 ? thought.substring(0, 100) + '...' : thought,
+  };
+};
 
-    // Check daily limit (5 entries per day for overthinking)
-    const today = new Date().toISOString().split("T")[0];
-    const todayCount = await db.getOverthinkingEntriesCountForDate(today);
-
-    if (todayCount >= 5) {
-      throw new Error(
-        "You can only create 5 overthinking entries per day. Try again tomorrow!"
-      );
-    }
-
-    // Create timestamps
-    const now = new Date().toISOString();
-
-    // Insert locally first
-    const localEntry = await db.insertOverthinkingEntry({
-      title: validatedData.title,
-      thought: validatedData.thought,
-      solution: validatedData.solution,
-      created_at: now,
-      updated_at: now,
-    });
-
-    return {
-      ...localEntry,
-      mood: getMoodEmoji(validatedData.thought),
-    };
-  } catch (error) {
-    console.error("Error creating overthinking entry:", error);
-    throw error;
+export const createOverthinkingEntryLocal = async ({ title, thought, solution }) => {
+  if (!thought || thought.trim().length === 0) {
+    throw new Error('Overthinking thought is required and cannot be empty');
   }
-};
-
-
-
-// Fetch recent overthinking entries with mood
-export const fetchRecentOverthinkingEntries = async (limit = 10, signal) => {
-  const entries = await db.getRecentOverthinkingEntries(limit);
-
-  return entries.map((entry) => ({
-    ...entry,
-    mood: getMoodEmoji(entry.thought),
-    truncatedThought:
-      entry.thought.length > 100
-        ? entry.thought.substring(0, 100) + "..."
-        : entry.thought,
-  }));
-};
-
-// Fetch overthinking entries by date with mood
-export const fetchOverthinkingByDate = async (date, signal) => {
-  const entries = await db.getOverthinkingEntriesByDate(date);
-
-  return entries.map((entry) => ({
-    ...entry,
-    mood: getMoodEmoji(entry.thought),
-    truncatedThought:
-      entry.thought.length > 100
-        ? entry.thought.substring(0, 100) + "..."
-        : entry.thought,
-  }));
-};
-
-// Get single overthinking entry by ID
-export const fetchOverthinkingEntryById = async (id) => {
-  const entry = await db.getOverthinkingEntryById(id);
-
-  if (!entry) return null;
-
-  return {
-    ...entry,
-    mood: getMoodEmoji(entry.thought),
-  };
-};
-
-// Update overthinking entry with validation
-export const updateOverthinkingEntryLocal = async ({
-  id,
-  title,
-  thought,
-  solution,
-}) => {
-  // Validate input
-  const validatedData = validateOverthinkingEntry(thought, title, solution);
-
-  const updatedEntry = await db.updateOverthinkingEntry({
-    id,
-    title: validatedData.title,
-    thought: validatedData.thought,
-    solution: validatedData.solution,
-    updated_at: new Date().toISOString(),
+  const entry = await createOverthinkingEntry({
+    title: title?.trim() || '',
+    thought: thought.trim(),
+    solution: solution?.trim() || '',
+    date: new Date().toISOString().split('T')[0],
+    dumped: false,
   });
-
-  return {
-    ...updatedEntry,
-    mood: getMoodEmoji(validatedData.thought),
-  };
+  return normalizeEntry(entry);
 };
 
-// Toggle dumped status for overthinking entry
+export const fetchRecentOverthinkingEntries = async (limit = 10) => {
+  const response = await listOverthinkingEntries({ limit });
+  const entries = response?.entries || (Array.isArray(response) ? response : []);
+  return entries.map(normalizeEntry);
+};
+
+export const fetchOverthinkingByDate = async (date) => {
+  const response = await listOverthinkingEntries({ date, limit: 50 });
+  const entries = response?.entries || (Array.isArray(response) ? response : []);
+  return entries.map(normalizeEntry);
+};
+
+export const fetchOverthinkingEntryById = async (id) => {
+  try {
+    const response = await listOverthinkingEntries({ limit: 200 });
+    const entries = response?.entries || (Array.isArray(response) ? response : []);
+    const entry = entries.find((e) => e._id === id);
+    if (!entry) return null;
+    return normalizeEntry(entry);
+  } catch (error) { return null; }
+};
+
+export const updateOverthinkingEntryLocal = async ({ id, title, thought, solution }) => {
+  if (!thought || thought.trim().length === 0) {
+    throw new Error('Overthinking thought is required and cannot be empty');
+  }
+  const entry = await updateOverthinkingEntryAPI({
+    id, thought: thought.trim(), solution: solution?.trim() || '', dumped: false,
+  });
+  return normalizeEntry(entry);
+};
+
 export const toggleOverthinkingDumpedLocal = async ({ id, dumped }) => {
-  const updatedEntry = await db.toggleOverthinkingDumped({ id, dumped });
-
-  return {
-    ...updatedEntry,
-    mood: getMoodEmoji(updatedEntry.thought),
-  };
+  const entry = await dumpOverthinkingEntryAPI({ id });
+  return normalizeEntry(entry);
 };
 
-// Delete overthinking entry locally only
 export const deleteOverthinkingEntryLocal = async ({ entry }) => {
-  // Delete from local database only
-  await db.deleteOverthinkingEntryById(entry.id);
+  await deleteOverthinkingEntryAPI({ id: entry.id || entry._id });
   return true;
 };
 
-// Get unsynced entries count
-export const getUnsyncedOverthinkingCount = async () => {
-  const unsyncedEntries = await db.getUnsyncedOverthinkingEntries();
-  return unsyncedEntries.length;
-};
-
-// Check if user can create more entries today
-export const canCreateOverthinkingEntryToday = async () => {
-  const today = new Date().toISOString().split("T")[0];
-  const todayCount = await db.getOverthinkingEntriesCountForDate(today);
-  return todayCount < 5;
-};
-
-// Check if user can sync today
-export const canSyncOverthinkingToday = async () => {
-  const todaySyncCount = await db.getOverthinkingSyncAttemptsCountToday();
-  return todaySyncCount < 3;
-};
+export const getUnsyncedOverthinkingCount = async () => 0;
+export const canCreateOverthinkingEntryToday = async () => true;
+export const canSyncOverthinkingToday = async () => false;

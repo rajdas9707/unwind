@@ -31,9 +31,9 @@ import {
   upsertSummaryScore,
   getSummaryScoresInRange,
 } from "../../storage/summaryscore/db";
-import { getJournalEntriesByDate } from "../../storage/journal/db";
-import { getMistakesEntriesByDate } from "../../storage/mistakes/db";
-import { getOverthinkingEntriesByDate } from "../../storage/overthinking/db";
+import { fetchJournalsByDate } from "../../storage/journal/storage";
+import { fetchMistakesByDate } from "../../storage/mistakes/storage";
+import { fetchOverthinkingByDate } from "../../storage/overthinking/storage";
 import { purgeAllUserData } from "../../api/data";
 import { getFreshToken, API_BASE_URL } from "../../api/utils";
 import ChartWebView from "../../components/ChartWebView";
@@ -651,9 +651,9 @@ export default function AccountScreen() {
       // Build cards with counts
       const cardPromises = rows.map(async (row) => {
         const [j, m, o] = await Promise.all([
-          getJournalEntriesByDate(row.date),
-          getMistakesEntriesByDate(row.date),
-          getOverthinkingEntriesByDate(row.date),
+          fetchJournalsByDate(row.date).catch(() => []),
+          fetchMistakesByDate(row.date).catch(() => []),
+          fetchOverthinkingByDate(row.date).catch(() => []),
         ]);
         return {
           date: row.date,

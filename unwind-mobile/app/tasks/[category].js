@@ -26,8 +26,7 @@ import {
   moveTaskToCarriedOverLocal,
   getCategoryEmoji,
 } from "../../storage/todo/storage";
-// import { AuthContext } from "../../context/AuthProvider";
-import { checkNetworkStatus, useNetworkStatus } from "../../utils/networkUtils";
+import { useNetworkStatus } from "../../utils/networkUtils";
 
 // Helper function for safe date formatting
 const formatDate = (dateString) => {
@@ -301,49 +300,15 @@ export default function CategoryTasks() {
 
   const toggleTaskCompletion = async (taskId) => {
     try {
-      // First try regular tasks
-      let task = tasks.find((t) => t.id === taskId || t.localId === taskId);
+      const task = tasks.find((t) => t.id === taskId || t.localId === taskId);
       if (task) {
-        const newCompleted = !task.completed;
-        await toggleTodoCompleteLocal({ id: task.id, completed: newCompleted });
+        await toggleTodoCompleteLocal({ id: task.id, completed: !task.completed });
         await loadTasks();
       } else {
-        // Try carried-over list
-        const backlog = backlogs.find(
-          (t) => t.id === taskId || t.localId === taskId
-        );
-        if (!backlog) {
-          console.log("Task not found with ID:", taskId);
-          return;
-        }
-        const newCompleted = !backlog.completed;
-        await toggleCarriedOverCompleteLocal({
-          id: backlog.id,
-          completed: newCompleted,
-        });
+        const backlog = backlogs.find((t) => t.id === taskId || t.localId === taskId);
+        if (!backlog) return;
+        await toggleCarriedOverCompleteLocal({ id: backlog.id, completed: !backlog.completed });
         await loadBacklogs();
-      }
-
-      // Try to sync if online for regular tasks only
-      if (
-        task &&
-        isOnline &&
-        task.synced &&
-        typeof updateTodoAPI === "function"
-      ) {
-        try {
-          await updateTodoAPI({
-            id: task.server_id,
-            title: task.title,
-            description: task.description,
-            category: task.category,
-            priority: task.priority,
-            dueDate: task.due_date,
-            completed: newCompleted,
-          });
-        } catch (e) {
-          console.log("Failed to sync task completion:", e);
-        }
       }
     } catch (error) {
       Alert.alert("Error toggling task completion:", error.message);
@@ -352,32 +317,14 @@ export default function CategoryTasks() {
 
   const deleteTask = async (taskId) => {
     try {
-      // Try to find task by both id and localId to handle different ID formats
       const task = tasks.find((t) => t.id === taskId || t.localId === taskId);
       if (!task) {
-        console.log("Task not found with ID:", taskId);
         Alert.alert("Error", "Task not found. Please try again.");
         return;
       }
-
-      console.log("Deleting task:", task);
-      console.log("Using task ID for deletion:", task.id);
-
-      // Use the actual task.id for database deletion
+      // Delete via backend (storage.js calls API)
       await deleteTodoEntryLocal(task.id);
-
-      // Try to sync deletion if online and task was synced
-      if (isOnline && task.synced) {
-        try {
-          // idToken removed
-          await deleteTodo({ id: task.server_id });
-        } catch (e) {
-          console.log("Failed to sync task deletion:", e);
-        }
-      }
-
       await loadTasks();
-      console.log("Task deleted successfully");
     } catch (error) {
       console.error("Error deleting task:", error);
       Alert.alert("Error", "Failed to delete task. Please try again.");

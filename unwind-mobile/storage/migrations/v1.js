@@ -1,12 +1,9 @@
 import { initBuyItemsTable } from "../buyItems/db";
 import { initDocumentsTable } from "../document/db";
 import { initIdeasTable } from "../idea/db";
-import { initJournalsTable } from "../journal/db";
-import { initMistakesTable } from "../mistakes/db";
-import { initOverthinkingsTable } from "../overthinking/db";
-import { initTodosTable } from "../todo/db";
 import { initTopicsTable } from "../topic/db";
 import { initwaterRemindersTable } from "../waterreminder/db";
+// Note: journal, mistakes, overthinking, todo use backend-only storage (no SQLite)
 
 export const migrate = async (db) => {
   try {
@@ -14,12 +11,9 @@ export const migrate = async (db) => {
     await initBuyItemsTable(db);
     await initDocumentsTable(db);
     await initIdeasTable(db);
-    await initJournalsTable(db);
-    await initMistakesTable(db);
-    await initOverthinkingsTable(db);
     await initTopicsTable(db);
     await initwaterRemindersTable(db);
-    await initTodosTable(db);
+    // journal, mistakes, overthinking, todo: backend-only (skipped)
 
     console.log("✅ All tables initialized");
   } catch (error) {

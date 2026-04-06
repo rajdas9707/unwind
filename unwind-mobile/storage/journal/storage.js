@@ -1,148 +1,96 @@
 import {
-  deleteJournalEntryById,
-  getJournalEntriesByDate,
-  getJournalEntriesCountForDate,
-  getJournalEntryById,
-  getRecentJournalEntries,
-  getSyncAttemptsCountToday,
-  getUnsyncedJournalEntries,
-  insertJournalEntry,
-  updateJournalEntry,
-} from "./db";
+  createJournalEntry,
+  listJournalEntries,
+  getJournalEntry,
+  updateJournalEntry as updateJournalEntryAPI,
+  deleteJournalEntry as deleteJournalEntryAPI,
+} from '../../api/journal';
 
-// Business logic and validation layer for journal entries
-
-// Validate journal entry content
-const validateJournalEntry = (content, title = "") => {
-  if (!content || typeof content !== "string" || content.trim().length === 0) {
-    throw new Error("Journal content is required and cannot be empty");
-  }
-
-  if (content.trim().length > 5000) {
-    throw new Error("Journal content must be less than 5000 characters");
-  }
-
-  if (title && title.length > 200) {
-    throw new Error("Journal title must be less than 200 characters");
-  }
-
+const normalizeEntry = (entry) => {
+  const content = entry.content || '';
   return {
-    title: title?.trim() || "",
-    content: content.trim(),
+    id: entry._id,
+    _id: entry._id,
+    title: entry.title || '',
+    content,
+    created_at: entry.createdAt || entry.created_at || '',
+    updated_at: entry.updatedAt || entry.updated_at || '',
+    synced: true,
+    server_id: entry._id,
+    summary: entry.summary || null,
+    positives: entry.positives || null,
+    negatives: entry.negatives || null,
+    lessons: entry.lessons || null,
+    rating: entry.rating || null,
+    mood: entry.mood || null,
+    tags: entry.tags || [],
+    truncatedContent: content.length > 100 ? content.substring(0, 100) + '...' : content,
   };
-}
-// Create new journal entry with validation and rate limiting
+};
+
 export const createJournalEntryLocal = async ({ title, content }) => {
+  if (!content || typeof content !== 'string' || content.trim().length === 0) {
+    throw new Error('Journal content is required and cannot be empty');
+  }
+  if (content.trim().length > 5000) {
+    throw new Error('Journal content must be less than 5000 characters');
+  }
+  if (title && title.length > 200) {
+    throw new Error('Journal title must be less than 200 characters');
+  }
+  const entry = await createJournalEntry({
+    title: title?.trim() || '',
+    content: content.trim(),
+  });
+  return normalizeEntry(entry);
+};
+
+export const fetchRecentJournalEntries = async (limit = 10) => {
   try {
-    // Validate input
-    const validatedData = validateJournalEntry(content, title);
-
-    // Check daily limit (3 entries per day)
-    const today = new Date().toISOString().split("T")[0];
-    const todayCount = await getJournalEntriesCountForDate(today);
-
-    if (todayCount >= 3) {
-      throw new Error(
-        "You can only create 3 journal entries per day. Try again tomorrow!"
-      );
-    }
-
-    // Create timestamps
-    const now = new Date().toISOString();
-
-    // Insert locally first
-    const localEntry = await insertJournalEntry({
-      title: validatedData.title,
-      content: validatedData.content,
-      created_at: now,
-      updated_at: now,
-    });
-
-    return {
-      ...localEntry
-    };
+    const response = await listJournalEntries({ limit });
+    const entries = response?.entries || (Array.isArray(response) ? response : []);
+    return entries.map(normalizeEntry);
   } catch (error) {
-    console.error("Error creating journal entry:", error);
+    console.error('Error fetching recent journal entries:', error);
     throw error;
   }
-
-}
-
-// Fetch recent journal entries
-export const fetchRecentJournalEntries = async (limit = 10, signal) => {
-  const entries = await getRecentJournalEntries(limit);
-  console.log("Recent entries fetched/storage/journal/storage.js:", entries);
-  return entries.map((entry) => ({
-    ...entry,
-    truncatedContent:
-      entry.content.length > 100
-        ? entry.content.substring(0, 100) + "..."
-        : entry.content,
-  }));
 };
 
-// Fetch journal entries by date
-export const fetchJournalsByDate = async (date, signal) => {
-  const entries = await getJournalEntriesByDate(date);
-  return entries.map((entry) => ({
-    ...entry,
-    truncatedContent:
-      entry.content.length > 100
-        ? entry.content.substring(0, 100) + "..."
-        : entry.content,
-  }));
+export const fetchJournalsByDate = async (date) => {
+  try {
+    const response = await listJournalEntries({ date, limit: 50 });
+    const entries = response?.entries || (Array.isArray(response) ? response : []);
+    return entries.map(normalizeEntry);
+  } catch (error) {
+    console.error('Error fetching journal entries by date:', error);
+    throw error;
+  }
 };
 
-// Get single journal entry by ID
 export const fetchJournalEntryById = async (id) => {
-  const entry = await getJournalEntryById(id);
-  if (!entry) return null;
-  return {
-    ...entry
-  };
+  try {
+    const entry = await getJournalEntry({ id });
+    if (!entry) return null;
+    return normalizeEntry(entry);
+  } catch (error) {
+    console.error('Error fetching journal entry by id:', error);
+    return null;
+  }
 };
 
-
-// Update journal entry with validation
 export const updateJournalEntryLocal = async ({ id, title, content }) => {
-  // Validate input
-  const validatedData = validateJournalEntry(content, title);
-
-  const updatedEntry = await updateJournalEntry({
-    id,
-    title: validatedData.title,
-    content: validatedData.content,
-    updated_at: new Date().toISOString(),
-  });
-
-  return {
-    ...updatedEntry
-  };
+  if (!content || content.trim().length === 0) {
+    throw new Error('Journal content is required and cannot be empty');
+  }
+  const entry = await updateJournalEntryAPI({ id, title, content });
+  return normalizeEntry(entry);
 };
 
-// Delete journal entry locally only
 export const deleteJournalEntryLocal = async ({ entry }) => {
-  // Delete from local database only
-  await deleteJournalEntryById(entry.id);
+  await deleteJournalEntryAPI({ id: entry.id || entry._id });
   return true;
 };
 
-// Get unsynced entries count
-export const getUnsyncedCount = async () => {
-  const unsyncedEntries = await getUnsyncedJournalEntries();
-  return unsyncedEntries.length;
-};
-
-// Check if user can create more entries today
-export const canCreateEntryToday = async () => {
-  const today = new Date().toISOString().split("T")[0];
-  const todayCount = await getJournalEntriesCountForDate(today);
-  return todayCount < 3;
-};
-
-// Check if user can sync today
-export const canSyncToday = async () => {
-  const todaySyncCount = await getSyncAttemptsCountToday();
-  return todaySyncCount < 3;
-};
-
+export const getUnsyncedCount = async () => 0;
+export const canCreateEntryToday = async () => true;
+export const canSyncToday = async () => false;
